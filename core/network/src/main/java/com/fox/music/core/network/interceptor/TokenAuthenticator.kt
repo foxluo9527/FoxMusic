@@ -24,15 +24,22 @@ class TokenAuthenticator @Inject constructor(
     override fun authenticate(route: Route?, response: Response): Request? {
         synchronized(lock) {
             val currentToken = runBlocking { tokenManager.accessToken.first() }
+            val currentRefreshToken = runBlocking { tokenManager.refreshToken.first() }
 
             // Check if the request that failed already has the latest token
-            val requestToken = response.request.header("Authorization")?.removePrefix("Bearer ")
+            val requestToken = response.request.header("Authorization")
 
             if (currentToken != requestToken && !currentToken.isNullOrBlank()) {
                 // Token was already refreshed by another thread
                 return response.request.newBuilder()
-                    .header("Authorization", "Bearer $currentToken")
+                    .header("Authorization", currentToken)
                     .build()
+            }
+
+            // Check if there are no cached tokens
+            if (currentToken.isNullOrBlank() && currentRefreshToken.isNullOrBlank()) {
+                // No cached tokens, let user re-login
+                return null
             }
 
             // Try to refresh the token
@@ -46,7 +53,7 @@ class TokenAuthenticator @Inject constructor(
                     runBlocking { tokenManager.saveAccessToken(newToken) }
 
                     response.request.newBuilder()
-                        .header("Authorization", "Bearer $newToken")
+                        .header("Authorization", newToken)
                         .build()
                 } else {
                     // Refresh failed, clear tokens and let user re-login

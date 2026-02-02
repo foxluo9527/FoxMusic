@@ -1,5 +1,6 @@
 package com.fox.music.core.network.model
 
+import com.fox.music.core.model.ZeroOneBooleanSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -11,6 +12,7 @@ data class PlaylistDto(
     @SerialName("cover_image")
     val coverImage: String? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean = true,
     @SerialName("creator_id")
     val creatorId: Long? = null,
@@ -37,6 +39,7 @@ data class PlaylistDetailDto(
     @SerialName("cover_image")
     val coverImage: String? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean = true,
     @SerialName("creator_id")
     val creatorId: Long? = null,

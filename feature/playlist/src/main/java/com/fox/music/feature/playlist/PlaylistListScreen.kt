@@ -36,7 +36,7 @@ fun PlaylistListScreen(
             is PlaylistListEffect.NavigateToPlaylist -> onPlaylistClick(it.playlist)
         } }
     }
-    if (state.isLoading && state.myPlaylists.isEmpty()) {
+    if (state.isLoading) {
         LoadingIndicator(useLottie = false)
         return
     }
@@ -68,6 +68,9 @@ fun PlaylistListScreen(
                     }
                 }
             }
+        }
+        if (state.myPlaylists.isEmpty() && state.recommendedPlaylists.isEmpty()){
+
         }
     }
 }

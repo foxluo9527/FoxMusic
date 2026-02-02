@@ -191,7 +191,7 @@ class MusicControllerImpl @Inject constructor(
 
     private fun processUrl(url: String?): String? {
         return url?.let {
-            if (it.startsWith("http")) it else "http://39.106.30.151:9000/$it"
+            if (it.startsWith("http")) it else "http://39.106.30.151:9000$it"
         }
     }
 

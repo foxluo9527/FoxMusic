@@ -69,7 +69,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:datastore"))
     implementation(project(":core:player"))
-
+    implementation(project(":core:network"))
     // Feature modules
     implementation(project(":feature:home"))
     implementation(project(":feature:auth"))
