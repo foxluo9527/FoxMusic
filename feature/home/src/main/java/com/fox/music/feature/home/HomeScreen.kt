@@ -20,7 +20,8 @@ fun HomeScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: HomeViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>) -> Unit = {_, _ ->},
+    onMusicClick: (Music, List<Music>, String) -> Unit = {_, _,_ ->},
+    updateMusicList: (List<Music>, String) -> Unit = {_, _ ->}
 ) {
     val state by viewModel.uiState.collectAsState()
     val pagingItems = state.recommendedMusic.collectAsLazyPagingItems()
@@ -29,10 +30,14 @@ fun HomeScreen(
             when (effect) {
                 is HomeEffect.NavigateToMusic -> onMusicClick(
                     effect.music,
-                    pagingItems.itemSnapshotList.items
+                    pagingItems.itemSnapshotList.items,
+                    HOME_ROUTE
                 )
             }
         }
+    }
+    LaunchedEffect(pagingItems.itemSnapshotList.items) {
+        updateMusicList(pagingItems.itemSnapshotList.items, HOME_ROUTE)
     }
     MusicList(modifier, sharedTransitionScope, animatedContentScope, pagingItems) {
         viewModel.onMusicClick(it)

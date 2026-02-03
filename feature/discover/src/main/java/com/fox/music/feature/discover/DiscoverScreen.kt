@@ -30,14 +30,15 @@ fun DiscoverScreen(
     viewModel: DiscoverViewModel = hiltViewModel(),
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    onMusicClick: (Music, List<Music>) -> Unit = {_,_->},
+    onMusicClick: (Music, List<Music>, String) -> Unit = {_, _,_ ->},
+    updateMusicList: (List<Music>, String) -> Unit = {_, _ ->},
     onPlaylistClick: (Playlist) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) {
         viewModel.effect.collect { e ->
             when (e) {
-                is DiscoverEffect.NavigateToMusic -> onMusicClick(e.music,emptyList())
+                is DiscoverEffect.NavigateToMusic -> onMusicClick(e.music,emptyList(),DISCOVER_ROUTE)
                 is DiscoverEffect.NavigateToPlaylist -> onPlaylistClick(e.playlist)
                 is DiscoverEffect.NavigateToCategory -> {
                     viewModel.sendIntent(

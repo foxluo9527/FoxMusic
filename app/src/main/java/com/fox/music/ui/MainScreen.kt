@@ -57,10 +57,14 @@ fun MainScreen(
         playerState.currentMusic
     ) { playerState.currentMusic != null }
 
-    fun onMusicClick(music: Music,list: List<Music>) {
-        musicController.setPlaylist(list, list.indexOf(music))
+    fun onMusicClick(music: Music, list: List<Music>, key: String) {
+        musicController.setPlaylist(list, list.indexOf(music), key)
         musicController.play()
         navController.navigate(PLAYER_ROUTE)
+    }
+
+    fun onUpdateMusicList(musicList: List<Music>, key: String) {
+        musicController.updatePlaylist(musicList, key)
     }
 
     fun onPlaylistClick(playlist: Playlist) {
@@ -74,7 +78,9 @@ fun MainScreen(
         navScreen: @Composable AnimatedContentScope.(Modifier) -> Unit,
     ) {
         Column {
-            navScreen(Modifier.fillMaxWidth().weight(1f))
+            navScreen(Modifier
+                .fillMaxWidth()
+                .weight(1f))
             if (showBottomBar) {
                 MiniPlayer(
                     playerState = playerState,
@@ -105,6 +111,7 @@ fun MainScreen(
                         HomeScreen(
                             modifier = it,
                             onMusicClick = ::onMusicClick,
+                            updateMusicList = ::onUpdateMusicList,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedContentScope = this@composable
                         )
@@ -118,6 +125,7 @@ fun MainScreen(
                         DiscoverScreen(
                             modifier = it,
                             onMusicClick = ::onMusicClick,
+                            updateMusicList = ::onUpdateMusicList,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedContentScope = this,
                             onPlaylistClick = ::onPlaylistClick
@@ -133,7 +141,8 @@ fun MainScreen(
                             modifier = it,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedContentScope = this,
-                            onMusicClick = ::onMusicClick
+                            onMusicClick = ::onMusicClick,
+                            updateMusicList = ::onUpdateMusicList,
                         )
                     }
                 }
@@ -157,7 +166,8 @@ fun MainScreen(
                     PlaylistDetailScreen(
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedContentScope = this,
-                        onMusicClick = ::onMusicClick
+                        onMusicClick = ::onMusicClick,
+                        updateMusicList = ::onUpdateMusicList,
                     )
                 }
                 composable(PROFILE_ROUTE) {

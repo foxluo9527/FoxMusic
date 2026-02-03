@@ -57,6 +57,8 @@ class MusicControllerImpl @Inject constructor(
 
     private var waitForReplaceOnPlayingMusicId: Long? = null
 
+    private var playingKey: String? = null
+
     init {
         connectToService()
     }
@@ -178,17 +180,22 @@ class MusicControllerImpl @Inject constructor(
         controller?.seekTo(positionMs)
     }
 
-    override fun updatePlaylist(musics: List<Music>) {
+    override fun updatePlaylist(musics: List<Music>, key: String) {
+        if (key != playingKey) {
+            return
+        }
         _playerState.value.currentMusic?.let {music ->
+            playingKey = key
             currentPlaylist = musics
             waitForReplaceOnPlayingMusicId = music.id
             replacePlaylist = musics.map {it.toMediaItem()}
         } ?: run {
-            setPlaylist(musics, 0)
+            setPlaylist(musics, 0, key)
         }
     }
 
-    override fun setPlaylist(musics: List<Music>, startIndex: Int) {
+    override fun setPlaylist(musics: List<Music>, startIndex: Int, key: String) {
+        playingKey = key
         currentPlaylist = musics
         val mediaItems = musics.map { it.toMediaItem() }
         controller?.run {

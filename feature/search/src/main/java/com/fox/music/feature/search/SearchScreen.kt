@@ -35,14 +35,15 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    onMusicClick: (Music, List<Music>) -> Unit = {_,_->},
+    onMusicClick: (Music, List<Music>, String) -> Unit = {_, _,_ ->},
+    updateMusicList: (List<Music>, String) -> Unit = {_, _ ->}
 ) {
     val state by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                is SearchEffect.NavigateToMusic -> onMusicClick(effect.music,emptyList())
+                is SearchEffect.NavigateToMusic -> onMusicClick(effect.music,emptyList(), SEARCH_ROUTE+"-${state.query}")
             }
         }
     }

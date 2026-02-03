@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,12 +18,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.model.Music
+import com.fox.music.core.ui.components.CachedImage
 import com.fox.music.core.ui.components.ErrorView
 import com.fox.music.core.ui.components.LoadingIndicator
 import com.fox.music.core.ui.components.MusicListItem
-import com.fox.music.core.ui.components.CachedImage
-import androidx.compose.foundation.lazy.LazyColumn
-import com.fox.music.core.model.Music
 
 @Composable
 fun PlaylistDetailScreen(
@@ -30,12 +30,16 @@ fun PlaylistDetailScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>) -> Unit = {_,_->},
+    onMusicClick: (Music, List<Music>, String) -> Unit = {_, _, _ ->},
+    updateMusicList: (List<Music>, String) -> Unit = {_, _ ->},
 ) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) {
         viewModel.effect.collect { when (it) {
-            is PlaylistDetailEffect.NavigateToMusic -> onMusicClick(it.music,state.detail?.tracks?.list?:emptyList())
+            is PlaylistDetailEffect.NavigateToMusic -> onMusicClick(
+                it.music, state.detail?.tracks?.list ?: emptyList(),
+                "playlist_detail/" + state.detail?.playlist?.id?.toString()
+            )
         } }
     }
     when {

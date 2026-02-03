@@ -26,9 +26,9 @@ interface MusicController {
     /**
      * 无感切换歌单列表
      */
-    fun updatePlaylist(musics: List<Music>)
+    fun updatePlaylist(musics: List<Music>,key: String)
 
-    fun setPlaylist(musics: List<Music>, startIndex: Int = 0)
+    fun setPlaylist(musics: List<Music>, startIndex: Int = 0,key: String)
 
     fun addToQueue(music: Music)
 
