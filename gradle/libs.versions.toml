@@ -1,50 +1,56 @@
 [versions]
 # Kotlin & Android
-agp = "8.7.3"
-kotlin = "2.1.0"
+agp = "9.0.0"
+bintrayRelease = "0.4.0"
+kotlin = "2.3.0"
 ksp = "2.1.0-1.0.29"
-coreKtx = "1.15.0"
+coreKtx = "1.17.0"
 
 # Compose
-composeBom = "2024.12.01"
-activityCompose = "1.9.3"
-navigationCompose = "2.8.5"
-lifecycleRuntimeKtx = "2.8.7"
+composeBom = "2026.01.01"
+activityCompose = "1.12.3"
+navigationCompose = "2.9.7"
+lifecycleRuntimeKtx = "2.10.0"
 
 # Hilt
-hilt = "2.54"
-hiltNavigationCompose = "1.2.0"
+hilt = "2.59"
+hiltNavigationCompose = "1.3.0"
 
 # Room
-room = "2.6.1"
+room = "2.8.4"
 
 # Network
-retrofit = "2.11.0"
-okhttp = "4.12.0"
-kotlinxSerialization = "1.7.3"
+retrofit = "3.0.0"
+okhttp = "5.3.2"
+kotlinxSerialization = "1.10.0"
 retrofitKotlinxSerialization = "1.0.0"
 
 # Coroutines
-coroutines = "1.9.0"
+coroutines = "1.10.2"
 
 # DataStore
-datastore = "1.1.1"
+datastore = "1.2.0"
 
 # Media3 / ExoPlayer
-media3 = "1.5.1"
+media3 = "1.9.1"
 
 # Image Loading
 coil = "2.7.0"
 
 # Testing
 junit = "4.13.2"
-junitVersion = "1.2.1"
-espressoCore = "3.6.1"
+junitVersion = "1.3.0"
+espressoCore = "3.7.0"
 
 # Other
-lottie = "6.6.2"
+lottie = "6.7.1"
+slf4jAndroid = "1.7.36"
 timber = "5.0.1"
 material3AdaptiveNavigationSuite = "1.4.0"
+
+pagingVersion = "3.4.0"
+
+videocache = "2.7.1"
 
 [libraries]
 # AndroidX Core
@@ -78,6 +84,7 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 
 # Hilt
+bintray-release = { module = "com.novoda:bintray-release", version.ref = "bintrayRelease" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-android-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
@@ -114,6 +121,7 @@ androidx-media3-common = { group = "androidx.media3", name = "media3-common", ve
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
 # Logging
+slf4j-android = { module = "org.slf4j:slf4j-android", version.ref = "slf4jAndroid" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 
 # Animation
@@ -131,6 +139,12 @@ kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-pl
 ksp-gradlePlugin = { group = "com.google.devtools.ksp", name = "com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 compose-gradlePlugin = { group = "org.jetbrains.kotlin", name = "compose-compiler-gradle-plugin", version.ref = "kotlin" }
 androidx-compose-material3-adaptive-navigation-suite = { group = "androidx.compose.material3", name = "material3-adaptive-navigation-suite", version.ref = "material3AdaptiveNavigationSuite" }
+
+#Paging3
+paging = { group = "androidx.paging", name = "paging-runtime", version.ref = "pagingVersion" }
+paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "pagingVersion" }
+
+videocache = { module = "com.danikula:videocache", version.ref = "videocache" }
 
 [bundles]
 compose = [
@@ -183,7 +197,6 @@ media3 = [
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

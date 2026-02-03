@@ -35,6 +35,6 @@ class MainActivityViewModel @Inject constructor(
     }
     
     data class AuthState(
-        val isLoggedIn: Boolean = false
+        val isLoggedIn: Boolean = true
     )
 }

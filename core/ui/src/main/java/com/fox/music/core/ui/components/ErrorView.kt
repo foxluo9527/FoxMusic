@@ -23,23 +23,24 @@ import com.fox.music.core.ui.theme.FoxMusicTheme
 
 @Composable
 fun ErrorView(
+    modifier: Modifier = Modifier.fillMaxSize().padding(16.dp),
     message: String,
-    modifier: Modifier = Modifier,
+    showIcon: Boolean = true,
     onRetry: (() -> Unit)? = null,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = Icons.Filled.ErrorOutline,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.error,
-        )
+        if (showIcon){
+            Icon(
+                imageVector = Icons.Filled.ErrorOutline,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.error,
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = message,

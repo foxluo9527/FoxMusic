@@ -1,5 +1,7 @@
 package com.fox.music.feature.playlist
 
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +29,8 @@ fun playlistDetailRoute(playlistId: Long) = "playlist_detail/$playlistId"
 @Composable
 fun PlaylistListScreen(
     modifier: Modifier = Modifier,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     viewModel: PlaylistListViewModel = hiltViewModel(),
     onPlaylistClick: (com.fox.music.core.model.Playlist) -> Unit = {},
 ) {
@@ -45,14 +49,19 @@ fun PlaylistListScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (state.myPlaylists.isNotEmpty()) {
+        if (state.minePlayList.isNotEmpty()) {
             item {
                 Text("My Playlists", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(state.myPlaylists, key = { it.id }) { playlist ->
-                        PlaylistCard(playlist = playlist, onClick = { viewModel.onPlaylistClick(playlist) })
+                    items(state.minePlayList, key = { it.id }) { playlist ->
+                        PlaylistCard(
+                            playlist = playlist,
+                            onClick = { viewModel.onPlaylistClick(playlist) },
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedContentScope = animatedContentScope
+                        )
                     }
                 }
             }
@@ -64,12 +73,17 @@ fun PlaylistListScreen(
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(state.recommendedPlaylists, key = { it.id }) { playlist ->
-                        PlaylistCard(playlist = playlist, onClick = { viewModel.onPlaylistClick(playlist) })
+                        PlaylistCard(
+                            playlist = playlist,
+                            onClick = { viewModel.onPlaylistClick(playlist) },
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedContentScope = animatedContentScope
+                        )
                     }
                 }
             }
         }
-        if (state.myPlaylists.isEmpty() && state.recommendedPlaylists.isEmpty()){
+        if (state.minePlayList.isEmpty() && state.recommendedPlaylists.isEmpty()){
 
         }
     }

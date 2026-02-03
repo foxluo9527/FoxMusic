@@ -18,7 +18,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,8 +29,16 @@ import javax.inject.Singleton
 
 @Singleton
 class MusicControllerImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
 ) : MusicController {
+
+//    private val proxy by lazy {
+//        HttpProxyCacheServer
+//            .Builder(context)
+//            .maxCacheSize(1024 * 1024 * 1024)
+//            .maxCacheFilesCount(200)
+//            .build()
+//    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -45,6 +52,10 @@ class MusicControllerImpl @Inject constructor(
     override val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
 
     private var currentPlaylist: List<Music> = emptyList()
+
+    private var replacePlaylist: List<MediaItem>? = null
+
+    private var waitForReplaceOnPlayingMusicId: Long? = null
 
     init {
         connectToService()
@@ -118,7 +129,18 @@ class MusicControllerImpl @Inject constructor(
         val player = controller ?: return
         val currentIndex = player.currentMediaItemIndex
         val currentMusic = currentPlaylist.getOrNull(currentIndex)
-
+        if (waitForReplaceOnPlayingMusicId != null && waitForReplaceOnPlayingMusicId != currentMusic?.id) {
+            replacePlaylist?.let {
+                controller?.run {
+                    setMediaItems(it, currentPlaylist.indexOf(currentMusic), 0L)
+                    prepare()
+                    play()
+                }
+            }
+            waitForReplaceOnPlayingMusicId = null
+            replacePlaylist = null
+            return
+        }
         _playerState.value = PlayerState(
             currentMusic = currentMusic,
             playlist = currentPlaylist,
@@ -156,6 +178,16 @@ class MusicControllerImpl @Inject constructor(
         controller?.seekTo(positionMs)
     }
 
+    override fun updatePlaylist(musics: List<Music>) {
+        _playerState.value.currentMusic?.let {music ->
+            currentPlaylist = musics
+            waitForReplaceOnPlayingMusicId = music.id
+            replacePlaylist = musics.map {it.toMediaItem()}
+        } ?: run {
+            setPlaylist(musics, 0)
+        }
+    }
+
     override fun setPlaylist(musics: List<Music>, startIndex: Int) {
         currentPlaylist = musics
         val mediaItems = musics.map { it.toMediaItem() }
@@ -172,16 +204,13 @@ class MusicControllerImpl @Inject constructor(
     }
 
     override fun setRepeatMode(repeatMode: RepeatMode) {
-        controller?.repeatMode = when (repeatMode) {
-            RepeatMode.OFF -> Player.REPEAT_MODE_OFF
-            RepeatMode.ONE -> Player.REPEAT_MODE_ONE
-            RepeatMode.ALL -> Player.REPEAT_MODE_ALL
-        }
-    }
-
-    override fun toggleShuffle() {
         controller?.let {
-            it.shuffleModeEnabled = !it.shuffleModeEnabled
+            it.repeatMode = when(repeatMode) {
+                RepeatMode.RANDOM -> Player.REPEAT_MODE_OFF
+                RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+                RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+            }
+            it.shuffleModeEnabled = repeatMode == RepeatMode.RANDOM
         }
     }
 
@@ -206,7 +235,7 @@ class MusicControllerImpl @Inject constructor(
                     .setArtist(artists.joinToString(", ") { it.name })
                     .setAlbumTitle(album?.title)
                     .apply {
-                        coverImage?.let { setArtworkUri(Uri.parse(it)) }
+                        coverImage?.let {setArtworkUri(Uri.parse(it))}
                     }
                     .build()
             )
@@ -216,6 +245,6 @@ class MusicControllerImpl @Inject constructor(
     private fun Int.toRepeatMode(): RepeatMode = when (this) {
         Player.REPEAT_MODE_ONE -> RepeatMode.ONE
         Player.REPEAT_MODE_ALL -> RepeatMode.ALL
-        else -> RepeatMode.OFF
+        else -> RepeatMode.RANDOM
     }
 }

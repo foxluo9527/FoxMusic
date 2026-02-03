@@ -15,7 +15,6 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MusicPlaybackService : MediaSessionService() {
-
     private var mediaSession: MediaSession? = null
 
     @OptIn(UnstableApi::class)

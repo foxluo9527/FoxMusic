@@ -1,23 +1,22 @@
 package com.fox.music.feature.home
 
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
-import com.fox.music.core.domain.usecase.GetRecommendedPlaylistsUseCase
 import com.fox.music.core.model.Music
-import com.fox.music.core.model.Playlist
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HomeState(
-    val recommendedMusic: List<Music> = emptyList(),
-    val recommendedPlaylists: List<Playlist> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null
+    val recommendedMusic: Flow<PagingData<Music>>,
 ) : UiState
 
 sealed interface HomeIntent : UiIntent {
@@ -27,14 +26,12 @@ sealed interface HomeIntent : UiIntent {
 
 sealed interface HomeEffect : UiEffect {
     data class NavigateToMusic(val music: Music) : HomeEffect
-    data class NavigateToPlaylist(val playlist: Playlist) : HomeEffect
 }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getMusicListUseCase: GetMusicListUseCase,
-    private val getRecommendedPlaylistsUseCase: GetRecommendedPlaylistsUseCase
-) : MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState()) {
+): MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState(flowOf())) {
 
     init {
         viewModelScope.launch {
@@ -52,42 +49,16 @@ class HomeViewModel @Inject constructor(
         sendEffect(HomeEffect.NavigateToMusic(music))
     }
 
-    fun onPlaylistClick(playlist: Playlist) {
-        sendEffect(HomeEffect.NavigateToPlaylist(playlist))
-    }
-
-    fun clearError() {
-        updateState { copy(error = null) }
-    }
-
     private fun loadContent() {
         viewModelScope.launch {
-            updateState { copy(isLoading = true, error = null) }
-            getMusicListUseCase(limit = 20, sort = "recommend")
-                .onSuccess { data ->
-                    updateState {
-                        copy(
-                            recommendedMusic = data.list,
-                            isLoading = false,
-                            error = null
-                        )
-                    }
-                }
-                .onError { _, message ->
-                    updateState {
-                        copy(
-                            isLoading = false,
-                            error = message ?: "Failed to load music"
-                        )
-                    }
-                }
-            getRecommendedPlaylistsUseCase(limit = 10)
-                .onSuccess { data ->
-                    updateState {
-                        copy(recommendedPlaylists = data.list)
-                    }
-                }
-                .onError { _, _ -> }
+            updateState {
+                copy(
+                    recommendedMusic = getMusicListUseCase.getPagingSource(
+                        limit = 20,
+                        sort = "recommend"
+                    ).flow.cachedIn(viewModelScope)
+                )
+            }
         }
     }
 }

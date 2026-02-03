@@ -35,7 +35,6 @@ include(":core:network")
 include(":core:database")
 include(":core:datastore")
 include(":core:player")
-
 // Feature modules
 include(":feature:home")
 include(":feature:auth")

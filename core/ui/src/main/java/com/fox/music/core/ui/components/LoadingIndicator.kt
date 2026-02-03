@@ -20,11 +20,11 @@ import com.fox.music.core.ui.theme.FoxMusicTheme
 
 @Composable
 fun LoadingIndicator(
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier.fillMaxSize(),
     useLottie: Boolean = true,
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
         if (useLottie) {

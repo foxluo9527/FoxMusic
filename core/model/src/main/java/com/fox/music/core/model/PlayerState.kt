@@ -7,13 +7,14 @@ data class PlayerState(
     val isPlaying: Boolean = false,
     val position: Long = 0,
     val duration: Long = 0,
-    val repeatMode: RepeatMode = RepeatMode.OFF,
+    val repeatMode: RepeatMode = RepeatMode.ALL,
     val shuffleMode: Boolean = false,
-    val playbackSpeed: Float = 1.0f
+    val playbackSpeed: Float = 1.0f,
+    val isFavorite: Boolean = false
 )
 
 enum class RepeatMode {
-    OFF,
+    RANDOM,
     ONE,
     ALL
 }

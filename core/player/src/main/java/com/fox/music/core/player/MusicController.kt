@@ -23,13 +23,16 @@ interface MusicController {
 
     fun seekTo(positionMs: Long)
 
+    /**
+     * 无感切换歌单列表
+     */
+    fun updatePlaylist(musics: List<Music>)
+
     fun setPlaylist(musics: List<Music>, startIndex: Int = 0)
 
     fun addToQueue(music: Music)
 
     fun setRepeatMode(repeatMode: RepeatMode)
-
-    fun toggleShuffle()
 
     fun setPlaybackSpeed(speed: Float)
 }

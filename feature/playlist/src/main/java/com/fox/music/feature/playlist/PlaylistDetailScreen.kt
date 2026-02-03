@@ -1,5 +1,7 @@
 package com.fox.music.feature.playlist
 
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,45 +22,50 @@ import com.fox.music.core.ui.components.LoadingIndicator
 import com.fox.music.core.ui.components.MusicListItem
 import com.fox.music.core.ui.components.CachedImage
 import androidx.compose.foundation.lazy.LazyColumn
+import com.fox.music.core.model.Music
 
 @Composable
 fun PlaylistDetailScreen(
     modifier: Modifier = Modifier,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
-    onMusicClick: (com.fox.music.core.model.Music) -> Unit = {},
+    onMusicClick: (Music, List<Music>) -> Unit = {_,_->},
 ) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) {
         viewModel.effect.collect { when (it) {
-            is PlaylistDetailEffect.NavigateToMusic -> onMusicClick(it.music)
+            is PlaylistDetailEffect.NavigateToMusic -> onMusicClick(it.music,state.detail?.tracks?.list?:emptyList())
         } }
     }
     when {
         state.isLoading && state.detail == null -> LoadingIndicator(useLottie = false)
         state.error != null && state.detail == null -> ErrorView(message = state.error!!)
         else -> state.detail?.let { detail ->
-            LazyColumn(
-                modifier = modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp)
-            ) {
-                item {
-                    CachedImage(
-                        imageUrl = detail.playlist.coverImage,
-                        contentDescription = detail.playlist.title,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .padding(bottom = 16.dp)
-                    )
-                    Text(detail.playlist.title, style = MaterialTheme.typography.headlineSmall)
-                    Text(
-                        "${detail.playlist.trackCount} tracks",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                items(detail.tracks.list, key = { it.id }) { music ->
-                    MusicListItem(music = music, onClick = { viewModel.onMusicClick(music) })
+            with(sharedTransitionScope){
+                LazyColumn(
+                    modifier = modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp)
+                ) {
+                    item {
+                        CachedImage(
+                            imageUrl = detail.playlist.coverImage,
+                            contentDescription = detail.playlist.title,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .padding(bottom = 16.dp)
+                        )
+                        Text(detail.playlist.title, style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            "${detail.playlist.trackCount} tracks",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    items(detail.tracks.list, key = { it.id }) { music ->
+                        MusicListItem(music = music,this@with,animatedContentScope, onClick = { viewModel.onMusicClick(music) })
+                    }
                 }
             }
         }

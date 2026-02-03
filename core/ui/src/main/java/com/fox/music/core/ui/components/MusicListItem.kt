@@ -1,5 +1,7 @@
 package com.fox.music.core.ui.components
 
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,78 +29,59 @@ import com.fox.music.core.ui.theme.FoxMusicTheme
 @Composable
 fun MusicListItem(
     music: Music,
-    onClick: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
     onFavoriteClick: (() -> Unit)? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CachedImage(
-            imageUrl = music.coverImage,
-            contentDescription = music.title,
-            modifier = Modifier.size(56.dp),
-            shape = MaterialTheme.shapes.small,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(
-            modifier = Modifier.weight(1f),
+    with(sharedTransitionScope) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = music.title,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            CachedImage(
+                imageUrl = music.coverImage,
+                contentDescription = music.title,
+                modifier = Modifier.size(56.dp),
+                shape = MaterialTheme.shapes.small,
             )
-            Text(
-                text = music.artists.joinToString(", ") { it.name },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Text(
-            text = formatDuration(music.duration),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (onFavoriteClick != null) {
-            IconButton(onClick = onFavoriteClick) {
-                Icon(
-                    imageVector = if (music.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = if (music.isFavorite) "Remove from favorites" else "Add to favorites",
-                    tint = if (music.isFavorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = music.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = music.artists.joinToString(", ") {it.name},
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (onFavoriteClick != null) {
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.sharedElement(
+                        sharedTransitionScope.rememberSharedContentState("music-like-${music.id}"),
+                        animatedContentScope
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (music.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = if (music.isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (music.isFavorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
-    }
-}
-
-private fun formatDuration(millis: Long): String {
-    val totalSeconds = millis / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun MusicListItemPreview() {
-    FoxMusicTheme {
-        MusicListItem(
-            music = Music(
-                id = 1,
-                title = "Sample Song Title",
-                url = "",
-                duration = 215000,
-            ),
-            onClick = {},
-            onFavoriteClick = {},
-        )
     }
 }

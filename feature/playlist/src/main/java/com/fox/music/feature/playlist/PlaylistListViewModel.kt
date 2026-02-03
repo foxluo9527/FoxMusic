@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class PlaylistListState(
-    val myPlaylists: List<Playlist> = emptyList(),
+    val minePlayList: List<Playlist> = emptyList(),
     val recommendedPlaylists: List<Playlist> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null
@@ -51,7 +51,7 @@ class PlaylistListViewModel @Inject constructor(
         viewModelScope.launch {
             updateState { copy(isLoading = true, error = null) }
             getPlaylistListUseCase().onSuccess { list ->
-                updateState { copy(myPlaylists = list, isLoading = false) }
+                updateState {copy(minePlayList = list, isLoading = false)}
             }.onError { _, msg ->
                 updateState { copy(isLoading = false, error = msg ?: "Failed") }
             }
