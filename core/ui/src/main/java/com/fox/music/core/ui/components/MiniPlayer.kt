@@ -100,7 +100,7 @@ fun MiniPlayer(
                         modifier = Modifier.weight(1f),
                     ) {
                         Text(
-                            text = music.title,
+                            text = music.title + "-" + music.artists.joinToString(", ") { it.name },
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -110,33 +110,37 @@ fun MiniPlayer(
                             ),
                         )
                         Text(
-                            text = music.artists.joinToString(", ") {it.name},
-                            style = MaterialTheme.typography.bodySmall,
+                            text = music.getCurrentLyric(playerState.position) ?: "",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.sharedElement(
-                                sharedTransitionScope.rememberSharedContentState(key = "music-artist-${music.id}"),
+                                sharedTransitionScope.rememberSharedContentState(key = "music-lyric-${music.id}"),
                                 animatedContentScope
                             ),
                         )
                     }
-                    IconButton(onClick = onPlayPauseClick,
+                    IconButton(
+                        onClick = onPlayPauseClick,
                         modifier = Modifier.sharedElement(
                             sharedTransitionScope.rememberSharedContentState(key = "music-toggle-${playerState.currentMusic?.id}"),
                             animatedVisibilityScope = animatedContentScope
-                        )) {
+                        )
+                    ) {
                         Icon(
                             imageVector = if (playerState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = if (playerState.isPlaying) "Pause" else "Play",
                             modifier = Modifier.size(32.dp),
                         )
                     }
-                    IconButton(onClick = onNextClick,
+                    IconButton(
+                        onClick = onNextClick,
                         modifier = Modifier.sharedElement(
                             sharedTransitionScope.rememberSharedContentState(key = "music-next-${music.id}"),
                             animatedVisibilityScope = animatedContentScope
-                        )) {
+                        )
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.SkipNext,
                             contentDescription = "Next track",
@@ -153,20 +157,20 @@ fun MiniPlayer(
 @Composable
 private fun MiniPlayerPreview() {
     FoxMusicTheme {
-        var count by remember {mutableStateOf(0)}
+        var count by remember { mutableStateOf(0) }
         SharedTransitionLayout {
             AnimatedContent(
                 targetState = count,
                 transitionSpec = {
                     if (targetState > initialState) {
-                        slideInVertically {it} + fadeIn() togetherWith
-                            slideOutVertically {- it} + fadeOut()
+                        slideInVertically { it } + fadeIn() togetherWith
+                                slideOutVertically { -it } + fadeOut()
                     } else {
-                        slideInVertically {- it} + fadeIn() togetherWith
-                            slideOutVertically {it} + fadeOut()
+                        slideInVertically { -it } + fadeIn() togetherWith
+                                slideOutVertically { it } + fadeOut()
                     }.using(SizeTransform(clip = false))
                 },
-            ) {targetCount ->
+            ) { targetCount ->
                 MiniPlayer(
                     playerState = PlayerState(
                         currentMusic = Music(

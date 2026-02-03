@@ -38,11 +38,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fox.music.core.model.RepeatMode
 import com.fox.music.core.player.MusicController
 import com.fox.music.core.ui.components.CachedImage
+import com.fox.music.core.ui.theme.Gray400
+import com.fox.music.core.ui.theme.Gray700
 
 const val PLAYER_ROUTE = "player"
 
@@ -94,7 +98,7 @@ fun PlayerScreen(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                playerState.currentMusic?.let {music ->
+                playerState.currentMusic?.let { music ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CachedImage(
                             imageUrl = music.coverImage,
@@ -120,7 +124,8 @@ fun PlayerScreen(
                             )
                         )
                         Text(
-                            text = music.artists.joinToString(", ") {it.name}.ifEmpty {"Unknown"},
+                            text = music.artists.joinToString(", ") { it.name }
+                                .ifEmpty { "Unknown" },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.sharedElement(
@@ -128,6 +133,33 @@ fun PlayerScreen(
                                 animatedVisibilityScope = animatedContentScope
                             )
                         )
+                        music.getCurrentLyric(playerState.position)?.let {
+                            Text(
+                                text = it,
+                                color = Gray700,
+                                maxLines = 1,
+                                fontWeight = FontWeight(590),
+                                fontSize = 17.sp,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .padding(top = 30.dp)
+                                    .sharedElement(
+                                        sharedTransitionScope.rememberSharedContentState(key = "music-lyric-${music.id}"),
+                                        animatedVisibilityScope = animatedContentScope
+                                    )
+                            )
+                        }
+                        music.getNextLyric(playerState.position)?.let {
+                            Text(
+                                text = it,
+                                color = Gray400,
+                                fontWeight = FontWeight(400),
+                                maxLines = 1,
+                                fontSize = 15.sp,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 5.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -136,7 +168,7 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                var nextPosition by remember {mutableFloatStateOf(0f)}
+                var nextPosition by remember { mutableFloatStateOf(0f) }
                 val progress by remember(playerState, nextPosition) {
                     derivedStateOf {
                         if (nextPosition == 0f) {
@@ -156,16 +188,16 @@ fun PlayerScreen(
                             0f,
                             playerState.position.toFloat().coerceAtLeast(1f)
                         ) else nextPosition,
-                    onValueChange = {nextPosition = it},
+                    onValueChange = { nextPosition = it },
                     onValueChangeFinished = {
                         musicController.seekTo(nextPosition.toLong())
                         nextPosition = 0f
                     },
-                    valueRange = 0f .. (playerState.duration.toFloat().coerceAtLeast(1f)),
+                    valueRange = 0f..(playerState.duration.toFloat().coerceAtLeast(1f)),
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp),
-                    track = {state ->
+                    track = { state ->
                         Box(Modifier.fillMaxWidth()) {
                             Box(
                                 Modifier
@@ -232,10 +264,10 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {musicController.setRepeatMode(nextRepeatMode(playerState.repeatMode))}) {
+                IconButton(onClick = { musicController.setRepeatMode(nextRepeatMode(playerState.repeatMode)) }) {
                     Icon(
                         painter = painterResource(
-                            when(playerState.repeatMode) {
+                            when (playerState.repeatMode) {
                                 RepeatMode.RANDOM -> R.drawable.ic_random
                                 RepeatMode.ONE -> R.drawable.ic_single
                                 RepeatMode.ALL -> R.drawable.ic_cycle
@@ -244,7 +276,7 @@ fun PlayerScreen(
                         contentDescription = "RepeatModel", modifier = Modifier.size(28.dp)
                     )
                 }
-                IconButton(onClick = {musicController.previous()}) {
+                IconButton(onClick = { musicController.previous() }) {
                     Icon(
                         painter = painterResource(R.drawable.ic_previous),
                         contentDescription = "Previous",
@@ -252,7 +284,7 @@ fun PlayerScreen(
                     )
                 }
                 IconButton(
-                    onClick = {if (playerState.isPlaying) musicController.pause() else musicController.play()},
+                    onClick = { if (playerState.isPlaying) musicController.pause() else musicController.play() },
                     modifier = Modifier.sharedElement(
                         sharedTransitionScope.rememberSharedContentState(key = "music-toggle-${playerState.currentMusic?.id}"),
                         animatedVisibilityScope = animatedContentScope
@@ -265,7 +297,7 @@ fun PlayerScreen(
                     )
                 }
                 IconButton(
-                    onClick = {musicController.next()},
+                    onClick = { musicController.next() },
                     modifier = Modifier.sharedElement(
                         sharedTransitionScope.rememberSharedContentState(key = "music-next-${playerState.currentMusic?.id}"),
                         animatedVisibilityScope = animatedContentScope
@@ -278,7 +310,7 @@ fun PlayerScreen(
                     )
                 }
                 IconButton(
-                    onClick = {onFavoriteClick(playerState.currentMusic?.id)},
+                    onClick = { onFavoriteClick(playerState.currentMusic?.id) },
                     modifier = Modifier.sharedElement(
                         sharedTransitionScope.rememberSharedContentState(key = "music-like-${playerState.currentMusic?.id}"),
                         animatedVisibilityScope = animatedContentScope

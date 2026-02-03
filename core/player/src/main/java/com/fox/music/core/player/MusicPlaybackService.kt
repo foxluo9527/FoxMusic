@@ -8,14 +8,39 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.database.DatabaseProvider
+import androidx.media3.database.ExoDatabaseProvider
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import dagger.hilt.android.AndroidEntryPoint
+import java.io.File
 
+@UnstableApi
 @AndroidEntryPoint
 class MusicPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    val cache: SimpleCache by lazy {
+        val cacheDir = File(cacheDir, "music_cache")
+        val evictor = LeastRecentlyUsedCacheEvictor(2 * 1024 * 1024 * 1024)
+        val databaseProvider: DatabaseProvider = ExoDatabaseProvider(this)
+        SimpleCache(cacheDir, evictor, databaseProvider)
+    }
+
+    private val cacheDataSourceFactory by lazy{
+        CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(
+                DefaultHttpDataSource.Factory()
+                    .setUserAgent("YourAppUserAgent")
+            )
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
 
     @OptIn(UnstableApi::class)
     override fun onCreate() {
@@ -30,6 +55,7 @@ class MusicPlaybackService : MediaSessionService() {
                     .build(),
                 /* handleAudioFocus = */ true
             )
+            .setMediaSourceFactory(ProgressiveMediaSource.Factory(cacheDataSourceFactory))
             .setHandleAudioBecomingNoisy(true)
             .build()
 

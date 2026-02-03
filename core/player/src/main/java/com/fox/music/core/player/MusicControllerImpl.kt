@@ -3,10 +3,18 @@ package com.fox.music.core.player
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import androidx.core.os.bundleOf
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.database.DatabaseProvider
+import androidx.media3.database.ExoDatabaseProvider
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.fox.music.core.model.Music
@@ -24,21 +32,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@UnstableApi
 @Singleton
 class MusicControllerImpl @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : MusicController {
-
-//    private val proxy by lazy {
-//        HttpProxyCacheServer
-//            .Builder(context)
-//            .maxCacheSize(1024 * 1024 * 1024)
-//            .maxCacheFilesCount(200)
-//            .build()
-//    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -68,16 +70,18 @@ class MusicControllerImpl @Inject constructor(
             context,
             ComponentName(context, MusicPlaybackService::class.java)
         )
-        controllerFuture = MediaController.Builder(context, sessionToken).buildAsync().also { future ->
-            future.addListener(
-                {
-                    controller = future.get()
-                    setupPlayerListener()
-                    startPositionUpdates()
-                },
-                MoreExecutors.directExecutor()
-            )
-        }
+        controllerFuture =
+            MediaController.Builder(context, sessionToken)
+                .buildAsync().also { future ->
+                    future.addListener(
+                        {
+                            controller = future.get()
+                            setupPlayerListener()
+                            startPositionUpdates()
+                        },
+                        MoreExecutors.directExecutor()
+                    )
+                }
     }
 
     private fun setupPlayerListener() {
@@ -131,7 +135,7 @@ class MusicControllerImpl @Inject constructor(
         val player = controller ?: return
         val currentIndex = player.currentMediaItemIndex
         val currentMusic = currentPlaylist.getOrNull(currentIndex)
-        if (waitForReplaceOnPlayingMusicId != null && waitForReplaceOnPlayingMusicId != currentMusic?.id) {
+        if (waitForReplaceOnPlayingMusicId != null && (waitForReplaceOnPlayingMusicId != currentMusic?.id || player.playbackState == Player.STATE_ENDED)) {
             replacePlaylist?.let {
                 controller?.run {
                     setMediaItems(it, currentPlaylist.indexOf(currentMusic), 0L)
@@ -165,15 +169,57 @@ class MusicControllerImpl @Inject constructor(
     }
 
     override fun stop() {
-        controller?.stop()
+        val player = controller ?: return
+        val currentIndex = player.currentMediaItemIndex
+        if (waitForReplaceOnPlayingMusicId != null && replacePlaylist != null) {
+            replacePlaylist?.let {
+                controller?.run {
+                    setMediaItems(it, currentIndex + 1, 0L)
+                    prepare()
+                    play()
+                }
+            }
+            waitForReplaceOnPlayingMusicId = null
+            replacePlaylist = null
+            return
+        }
+        player.stop()
     }
 
     override fun next() {
-        controller?.seekToNextMediaItem()
+        val player = controller ?: return
+        val currentIndex = player.currentMediaItemIndex
+        if (waitForReplaceOnPlayingMusicId != null && replacePlaylist != null) {
+            replacePlaylist?.let {
+                controller?.run {
+                    setMediaItems(it, currentIndex + 1, 0L)
+                    prepare()
+                    play()
+                }
+            }
+            waitForReplaceOnPlayingMusicId = null
+            replacePlaylist = null
+            return
+        }
+        player.seekToNextMediaItem()
     }
 
     override fun previous() {
-        controller?.seekToPreviousMediaItem()
+        val player = controller ?: return
+        val currentIndex = player.currentMediaItemIndex
+        if (waitForReplaceOnPlayingMusicId != null && replacePlaylist != null) {
+            replacePlaylist?.let {
+                controller?.run {
+                    setMediaItems(it, currentIndex + 1, 0L)
+                    prepare()
+                    play()
+                }
+            }
+            waitForReplaceOnPlayingMusicId = null
+            replacePlaylist = null
+            return
+        }
+        player.seekToPreviousMediaItem()
     }
 
     override fun seekTo(positionMs: Long) {
@@ -184,11 +230,11 @@ class MusicControllerImpl @Inject constructor(
         if (key != playingKey) {
             return
         }
-        _playerState.value.currentMusic?.let {music ->
+        _playerState.value.currentMusic?.let { music ->
             playingKey = key
             currentPlaylist = musics
             waitForReplaceOnPlayingMusicId = music.id
-            replacePlaylist = musics.map {it.toMediaItem()}
+            replacePlaylist = musics.map { it.toMediaItem() }
         } ?: run {
             setPlaylist(musics, 0, key)
         }
@@ -212,7 +258,7 @@ class MusicControllerImpl @Inject constructor(
 
     override fun setRepeatMode(repeatMode: RepeatMode) {
         controller?.let {
-            it.repeatMode = when(repeatMode) {
+            it.repeatMode = when (repeatMode) {
                 RepeatMode.RANDOM -> Player.REPEAT_MODE_OFF
                 RepeatMode.ONE -> Player.REPEAT_MODE_ONE
                 RepeatMode.ALL -> Player.REPEAT_MODE_ALL
@@ -235,14 +281,21 @@ class MusicControllerImpl @Inject constructor(
         return MediaItem.Builder()
             .setMediaId(id.toString())
             .setUri(processUrl(url))
+            .setCustomCacheKey("cache_${id}")
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(title)
                     .setDescription(description)
                     .setArtist(artists.joinToString(", ") { it.name })
                     .setAlbumTitle(album?.title)
+                    .setExtras(
+                        bundleOf(
+                            "LYRICS" to lyrics,
+                            "LYRICS_TYPE" to "LRC"
+                        )
+                    )
                     .apply {
-                        coverImage?.let {setArtworkUri(Uri.parse(it))}
+                        coverImage?.let { setArtworkUri(Uri.parse(it)) }
                     }
                     .build()
             )

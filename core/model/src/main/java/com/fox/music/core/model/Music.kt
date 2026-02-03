@@ -50,7 +50,16 @@ data class Music(
     val tags: List<Tag> = emptyList(),
     val artists: List<Artist> = emptyList(),
     val album: Album? = null
-)
+) {
+    val lyricLines: List<LyricsParser.LyricLine> = LyricsParser.parseLrc(lyrics ?: "")
+
+    fun getCurrentLyric(currentPosition: Long): String? =
+        LyricsParser.findCurrentLyric(lyricLines, currentPosition)?.text
+
+    fun getNextLyric(currentPosition: Long): String? =
+        LyricsParser.findNextLyric(lyricLines, currentPosition)?.text
+
+}
 
 @Serializable
 data class MusicDetail(
