@@ -3,7 +3,7 @@ package com.fox.music
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.network.token.TokenManager
-import com.fox.music.core.player.MusicController
+import com.fox.music.core.player.controller.MusicController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

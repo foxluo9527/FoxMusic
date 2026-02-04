@@ -1,4 +1,4 @@
-package com.fox.music.feature.auth
+package com.fox.music.feature.auth.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel

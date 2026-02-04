@@ -1,4 +1,4 @@
-package com.fox.music.feature.player
+package com.fox.music.feature.player.ui.screen
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
@@ -42,11 +42,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fox.music.core.model.PlayerState
 import com.fox.music.core.model.RepeatMode
-import com.fox.music.core.player.MusicController
+import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.components.CachedImage
 import com.fox.music.core.ui.theme.Gray400
 import com.fox.music.core.ui.theme.Gray700
+import com.fox.music.feature.player.R
 
 const val PLAYER_ROUTE = "player"
 
@@ -60,7 +62,7 @@ fun PlayerScreen(
     onBack: () -> Unit = {},
     onFavoriteClick: (Long?) -> Unit = {},
 ) {
-    val playerState by musicController.playerState.collectAsState(com.fox.music.core.model.PlayerState())
+    val playerState by musicController.playerState.collectAsState(PlayerState())
     val position by musicController.currentPosition.collectAsState(0L)
     with(sharedTransitionScope) {
         Column(

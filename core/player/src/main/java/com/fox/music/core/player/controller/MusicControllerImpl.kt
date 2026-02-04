@@ -1,4 +1,4 @@
-package com.fox.music.core.player
+package com.fox.music.core.player.controller
 
 import android.content.ComponentName
 import android.content.Context
@@ -9,17 +9,12 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.database.DatabaseProvider
-import androidx.media3.database.ExoDatabaseProvider
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.PlayerState
 import com.fox.music.core.model.RepeatMode
+import com.fox.music.core.player.service.MusicPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -32,9 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.net.toUri
 
 @UnstableApi
 @Singleton
@@ -295,7 +290,7 @@ class MusicControllerImpl @Inject constructor(
                         )
                     )
                     .apply {
-                        coverImage?.let { setArtworkUri(Uri.parse(it)) }
+                        coverImage?.let { setArtworkUri(processUrl(it)?.toUri()) }
                     }
                     .build()
             )

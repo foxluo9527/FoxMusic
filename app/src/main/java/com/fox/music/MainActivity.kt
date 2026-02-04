@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.fox.music.feature.auth.LOGIN_ROUTE
+import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.playlist.PLAYLIST_LIST_ROUTE

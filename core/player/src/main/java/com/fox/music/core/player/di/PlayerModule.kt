@@ -1,7 +1,7 @@
 package com.fox.music.core.player.di
 
-import com.fox.music.core.player.MusicController
-import com.fox.music.core.player.MusicControllerImpl
+import com.fox.music.core.player.controller.MusicController
+import com.fox.music.core.player.controller.MusicControllerImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

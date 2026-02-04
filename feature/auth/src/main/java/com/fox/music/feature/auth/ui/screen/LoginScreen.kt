@@ -1,4 +1,4 @@
-package com.fox.music.feature.auth
+package com.fox.music.feature.auth.ui.screen
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.feature.auth.viewmodel.AuthEffect
+import com.fox.music.feature.auth.viewmodel.AuthIntent
+import com.fox.music.feature.auth.viewmodel.AuthViewModel
 
 const val LOGIN_ROUTE = "login"
 

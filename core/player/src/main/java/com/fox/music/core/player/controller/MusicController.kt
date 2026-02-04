@@ -1,4 +1,4 @@
-package com.fox.music.core.player
+package com.fox.music.core.player.controller
 
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.PlayerState

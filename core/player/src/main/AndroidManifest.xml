@@ -6,7 +6,7 @@
 
     <application>
         <service
-            android:name="com.fox.music.core.player.MusicPlaybackService"
+            android:name="com.fox.music.core.player.service.MusicPlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
