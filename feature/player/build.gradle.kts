@@ -20,18 +20,23 @@ android {
 
     buildFeatures {
         compose = true
+        viewBinding = true
     }
 }
 
 dependencies {
+    api("com.github.cy745:EaseView:e11c3208a9")
+    implementation("androidx.dynamicanimation:dynamicanimation-ktx:1.0.0-alpha03")
     implementation(project(":core:common"))
     implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":core:domain"))
     implementation(project(":core:player"))
-
+    implementation(libs.lyricviewx)
     // Hilt
     implementation(libs.hilt.android)
+    implementation(libs.androidx.cardview)
+    implementation(libs.androidx.constraintlayout)
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
     

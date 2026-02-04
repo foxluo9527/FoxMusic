@@ -13,6 +13,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -77,7 +78,7 @@ fun PlayerScreen(
                 ) {
                     IconButton(onClick = onBack, Modifier.align(Alignment.CenterStart)) {
                         Icon(
-                            Icons.Default.Close, contentDescription = "Back",
+                            Icons.Default.ArrowBackIosNew, contentDescription = "Back",
                             modifier = Modifier.size(30.dp),
                             tint = contrastColor
                         )

@@ -24,7 +24,8 @@ dependencies {
     api(libs.bundles.coroutines)
     api(libs.timber)
     api(libs.bundles.lifecycle)
-
+    api(libs.utilcodex)
+    api(libs.xxpermissions)
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)

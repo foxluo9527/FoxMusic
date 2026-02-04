@@ -52,8 +52,16 @@ pagingVersion = "3.4.0"
 
 videocache = "2.7.1"
 paletteKtx = "1.0.0"
+utilcodex = "1.31.1"
+cardview = "1.0.0"
+xxpermissions = "20.0"
+lyricviewx = "1.4.0-alpha02"
+constraintlayout = "2.2.1"
 
 [libraries]
+lyricviewx = { module = "com.github.Moriafly:LyricViewX", version.ref = "lyricviewx" }
+xxpermissions = { module = "com.github.getActivity:XXPermissions", version.ref = "xxpermissions" }
+utilcodex = { module = "com.blankj:utilcodex", version.ref = "utilcodex" }
 # AndroidX Core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 
@@ -148,6 +156,8 @@ paging-compose = { group = "androidx.paging", name = "paging-compose", version.r
 
 videocache = { module = "com.danikula:videocache", version.ref = "videocache" }
 androidx-palette-ktx = { group = "androidx.palette", name = "palette-ktx", version.ref = "paletteKtx" }
+androidx-cardview = { group = "androidx.cardview", name = "cardview", version.ref = "cardview" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 
 [bundles]
 compose = [
