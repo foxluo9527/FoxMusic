@@ -1,4 +1,4 @@
-package com.fox.music.core.ui.components
+package com.fox.music.core.ui.component
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope

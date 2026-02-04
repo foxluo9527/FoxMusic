@@ -51,6 +51,7 @@ material3AdaptiveNavigationSuite = "1.4.0"
 pagingVersion = "3.4.0"
 
 videocache = "2.7.1"
+paletteKtx = "1.0.0"
 
 [libraries]
 # AndroidX Core
@@ -146,6 +147,7 @@ paging = { group = "androidx.paging", name = "paging-runtime", version.ref = "pa
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "pagingVersion" }
 
 videocache = { module = "com.danikula:videocache", version.ref = "videocache" }
+androidx-palette-ktx = { group = "androidx.palette", name = "palette-ktx", version.ref = "paletteKtx" }
 
 [bundles]
 compose = [

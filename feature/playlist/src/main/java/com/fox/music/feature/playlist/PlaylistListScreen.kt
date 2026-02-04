@@ -18,8 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fox.music.core.ui.components.LoadingIndicator
-import com.fox.music.core.ui.components.PlaylistCard
+import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.PlaylistCard
 
 const val PLAYLIST_LIST_ROUTE = "playlist_list"
 const val PLAYLIST_DETAIL_ROUTE = "playlist_detail/{playlistId}"

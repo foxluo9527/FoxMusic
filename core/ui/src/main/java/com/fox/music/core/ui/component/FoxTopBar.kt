@@ -1,4 +1,4 @@
-package com.fox.music.core.ui.components
+package com.fox.music.core.ui.component
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack

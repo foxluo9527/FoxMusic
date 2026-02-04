@@ -1,4 +1,4 @@
-package com.fox.music.core.ui.components
+package com.fox.music.core.ui.component
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fox.music.core.model.Playlist
 import com.fox.music.core.ui.theme.FoxMusicTheme
 

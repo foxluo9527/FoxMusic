@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.Playlist
-import com.fox.music.core.ui.components.MusicListItem
+import com.fox.music.core.ui.component.MusicListItem
 
 const val DISCOVER_ROUTE = "discover"
 

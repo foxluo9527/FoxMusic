@@ -1,4 +1,4 @@
-package com.fox.music.core.ui.components
+package com.fox.music.core.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

@@ -22,10 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.Music
-import com.fox.music.core.ui.components.ErrorView
-import com.fox.music.core.ui.components.FoxSearchBar
-import com.fox.music.core.ui.components.LoadingIndicator
-import com.fox.music.core.ui.components.MusicListItem
+import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxSearchBar
+import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.MusicListItem
 
 const val SEARCH_ROUTE = "search"
 

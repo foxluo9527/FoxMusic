@@ -1,4 +1,4 @@
-package com.fox.music.core.ui.components
+package com.fox.music.core.ui.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

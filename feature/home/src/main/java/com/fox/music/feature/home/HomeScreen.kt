@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.Music
-import com.fox.music.core.ui.components.MusicList
+import com.fox.music.core.ui.component.MusicList
 
 const val HOME_ROUTE = "home"
 

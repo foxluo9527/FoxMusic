@@ -18,6 +18,7 @@ dependencies {
     implementation(project(":core:model"))
     api(platform(libs.androidx.compose.bom))
     api(libs.bundles.compose)
+    implementation(libs.androidx.palette.ktx)
     debugImplementation(libs.bundles.compose.debug)
     api(libs.androidx.compose.material.icons.extended)
     api(libs.coil.compose)

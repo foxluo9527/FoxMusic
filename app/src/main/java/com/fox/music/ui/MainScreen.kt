@@ -23,7 +23,7 @@ import androidx.navigation.navArgument
 import com.fox.music.MainActivityViewModel
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.Playlist
-import com.fox.music.core.ui.components.MiniPlayer
+import com.fox.music.core.ui.component.MiniPlayer
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
 import com.fox.music.feature.chat.CHAT_ROUTE
