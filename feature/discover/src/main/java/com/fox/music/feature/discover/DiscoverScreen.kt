@@ -52,9 +52,9 @@ fun DiscoverScreen(
         }
     }
 //    Scaffold(modifier = Modifier.fillMaxSize(),topBar = {
-//
+//      顶部topBar切换分类
 //    }) {
-//
+//      底部Pager，每页展示分类所有歌单
 //    }
     with(sharedTransitionScope) {
         LazyColumn(
