@@ -53,6 +53,10 @@ data class Music(
 ) {
     val lyricLines: List<LyricsParser.LyricLine> = LyricsParser.parseLrc(lyrics ?: "")
 
+    // 双语歌词
+    val bilingualLyricLines: List<LyricsParser.BilingualLyricLine> =
+        LyricsParser.parseBilingualLrc(lyrics ?: "", lyricsTrans)
+
     fun getCurrentLyric(currentPosition: Long): String? =
         LyricsParser.findCurrentLyric(lyricLines, currentPosition)?.text
 

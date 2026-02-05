@@ -1,5 +1,7 @@
 package com.fox.music
 
+import android.app.ComponentCaller
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,6 +19,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,13 +43,27 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val startRoute by lazy {
+        mutableStateOf(HOME_ROUTE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        intent.getStringExtra("start_route")?.ifEmpty { null }?.let {
+            startRoute.value = it
+        }
         enableEdgeToEdge()
         setContent {
             FoxMusicTheme {
-                FoxMusicApp()
+                FoxMusicApp(startRoute)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent, caller: ComponentCaller) {
+        super.onNewIntent(intent, caller)
+        intent.getStringExtra("start_route")?.ifEmpty { null }?.let {
+            startRoute.value = it
         }
     }
 }
@@ -64,7 +81,7 @@ enum class AppDestinations(
 }
 
 @Composable
-fun FoxMusicApp() {
+fun FoxMusicApp(startRoute: MutableState<String>) {
     val viewModel: MainActivityViewModel = hiltViewModel()
     val authState by viewModel.authState.collectAsState()
     val navController = rememberNavController()
@@ -72,7 +89,9 @@ fun FoxMusicApp() {
     val currentRoute = backStackEntry?.destination?.route
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showBottomNavBar by remember {mutableStateOf(true)}
-
+    LaunchedEffect(startRoute.value) {
+        navController.navigate(startRoute.value)
+    }
     LaunchedEffect(authState.isLoggedIn) {
         if (!authState.isLoggedIn && currentRoute != LOGIN_ROUTE) {
             navController.navigate(LOGIN_ROUTE)

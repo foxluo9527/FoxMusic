@@ -15,6 +15,8 @@ interface MusicController {
 
     fun pause()
 
+    fun togglePlay()
+
     fun stop()
 
     fun next()

@@ -58,8 +58,8 @@ fun ImageWithPaletteColors(
         model = ImageRequest.Builder(LocalContext.current)
             .data(processUrl(url))
             .transformations(BlurTransformation(radius = 90, scale = 1f))
-            .diskCacheKey(url)
-            .memoryCacheKey(url)
+            .diskCacheKey("$url?cacheBlur")
+            .memoryCacheKey("$url?cacheBlur")
             .build()
     )
 

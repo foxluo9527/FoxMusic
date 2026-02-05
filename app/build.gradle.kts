@@ -87,6 +87,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.bundles.compose)
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
+    implementation(libs.androidx.lifecycle.process)
     debugImplementation(libs.bundles.compose.debug)
 
     // Navigation

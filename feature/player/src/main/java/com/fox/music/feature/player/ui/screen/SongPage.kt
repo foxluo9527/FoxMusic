@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -34,8 +33,6 @@ import com.fox.music.core.model.PlayerState
 import com.fox.music.core.model.RepeatMode
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.CachedImage
-import com.fox.music.core.ui.theme.Gray400
-import com.fox.music.core.ui.theme.Gray700
 import com.fox.music.feature.player.R
 
 /**
@@ -57,7 +54,9 @@ fun SharedTransitionScope.SongPage(
         modifier
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
             contentAlignment = Alignment.Center
         ) {
             playerState.currentMusic?.let {music ->
@@ -86,40 +85,43 @@ fun SharedTransitionScope.SongPage(
                             text = music.title,
                             style = MaterialTheme.typography.titleLarge,
                             maxLines = 1,
+                            color = contrastColor,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = music.artists.joinToString(", ") {it.name}
                                 .ifEmpty {"Unknown"},
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = contrastColor
                         )
                     }
                     Column(
-                        Modifier.clickable{
-                            onClickLyric()
-                        }.sharedElement(
-                            rememberSharedContentState(key = "music-lyric-${music.id}"),
-                            animatedVisibilityScope = animatedContentScope
-                        ),
+                        Modifier
+                            .clickable {
+                                onClickLyric()
+                            }
+                            .sharedElement(
+                                rememberSharedContentState(key = "music-lyric-${music.id}"),
+                                animatedVisibilityScope = animatedContentScope
+                            ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         music.getCurrentLyric(playerState.position)?.let {
                             Text(
                                 text = it,
-                                color = Gray700,
                                 maxLines = 1,
                                 fontWeight = FontWeight(590),
                                 fontSize = 17.sp,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
-                                    .padding(top = 30.dp)
+                                    .padding(top = 30.dp),
+                                color = contrastColor
                             )
                         }
                         music.getNextLyric(playerState.position)?.let {
                             Text(
                                 text = it,
-                                color = Gray400,
+                                color = contrastColor.copy(alpha = 0.8f),
                                 fontWeight = FontWeight(400),
                                 maxLines = 1,
                                 fontSize = 15.sp,
@@ -174,7 +176,7 @@ fun SharedTransitionScope.SongPage(
                 )
             ) {
                 Icon(
-                    painterResource(if (playerState.isPlaying) R.drawable.iv_pause else R.drawable.iv_play),
+                    painterResource(if (playerState.isPlaying) com.fox.music.core.common.R.drawable.iv_pause else com.fox.music.core.common.R.drawable.iv_play),
                     contentDescription = if (playerState.isPlaying) "Pause" else "Play",
                     modifier = Modifier.size(30.dp),
                     tint = contrastColor

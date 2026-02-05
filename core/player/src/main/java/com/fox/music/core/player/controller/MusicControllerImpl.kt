@@ -2,7 +2,7 @@ package com.fox.music.core.player.controller
 
 import android.content.ComponentName
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -17,7 +17,10 @@ import com.fox.music.core.model.RepeatMode
 import com.fox.music.core.player.service.MusicPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,7 +32,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
-import androidx.core.net.toUri
 
 @UnstableApi
 @Singleton
@@ -161,6 +163,16 @@ class MusicControllerImpl @Inject constructor(
 
     override fun pause() {
         controller?.pause()
+    }
+
+    override fun togglePlay() {
+        controller?.let {
+            if (it.isPlaying) {
+                pause()
+            } else {
+                play()
+            }
+        }
     }
 
     override fun stop() {

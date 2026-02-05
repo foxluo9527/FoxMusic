@@ -1,248 +1,291 @@
 package com.fox.music.feature.player.ui.screen
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.blankj.utilcode.util.ConvertUtils.px2dp
 import com.fox.music.core.model.LyricsParser
 import com.fox.music.core.model.PlayerState
+import com.fox.music.core.player.controller.MusicController
 import com.fox.music.feature.player.R
+import com.fox.music.feature.player.lyric.data.LyricStyle
 import kotlinx.coroutines.delay
 
-/**
- *    Author : 罗福林
- *    Date   : 2026/2/4
- *    Desc   :
- */
 @Composable
 fun LyricPage(
     modifier: Modifier,
-    playerState: PlayerState,
+    style: LyricStyle,
     displayComment: String? = null,
+    musicController: MusicController,
     dominantColor: Color,
     contrastColor: Color,
 ) {
-    val lyricLines by remember {derivedStateOf {playerState.currentMusic?.lyricLines}}
-    Column(modifier) {
-        LyricComponent(
-            Modifier
+    val playerState by musicController.playerState.collectAsState(PlayerState())
+    val bilingualLyricLines by remember {
+        derivedStateOf {
+            playerState.currentMusic?.bilingualLyricLines ?: emptyList()
+        }
+    }
+    val isPlaying by remember {derivedStateOf {playerState.isPlaying}}
+    val position by remember {derivedStateOf {playerState.position}}
+
+    Column(modifier.fillMaxSize()) {
+        BilingualLyricComponent(
+            modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            lyricLines ?: emptyList(),
-            playerState.position,
-            {},
-            playerState.isPlaying,
-            inactiveLineColor = contrastColor
+            lyrics = bilingualLyricLines,
+            currentTimeMs = position,
+            onSeek = {timeMs ->
+                musicController.seekTo(timeMs)
+            },
+            activeLineColor = Color(style.highlightColor),
+            inactiveLineColor = Color(style.textColor),
+            activeLineFontSize = style.fontSize + 4,
+            inactiveLineFontSize = style.fontSize
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 评论区域
             Row(
-                Modifier
+                modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
-                    .background(contrastColor, CircleShape),
+                    .height(40.dp)
+                    .background(contrastColor, CircleShape)
+                    .clickable { /* 打开评论 */},
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_chat), contentDescription = null,
-                    Modifier.padding(horizontal = 10.dp)
+                Icon(
+                    painter = painterResource(R.drawable.ic_chat),
+                    contentDescription = "评论",
+                    modifier = Modifier.padding(start = 12.dp, end = 8.dp),
+                    tint = dominantColor
                 )
                 Text(
                     displayComment ?: "暂无评论",
                     color = dominantColor,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight(590),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
             }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // 播放/暂停按钮
             Box(
-                Modifier
-                    .padding(10.dp)
+                modifier = Modifier
                     .size(40.dp)
-                    .background(contrastColor, CircleShape),
+                    .background(contrastColor, CircleShape)
+                    .clickable {
+                        musicController.togglePlay()
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(if (playerState.isPlaying) R.drawable.iv_pause else R.drawable.iv_play),
-                    contentDescription = null
+                Icon(
+                    painter = painterResource(
+                        if (isPlaying) com.fox.music.core.common.R.drawable.iv_pause
+                        else com.fox.music.core.common.R.drawable.iv_play
+                    ),
+                    contentDescription = if (isPlaying) "暂停" else "播放",
+                    tint = dominantColor,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
+/**
+ * 双语歌词组件
+ */
 @Composable
-fun LyricComponent(
+fun BilingualLyricComponent(
     modifier: Modifier = Modifier,
-    lyrics: List<LyricsParser.LyricLine>,
+    lyrics: List<LyricsParser.BilingualLyricLine>,
     currentTimeMs: Long,
     onSeek: (Long) -> Unit,
-    isPlaying: Boolean = true,
-    lineHeight: Dp = 60.dp,
     activeLineColor: Color = Color(0xFF4CAF50),
     inactiveLineColor: Color = Color.Gray,
     activeLineFontSize: Int = 20,
     inactiveLineFontSize: Int = 16,
 ) {
     val listState = rememberLazyListState()
-    var isDragging by remember {mutableStateOf(false)}
-    var dragOffset by remember {mutableFloatStateOf(0f)}
 
     // 当前高亮行索引
     val currentHighlightIndex = remember(lyrics, currentTimeMs) {
-        findCurrentLyricIndex(lyrics, currentTimeMs)
+        findCurrentBilingualLyricIndex(lyrics, currentTimeMs)
     }
 
-    // 自动滚动到当前歌词（仅在播放状态且非拖动时）
-    LaunchedEffect(currentHighlightIndex, isDragging, isPlaying) {
-        if (isPlaying && ! isDragging && currentHighlightIndex >= 0) {
-            // 延迟一下确保拖动结束
-            delay(100)
-            listState.animateScrollToItem(
-                index = maxOf(0, currentHighlightIndex - 2), // 提前两行显示
-                scrollOffset = 0
-            )
+    val linesHeight = remember {mutableMapOf<Int, Float>()}
+
+    var nextAutoScrollableTime by remember {mutableLongStateOf(System.currentTimeMillis())}
+
+    LaunchedEffect(lyrics) {
+        linesHeight.clear()
+    }
+
+    BoxWithConstraints(modifier) {
+        val maxHeight = constraints.maxHeight
+        val halfHeight = px2dp(maxHeight / 2f).toFloat()
+        // 自动滚动到高亮行居中
+        LaunchedEffect(currentHighlightIndex, nextAutoScrollableTime) {
+            if (currentHighlightIndex != - 1 && ! listState.isScrollInProgress && System.currentTimeMillis() >= nextAutoScrollableTime) {
+                listState.animateScrollToItem(
+                    currentHighlightIndex + 1,
+                    - (maxHeight / 2f - (linesHeight[currentHighlightIndex] ?: 0f)).toInt()
+                )
+            }
         }
-    }
-
-    // 拖动结束时的回调
-    LaunchedEffect(isDragging) {
-        if (! isDragging && dragOffset != 0f) {
-            // 计算拖动后的时间位置
-            val draggedTimeMs = calculateDraggedTime(
-                lyrics = lyrics,
-                listState = listState,
-                dragOffset = dragOffset,
-                lineHeight = lineHeight
-            )
-
-            // 回调拖动后的时间
-            onSeek(draggedTimeMs)
-
-            // 重置拖动偏移
-            dragOffset = 0f
+        LaunchedEffect(listState.isScrollInProgress) {
+            if (! listState.isScrollInProgress) {
+                delay(2000)
+                nextAutoScrollableTime = System.currentTimeMillis() - 100
+            }
         }
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .draggable(
-                orientation = Orientation.Vertical,
-                state = rememberDraggableState {delta ->
-                    dragOffset += delta
-                    isDragging = true
-                },
-                onDragStarted = {
-                    isDragging = true
-                },
-                onDragStopped = {
-                    isDragging = false
-                }
-            )
-    ) {
         LazyColumn(
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
+            // 顶部留白
+            item {
+                Spacer(modifier = Modifier.height(halfHeight.dp))
+            }
+
             itemsIndexed(lyrics) {index, lyricLine ->
                 val isActive = index == currentHighlightIndex
-
-                LyricLineItem(
+                var padding = remember {8.dp}
+                BilingualLyricLineItem(
                     lyricLine = lyricLine,
                     isActive = isActive,
-                    lineHeight = lineHeight,
                     activeColor = activeLineColor,
                     inactiveColor = inactiveLineColor,
                     activeFontSize = activeLineFontSize,
                     inactiveFontSize = inactiveLineFontSize,
+                    onClick = {
+                        onSeek(lyricLine.startTimeMs)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
+                        .onGloballyPositioned {
+                            if (linesHeight[index] == null) {
+                                val height = px2dp(it.size.height.toFloat())
+                                padding = height.dp / 2f
+                                linesHeight[index] = height.toFloat()
+                            }
+                        }
+                        .padding(horizontal = 24.dp, vertical = padding)
                 )
             }
-        }
 
-        // 拖动指示器（可选）
-        if (isDragging) {
-            DraggingIndicator()
+            // 底部留白
+            item {
+                Spacer(modifier = Modifier.height(halfHeight.dp))
+            }
         }
     }
 }
 
+/**
+ * 双语歌词行组件
+ */
 @Composable
-private fun LyricLineItem(
-    lyricLine: LyricsParser.LyricLine,
+private fun BilingualLyricLineItem(
+    lyricLine: LyricsParser.BilingualLyricLine,
     isActive: Boolean,
-    lineHeight: Dp,
     activeColor: Color,
     inactiveColor: Color,
     activeFontSize: Int,
     inactiveFontSize: Int,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier.height(lineHeight)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.clickable(onClick = onClick)
     ) {
+        // 原文歌词
         Text(
-            text = lyricLine.text,
+            text = lyricLine.originalText,
             color = if (isActive) activeColor else inactiveColor,
             fontSize = if (isActive) activeFontSize.sp else inactiveFontSize.sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 2,
             textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
+
+        // 翻译歌词（如果存在）
+        if (! lyricLine.translatedText.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = lyricLine.translatedText ?: "",
+                color = if (isActive) activeColor.copy(alpha = 0.9f) else inactiveColor.copy(alpha = 0.7f),
+                fontSize = if (isActive) (activeFontSize - 2).sp else (inactiveFontSize - 2).sp,
+                fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 
-@Composable
-private fun DraggingIndicator() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(2.dp)
-            .background(Color.Red.copy(alpha = 0.7f))
-    )
-}
-
-// 查找当前时间对应的歌词索引
-private fun findCurrentLyricIndex(lyrics: List<LyricsParser.LyricLine>, currentTimeMs: Long): Int {
+/**
+ * 查找当前时间对应的双语歌词索引
+ */
+private fun findCurrentBilingualLyricIndex(
+    lyrics: List<LyricsParser.BilingualLyricLine>,
+    currentTimeMs: Long,
+): Int {
     if (lyrics.isEmpty()) return - 1
 
     // 二分查找当前时间对应的歌词行
@@ -263,32 +306,4 @@ private fun findCurrentLyricIndex(lyrics: List<LyricsParser.LyricLine>, currentT
     }
 
     return result
-}
-
-// 计算拖动后的时间
-private fun calculateDraggedTime(
-    lyrics: List<LyricsParser.LyricLine>,
-    listState: LazyListState,
-    dragOffset: Float,
-    lineHeight: Dp,
-): Long {
-    if (lyrics.isEmpty()) return 0L
-
-    // 计算拖动的行数
-    val linesDragged = (dragOffset / lineHeight.value).toInt()
-
-    // 获取当前可视区域的大致索引
-    val layoutInfo = listState.layoutInfo
-    val visibleItems = layoutInfo.visibleItemsInfo
-
-    if (visibleItems.isEmpty()) return 0L
-
-    // 使用中间可见项作为参考点
-    val middleIndex = visibleItems[visibleItems.size / 2].index
-
-    // 计算目标索引
-    val targetIndex = (middleIndex - linesDragged).coerceIn(0, lyrics.lastIndex)
-
-    // 返回目标歌词行的开始时间
-    return lyrics[targetIndex].startTimeMs
 }

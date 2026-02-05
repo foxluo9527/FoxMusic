@@ -29,7 +29,8 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
-
+    api(libs.github.glide)
+    api(libs.glide.transformations)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }
