@@ -25,8 +25,6 @@ android {
 }
 
 dependencies {
-    api("com.github.cy745:EaseView:e11c3208a9")
-    implementation("androidx.dynamicanimation:dynamicanimation-ktx:1.0.0-alpha03")
     implementation(project(":core:common"))
     implementation(project(":core:model"))
     implementation(project(":core:ui"))

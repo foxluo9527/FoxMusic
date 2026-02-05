@@ -37,6 +37,9 @@ import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.ImageWithPaletteColors
 import com.fox.music.core.ui.component.TabSwitch
 import com.fox.music.feature.player.lyric.manager.LyricStyleManager
+import com.fox.music.feature.player.ui.component.LyricPage
+import com.fox.music.feature.player.ui.component.LyricSettings
+import com.fox.music.feature.player.ui.component.SongPage
 import kotlinx.coroutines.launch
 
 const val PLAYER_ROUTE = "player"
@@ -133,7 +136,10 @@ fun PlayerScreen(
                     }
                 }
                 if (showLyricSettings && pager.currentPage == 1) {
-                    LyricSettings(Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.3f)).padding(vertical = 8.dp))
+                    LyricSettings(
+                        Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.3f))
+                            .padding(vertical = 8.dp)
+                    )
                 }
             }
         }

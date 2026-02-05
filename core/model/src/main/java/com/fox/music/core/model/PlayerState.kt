@@ -5,6 +5,7 @@ data class PlayerState(
     val playlist: List<Music> = emptyList(),
     val currentIndex: Int = 0,
     val isPlaying: Boolean = false,
+    val isLoading : Boolean = false,
     val position: Long = 0,
     val duration: Long = 0,
     val repeatMode: RepeatMode = RepeatMode.ALL,

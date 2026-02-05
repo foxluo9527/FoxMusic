@@ -26,6 +26,7 @@ fun ErrorView(
     modifier: Modifier = Modifier.fillMaxSize().padding(16.dp),
     message: String,
     showIcon: Boolean = true,
+    retryText:String = "Retry",
     onRetry: (() -> Unit)? = null,
 ) {
     Column(
@@ -51,7 +52,7 @@ fun ErrorView(
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(24.dp))
             Button(onClick = onRetry) {
-                Text(text = "Retry")
+                Text(text = retryText)
             }
         }
     }

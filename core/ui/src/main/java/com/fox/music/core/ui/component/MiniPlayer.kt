@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -128,11 +129,18 @@ fun MiniPlayer(
                             animatedVisibilityScope = animatedContentScope
                         )
                     ) {
-                        Icon(
-                            imageVector = if (playerState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (playerState.isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(32.dp),
-                        )
+                        if (playerState.isLoading){
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }else{
+                            Icon(
+                                imageVector = if (playerState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (playerState.isPlaying) "Pause" else "Play",
+                                modifier = Modifier.size(32.dp),
+                            )
+                        }
                     }
                     IconButton(
                         onClick = onNextClick,

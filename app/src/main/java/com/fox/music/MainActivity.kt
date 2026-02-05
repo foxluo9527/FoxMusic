@@ -20,7 +20,6 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,10 +30,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
-import com.fox.music.feature.playlist.PLAYLIST_LIST_ROUTE
+import com.fox.music.feature.playlist.ui.component.PLAYLIST_LIST_ROUTE
 import com.fox.music.feature.profile.PROFILE_ROUTE
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.ui.MainScreen
@@ -83,7 +81,6 @@ enum class AppDestinations(
 @Composable
 fun FoxMusicApp(startRoute: MutableState<String>) {
     val viewModel: MainActivityViewModel = hiltViewModel()
-    val authState by viewModel.authState.collectAsState()
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -91,11 +88,6 @@ fun FoxMusicApp(startRoute: MutableState<String>) {
     var showBottomNavBar by remember {mutableStateOf(true)}
     LaunchedEffect(startRoute.value) {
         navController.navigate(startRoute.value)
-    }
-    LaunchedEffect(authState.isLoggedIn) {
-        if (!authState.isLoggedIn && currentRoute != LOGIN_ROUTE) {
-            navController.navigate(LOGIN_ROUTE)
-        }
     }
     LaunchedEffect(currentRoute) {
         showBottomNavBar = AppDestinations.entries.map {it.route}.contains(currentRoute)

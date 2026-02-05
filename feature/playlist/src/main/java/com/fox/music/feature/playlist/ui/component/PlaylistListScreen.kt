@@ -1,4 +1,4 @@
-package com.fox.music.feature.playlist
+package com.fox.music.feature.playlist.ui.component
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
@@ -18,8 +18,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.model.Playlist
+import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PlaylistCard
+import com.fox.music.feature.playlist.viewmodel.PlaylistListEffect
+import com.fox.music.feature.playlist.viewmodel.PlaylistListIntent
+import com.fox.music.feature.playlist.viewmodel.PlaylistListViewModel
 
 const val PLAYLIST_LIST_ROUTE = "playlist_list"
 const val PLAYLIST_DETAIL_ROUTE = "playlist_detail/{playlistId}"
@@ -31,18 +36,30 @@ fun PlaylistListScreen(
     modifier: Modifier = Modifier,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    isLogin: Boolean,
     viewModel: PlaylistListViewModel = hiltViewModel(),
-    onPlaylistClick: (com.fox.music.core.model.Playlist) -> Unit = {},
+    onPlaylistClick: (Playlist) -> Unit = {},
+    onLogin: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) {
-        viewModel.effect.collect { when (it) {
-            is PlaylistListEffect.NavigateToPlaylist -> onPlaylistClick(it.playlist)
-        } }
+        viewModel.effect.collect {
+            when (it) {
+                is PlaylistListEffect.NavigateToPlaylist -> onPlaylistClick(it.playlist)
+            }
+        }
+    }
+    LaunchedEffect(isLogin) {
+        if (isLogin) {
+            viewModel.sendIntent(PlaylistListIntent.Load)
+        }
     }
     if (state.isLoading) {
         LoadingIndicator(useLottie = false)
         return
+    }
+    if (!isLogin) {
+        ErrorView(Modifier.fillMaxSize(), "请先登录", true, retryText = "登录", onLogin)
     }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -51,7 +68,11 @@ fun PlaylistListScreen(
     ) {
         if (state.minePlayList.isNotEmpty()) {
             item {
-                Text("My Playlists", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                Text(
+                    "My Playlists",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -68,7 +89,11 @@ fun PlaylistListScreen(
         }
         if (state.recommendedPlaylists.isNotEmpty()) {
             item {
-                Text("Recommended", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp, top = 8.dp))
+                Text(
+                    "Recommended",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
+                )
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -83,7 +108,7 @@ fun PlaylistListScreen(
                 }
             }
         }
-        if (state.minePlayList.isEmpty() && state.recommendedPlaylists.isEmpty()){
+        if (state.minePlayList.isEmpty() && state.recommendedPlaylists.isEmpty()) {
 
         }
     }

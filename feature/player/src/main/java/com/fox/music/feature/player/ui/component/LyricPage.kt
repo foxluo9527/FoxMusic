@@ -1,10 +1,7 @@
-package com.fox.music.feature.player.ui.screen
+package com.fox.music.feature.player.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -20,7 +17,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -129,15 +128,22 @@ fun LyricPage(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    painter = painterResource(
-                        if (isPlaying) com.fox.music.core.common.R.drawable.iv_pause
-                        else com.fox.music.core.common.R.drawable.iv_play
-                    ),
-                    contentDescription = if (isPlaying) "暂停" else "播放",
-                    tint = dominantColor,
-                    modifier = Modifier.size(20.dp)
-                )
+                if (playerState.isLoading){
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }else{
+                    Icon(
+                        painter = painterResource(
+                            if (isPlaying) com.fox.music.core.common.R.drawable.iv_pause
+                            else com.fox.music.core.common.R.drawable.iv_play
+                        ),
+                        contentDescription = if (isPlaying) "暂停" else "播放",
+                        tint = dominantColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
@@ -204,7 +210,7 @@ fun BilingualLyricComponent(
 
             itemsIndexed(lyrics) {index, lyricLine ->
                 val isActive = index == currentHighlightIndex
-                var padding = remember {8.dp}
+                var padding by remember {mutableStateOf(8.dp)}
                 BilingualLyricLineItem(
                     lyricLine = lyricLine,
                     isActive = isActive,
@@ -273,7 +279,8 @@ private fun BilingualLyricLineItem(
                 fontSize = if (isActive) (activeFontSize - 2).sp else (inactiveFontSize - 2).sp,
                 fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                lineHeight = activeFontSize.sp
             )
         }
     }

@@ -30,10 +30,6 @@ class ProfileViewModel @Inject constructor(
     private val getProfileUseCase: GetProfileUseCase
 ) : MviViewModel<ProfileState, ProfileIntent, ProfileEffect>(ProfileState()) {
 
-    init {
-        viewModelScope.launch { sendIntent(ProfileIntent.Load) }
-    }
-
     override fun handleIntent(intent: ProfileIntent) {
         when (intent) {
             ProfileIntent.Load -> load()

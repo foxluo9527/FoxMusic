@@ -26,4 +26,7 @@ interface AuthRepository {
         signature: String? = null,
         email: String? = null
     ): Result<User>
+
+    suspend fun forgotPassword(email: String): Result<Unit?>
+    suspend fun resetPassword(code: String, email: String, newPassword: String): Result<Unit?>
 }

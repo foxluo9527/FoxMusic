@@ -1,4 +1,4 @@
-package com.fox.music.feature.playlist
+package com.fox.music.feature.playlist.ui.component
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
@@ -23,6 +23,8 @@ import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.feature.playlist.viewmodel.PlaylistDetailEffect
+import com.fox.music.feature.playlist.viewmodel.PlaylistDetailViewModel
 
 @Composable
 fun PlaylistDetailScreen(

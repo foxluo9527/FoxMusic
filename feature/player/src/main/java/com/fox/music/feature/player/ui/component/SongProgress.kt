@@ -1,4 +1,4 @@
-package com.fox.music.feature.player.ui.screen
+package com.fox.music.feature.player.ui.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement

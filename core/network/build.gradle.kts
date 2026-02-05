@@ -28,7 +28,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:model"))
-    
+    implementation(libs.gson)
     // Network
     api(libs.bundles.network)
     

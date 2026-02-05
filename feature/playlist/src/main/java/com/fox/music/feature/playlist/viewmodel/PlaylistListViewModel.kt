@@ -1,4 +1,4 @@
-package com.fox.music.feature.playlist
+package com.fox.music.feature.playlist.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel
@@ -32,10 +32,6 @@ class PlaylistListViewModel @Inject constructor(
     private val getPlaylistListUseCase: GetPlaylistListUseCase,
     private val getRecommendedPlaylistsUseCase: GetRecommendedPlaylistsUseCase
 ) : MviViewModel<PlaylistListState, PlaylistListIntent, PlaylistListEffect>(PlaylistListState()) {
-
-    init {
-        viewModelScope.launch { sendIntent(PlaylistListIntent.Load) }
-    }
 
     override fun handleIntent(intent: PlaylistListIntent) {
         when (intent) {

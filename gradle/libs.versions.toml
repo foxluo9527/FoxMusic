@@ -2,6 +2,7 @@
 # Kotlin & Android
 agp = "9.0.0"
 bintrayRelease = "0.4.0"
+gson = "2.13.2"
 kotlin = "2.3.0"
 ksp = "2.1.0-1.0.29"
 coreKtx = "1.17.0"
@@ -64,6 +65,7 @@ lifecycleProcess = "2.10.0"
 [libraries]
 github-glide = { module = "com.github.bumptech.glide:glide", version.ref = "glideVersion" }
 glide-transformations = { module = "jp.wasabeef:glide-transformations", version.ref = "glideTransformations" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 lyricviewx = { module = "com.github.Moriafly:LyricViewX", version.ref = "lyricviewx" }
 xxpermissions = { module = "com.github.getActivity:XXPermissions", version.ref = "xxpermissions" }
 utilcodex = { module = "com.blankj:utilcodex", version.ref = "utilcodex" }

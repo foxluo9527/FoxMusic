@@ -8,6 +8,8 @@ import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.LoginResult
 import com.fox.music.core.model.User
 import com.fox.music.core.network.api.AuthApiService
+import com.fox.music.core.network.model.ForgotPasswordRequest
+import com.fox.music.core.network.model.ResetPasswordRequest
 import com.fox.music.core.network.token.TokenManager
 import com.fox.music.core.network.util.ErrorParser
 import javax.inject.Inject
@@ -56,29 +58,32 @@ class AuthRepositoryImpl @Inject constructor(
         } else throw Exception(response.message)
     }
 
-    override suspend fun logout(): Result<Unit> = suspendRunCatchingWithParser(ErrorParser::parseError) {
-        authApi.logout()
-        tokenManager.clearTokens()
-        dataStore.clearUserInfo()
-        Unit
-    }
+    override suspend fun logout(): Result<Unit> =
+        suspendRunCatchingWithParser(ErrorParser::parseError) {
+            authApi.logout()
+            tokenManager.clearTokens()
+            dataStore.clearUserInfo()
+            Unit
+        }
 
-    override suspend fun refreshToken(): Result<String> = suspendRunCatchingWithParser(ErrorParser::parseError) {
-        val response = authApi.refreshToken()
-        val data = response.data
-        if (response.isSuccess && data != null) {
-            tokenManager.saveAccessToken(data.token)
-            data.token
-        } else throw Exception(response.message)
-    }
+    override suspend fun refreshToken(): Result<String> =
+        suspendRunCatchingWithParser(ErrorParser::parseError) {
+            val response = authApi.refreshToken()
+            val data = response.data
+            if (response.isSuccess && data != null) {
+                tokenManager.saveAccessToken(data.token)
+                data.token
+            } else throw Exception(response.message)
+        }
 
-    override suspend fun getProfile(): Result<User> = suspendRunCatchingWithParser(ErrorParser::parseError) {
-        val response = authApi.getProfile()
-        val data = response.data
-        if (response.isSuccess && data != null) {
-            data.toUser()
-        } else throw Exception(response.message)
-    }
+    override suspend fun getProfile(): Result<User> =
+        suspendRunCatchingWithParser(ErrorParser::parseError) {
+            val response = authApi.getProfile()
+            val data = response.data
+            if (response.isSuccess && data != null) {
+                data.toUser()
+            } else throw Exception(response.message)
+        }
 
     override suspend fun updateProfile(
         nickname: String?,
@@ -99,4 +104,31 @@ class AuthRepositoryImpl @Inject constructor(
             data.toUser()
         } else throw Exception(response.message)
     }
+
+    override suspend fun forgotPassword(
+        email: String
+    ): Result<Unit?> = suspendRunCatchingWithParser(ErrorParser::parseError) {
+        val response = authApi.forgotPassword(
+            ForgotPasswordRequest(email = email)
+        )
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data
+        } else throw Exception(response.message)
+    }
+
+    override suspend fun resetPassword(
+        code: String,
+        email: String,
+        newPassword: String
+    ): Result<Unit?> = suspendRunCatchingWithParser(ErrorParser::parseError) {
+        val response = authApi.resetPassword(
+            ResetPasswordRequest(email = email, code = code, newPassword = newPassword)
+        )
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data
+        } else throw Exception(response.message)
+    }
+
 }

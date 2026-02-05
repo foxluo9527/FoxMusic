@@ -1,4 +1,4 @@
-package com.fox.music.feature.player.ui.screen
+package com.fox.music.feature.player.ui.component
 
 import android.view.LayoutInflater
 import android.widget.LinearLayout

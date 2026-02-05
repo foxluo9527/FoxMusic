@@ -1,4 +1,4 @@
-package com.fox.music.feature.player.ui.screen
+package com.fox.music.feature.player.ui.component
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -169,18 +170,25 @@ fun SharedTransitionScope.SongPage(
                 )
             }
             IconButton(
-                onClick = {if (playerState.isPlaying) musicController.pause() else musicController.play()},
+                onClick = { musicController.togglePlay() },
                 modifier = Modifier.sharedElement(
                     rememberSharedContentState(key = "music-toggle-${playerState.currentMusic?.id}"),
                     animatedVisibilityScope = animatedContentScope
                 )
             ) {
-                Icon(
-                    painterResource(if (playerState.isPlaying) com.fox.music.core.common.R.drawable.iv_pause else com.fox.music.core.common.R.drawable.iv_play),
-                    contentDescription = if (playerState.isPlaying) "Pause" else "Play",
-                    modifier = Modifier.size(30.dp),
-                    tint = contrastColor
-                )
+                if (playerState.isLoading){
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }else{
+                    Icon(
+                        painterResource(if (playerState.isPlaying) com.fox.music.core.common.R.drawable.iv_pause else com.fox.music.core.common.R.drawable.iv_play),
+                        contentDescription = if (playerState.isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(30.dp),
+                        tint = contrastColor
+                    )
+                }
             }
             IconButton(
                 onClick = {musicController.next()},

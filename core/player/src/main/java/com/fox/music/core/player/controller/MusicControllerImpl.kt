@@ -17,10 +17,7 @@ import com.fox.music.core.model.RepeatMode
 import com.fox.music.core.player.service.MusicPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
-import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -89,9 +86,6 @@ class MusicControllerImpl @Inject constructor(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 updatePlayerState()
-                if (playbackState == Player.STATE_ENDED) {
-                    updatePlayerState()
-                }
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -149,6 +143,7 @@ class MusicControllerImpl @Inject constructor(
             playlist = currentPlaylist,
             currentIndex = currentIndex,
             isPlaying = player.isPlaying,
+            isLoading = player.playbackState == Player.STATE_BUFFERING,
             position = player.currentPosition,
             duration = player.duration.coerceAtLeast(0),
             repeatMode = player.repeatMode.toRepeatMode(),
@@ -167,7 +162,7 @@ class MusicControllerImpl @Inject constructor(
 
     override fun togglePlay() {
         controller?.let {
-            if (it.isPlaying) {
+            if (it.isPlaying && !it.isLoading) {
                 pause()
             } else {
                 play()

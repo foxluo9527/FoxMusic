@@ -9,13 +9,17 @@ android {
     defaultConfig {
         minSdk = 26
     }
-    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17
+    }
     buildFeatures { compose = true }
 }
 
 dependencies {
+    implementation(libs.hilt.android)
     implementation(project(":core:common"))
     implementation(project(":core:model"))
+    implementation(project(":core:network"))
     api(platform(libs.androidx.compose.bom))
     api(libs.bundles.compose)
     implementation(libs.androidx.palette.ktx)

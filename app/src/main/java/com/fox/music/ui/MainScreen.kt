@@ -32,12 +32,14 @@ import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.discover.DiscoverScreen
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.home.HomeScreen
+import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
+import com.fox.music.feature.player.ui.screen.ManageScreen
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.PlayerScreen
-import com.fox.music.feature.playlist.PLAYLIST_LIST_ROUTE
-import com.fox.music.feature.playlist.PlaylistDetailScreen
-import com.fox.music.feature.playlist.PlaylistListScreen
-import com.fox.music.feature.playlist.playlistDetailRoute
+import com.fox.music.feature.playlist.ui.component.PLAYLIST_LIST_ROUTE
+import com.fox.music.feature.playlist.ui.component.PlaylistDetailScreen
+import com.fox.music.feature.playlist.ui.component.PlaylistListScreen
+import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.feature.profile.PROFILE_ROUTE
 import com.fox.music.feature.profile.ProfileScreen
 import com.fox.music.feature.search.SEARCH_ROUTE
@@ -52,6 +54,7 @@ fun MainScreen(
     viewModel: MainActivityViewModel,
 ) {
     val musicController = viewModel.musicController
+    val authState by viewModel.authState.collectAsState()
     val playerState by musicController.playerState.collectAsState(com.fox.music.core.model.PlayerState())
     val showBottomBar = remember(
         playerState.currentMusic
@@ -78,17 +81,19 @@ fun MainScreen(
         navScreen: @Composable AnimatedContentScope.(Modifier) -> Unit,
     ) {
         Column {
-            navScreen(Modifier
-                .fillMaxWidth()
-                .weight(1f))
+            navScreen(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
             if (showBottomBar) {
                 MiniPlayer(
                     playerState = playerState,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = this@MainScreenWithBottomBar,
-                    onPlayPauseClick = {if (playerState.isPlaying) musicController.pause() else musicController.play()},
-                    onNextClick = {musicController.next()},
-                    onClick = {navController.navigate(PLAYER_ROUTE)}
+                    onPlayPauseClick = { musicController.togglePlay() },
+                    onNextClick = { musicController.next() },
+                    onClick = { navController.navigate(PLAYER_ROUTE) }
                 )
             }
         }
@@ -96,7 +101,7 @@ fun MainScreen(
 
     Scaffold(
         modifier = modifier
-    ) {innerPadding ->
+    ) { innerPadding ->
         SharedTransitionLayout(modifier = Modifier.padding(innerPadding)) {
             NavHost(
                 navController = navController,
@@ -155,13 +160,15 @@ fun MainScreen(
                             modifier = it,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedContentScope = this,
-                            onPlaylistClick = ::onPlaylistClick
+                            isLogin = authState.isLoggedIn,
+                            onPlaylistClick = ::onPlaylistClick,
+                            onLogin = { navController.navigate(LOGIN_ROUTE) }
                         )
                     }
                 }
                 composable(
                     route = "playlist_detail/{playlistId}",
-                    arguments = listOf(navArgument("playlistId") {type = NavType.StringType})
+                    arguments = listOf(navArgument("playlistId") { type = NavType.StringType })
                 ) {
                     PlaylistDetailScreen(
                         sharedTransitionScope = this@SharedTransitionLayout,
@@ -171,7 +178,14 @@ fun MainScreen(
                     )
                 }
                 composable(PROFILE_ROUTE) {
-                    ProfileScreen()
+                    ProfileScreen(isLogin = authState.isLoggedIn,onLogin = { navController.navigate(LOGIN_ROUTE) }){
+                        navController.navigate(MANAGE_ROUTER)
+                    }
+                }
+                composable(MANAGE_ROUTER) {
+                    ManageScreen(Modifier.fillMaxSize()){
+                        navController.popBackStack()
+                    }
                 }
                 composable(LOGIN_ROUTE, enterTransition = {
                     slideIntoContainer(
@@ -207,7 +221,7 @@ fun MainScreen(
                         musicController = musicController,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedContentScope = this,
-                        onBack = {navController.popBackStack()}
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable(SOCIAL_ROUTE) {

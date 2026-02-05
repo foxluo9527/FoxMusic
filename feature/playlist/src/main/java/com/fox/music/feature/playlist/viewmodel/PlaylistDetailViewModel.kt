@@ -1,4 +1,4 @@
-package com.fox.music.feature.playlist
+package com.fox.music.feature.playlist.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -10,7 +10,6 @@ import com.fox.music.core.domain.usecase.GetPlaylistDetailUseCase
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.PlaylistDetail
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
