@@ -14,7 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -32,6 +34,29 @@ fun LoginScreen(
     onNavigateToHome: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
+    val passwordError by remember {
+        derivedStateOf {
+            state.password.length in 1 until  6
+        }
+    }
+
+    val emailHasErrors by remember {
+        derivedStateOf {
+            if (state.email.isNotEmpty()) {
+                // Email is considered erroneous until it completely matches EMAIL_ADDRESS.
+                ! android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches()
+            } else {
+                false
+            }
+        }
+    }
+
+    val usernameError by remember {
+        derivedStateOf {
+            state.username.isEmpty()
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.effect.collect { when (it) {
             is AuthEffect.NavigateToHome -> onNavigateToHome()
@@ -51,23 +76,41 @@ fun LoginScreen(
         OutlinedTextField(
             value = state.username,
             onValueChange = { viewModel.sendIntent(AuthIntent.UsernameChange(it)) },
-            label = { Text("Username") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text(if (state.isLoginMode) "用户名或密码" else "用户名") },
+            modifier = Modifier.fillMaxWidth(),
+            isError = usernameError,
+            supportingText = {
+                if (usernameError) {
+                    Text("用户名不能为空")
+                }
+            }
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
             value = state.password,
             onValueChange = { viewModel.sendIntent(AuthIntent.PasswordChange(it)) },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text("密码") },
+            modifier = Modifier.fillMaxWidth(),
+            isError = passwordError,
+            supportingText = {
+                if (passwordError) {
+                    Text("密码至少6位数")
+                }
+            }
         )
         if (!state.isLoginMode) {
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
                 value = state.email,
                 onValueChange = { viewModel.sendIntent(AuthIntent.EmailChange(it)) },
-                label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("邮箱") },
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = {
+                    if (emailHasErrors) {
+                        Text("邮箱格式错误")
+                    }
+                },
+                isError = emailHasErrors
             )
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
@@ -75,17 +118,24 @@ fun LoginScreen(
         Button(
             onClick = { viewModel.sendIntent(AuthIntent.Submit) },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading
+            enabled = !state.isLoading && ((!emailHasErrors && state.email.isNotEmpty())  || state.isLoginMode) && !passwordError && state.password.isNotEmpty() && !usernameError
         ) {
             if (state.isLoading) CircularProgressIndicator(Modifier.height(24.dp))
-            else Text(if (state.isLoginMode) "Login" else "Register")
+            else Text(if (state.isLoginMode) "登录" else "注册")
         }
         Spacer(modifier = Modifier.height(16.dp))
         Button(
-            onClick = { viewModel.sendIntent(AuthIntent.ToggleMode) },
+            onClick = { viewModel.sendIntent(AuthIntent.ToggleToRegisterMode) },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (state.isLoginMode) "Switch to Register" else "Switch to Login")
+            Text(if (state.isLoginMode) "去注册" else "去登录")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = { viewModel.sendIntent(AuthIntent.ToggleToRegisterMode) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("忘记密码")
         }
     }
 }

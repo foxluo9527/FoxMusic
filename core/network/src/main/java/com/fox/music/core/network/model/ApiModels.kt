@@ -3,6 +3,14 @@ package com.fox.music.core.network.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * {
+ *   "code" : 500,
+ *   "message" : "密码错误",
+ *   "data" : null,
+ *   "success" : false
+ * }
+ */
 @Serializable
 data class ApiResponse<T>(
     val code: Int = 0,

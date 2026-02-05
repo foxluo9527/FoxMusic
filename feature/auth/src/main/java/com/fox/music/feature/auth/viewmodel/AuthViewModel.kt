@@ -17,7 +17,8 @@ data class AuthState(
     val email: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isLoginMode: Boolean = true
+    val isLoginMode: Boolean = true,
+    val isResetMode: Boolean = false
 ) : UiState
 
 sealed interface AuthIntent : UiIntent {
@@ -25,7 +26,8 @@ sealed interface AuthIntent : UiIntent {
     data class PasswordChange(val value: String) : AuthIntent
     data class EmailChange(val value: String) : AuthIntent
     data object Submit : AuthIntent
-    data object ToggleMode : AuthIntent
+    data object ToggleToRegisterMode : AuthIntent
+    data object ToggleToResetMode : AuthIntent
 }
 
 sealed interface AuthEffect : UiEffect {
@@ -44,7 +46,8 @@ class AuthViewModel @Inject constructor(
             is AuthIntent.PasswordChange -> updateState { copy(password = intent.value) }
             is AuthIntent.EmailChange -> updateState { copy(email = intent.value) }
             AuthIntent.Submit -> submit()
-            AuthIntent.ToggleMode -> updateState { copy(isLoginMode = !isLoginMode) }
+            AuthIntent.ToggleToRegisterMode -> updateState { copy(isLoginMode = !isLoginMode, isResetMode = false) }
+            AuthIntent.ToggleToResetMode->updateState { copy(isResetMode = true) }
         }
     }
 

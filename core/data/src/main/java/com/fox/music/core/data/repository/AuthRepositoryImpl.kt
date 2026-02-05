@@ -1,7 +1,7 @@
 package com.fox.music.core.data.repository
 
 import com.fox.music.core.common.result.Result
-import com.fox.music.core.common.result.suspendRunCatching
+import com.fox.music.core.common.result.suspendRunCatchingWithParser
 import com.fox.music.core.data.mapper.toUser
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.repository.AuthRepository
@@ -9,6 +9,7 @@ import com.fox.music.core.domain.repository.LoginResult
 import com.fox.music.core.model.User
 import com.fox.music.core.network.api.AuthApiService
 import com.fox.music.core.network.token.TokenManager
+import com.fox.music.core.network.util.ErrorParser
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,7 +21,7 @@ class AuthRepositoryImpl @Inject constructor(
 ) : AuthRepository {
 
     override suspend fun login(username: String, password: String): Result<LoginResult> =
-        suspendRunCatching {
+        suspendRunCatchingWithParser(ErrorParser::parseError) {
             val response = authApi.login(
                 com.fox.music.core.network.model.LoginRequest(
                     username = username,
@@ -39,7 +40,7 @@ class AuthRepositoryImpl @Inject constructor(
         username: String,
         password: String,
         email: String
-    ): Result<LoginResult> = suspendRunCatching {
+    ): Result<LoginResult> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         val response = authApi.register(
             com.fox.music.core.network.model.RegisterRequest(
                 username = username,
@@ -55,14 +56,14 @@ class AuthRepositoryImpl @Inject constructor(
         } else throw Exception(response.message)
     }
 
-    override suspend fun logout(): Result<Unit> = suspendRunCatching {
+    override suspend fun logout(): Result<Unit> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         authApi.logout()
         tokenManager.clearTokens()
         dataStore.clearUserInfo()
         Unit
     }
 
-    override suspend fun refreshToken(): Result<String> = suspendRunCatching {
+    override suspend fun refreshToken(): Result<String> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         val response = authApi.refreshToken()
         val data = response.data
         if (response.isSuccess && data != null) {
@@ -71,7 +72,7 @@ class AuthRepositoryImpl @Inject constructor(
         } else throw Exception(response.message)
     }
 
-    override suspend fun getProfile(): Result<User> = suspendRunCatching {
+    override suspend fun getProfile(): Result<User> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         val response = authApi.getProfile()
         val data = response.data
         if (response.isSuccess && data != null) {
@@ -84,7 +85,7 @@ class AuthRepositoryImpl @Inject constructor(
         avatar: String?,
         signature: String?,
         email: String?
-    ): Result<User> = suspendRunCatching {
+    ): Result<User> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         val response = authApi.updateProfile(
             com.fox.music.core.network.model.UpdateProfileRequest(
                 nickname = nickname,

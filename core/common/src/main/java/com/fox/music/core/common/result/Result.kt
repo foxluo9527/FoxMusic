@@ -57,3 +57,15 @@ suspend inline fun <T> suspendRunCatching(crossinline block: suspend () -> T): R
 } catch (e: Exception) {
     Result.Error(e, e.message)
 }
+
+/**
+ * Enhanced version that accepts a custom error message extractor
+ */
+suspend inline fun <T> suspendRunCatchingWithParser(
+    crossinline errorParser: (Throwable) -> String,
+    crossinline block: suspend () -> T
+): Result<T> = try {
+    Result.Success(block())
+} catch (e: Exception) {
+    Result.Error(e, errorParser(e))
+}
