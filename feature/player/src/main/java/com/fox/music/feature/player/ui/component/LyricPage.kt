@@ -27,7 +27,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -210,7 +209,6 @@ fun BilingualLyricComponent(
 
             itemsIndexed(lyrics) {index, lyricLine ->
                 val isActive = index == currentHighlightIndex
-                var padding by remember {mutableStateOf(8.dp)}
                 BilingualLyricLineItem(
                     lyricLine = lyricLine,
                     isActive = isActive,
@@ -226,11 +224,10 @@ fun BilingualLyricComponent(
                         .onGloballyPositioned {
                             if (linesHeight[index] == null) {
                                 val height = px2dp(it.size.height.toFloat())
-                                padding = height.dp / 2f
                                 linesHeight[index] = height.toFloat()
                             }
                         }
-                        .padding(horizontal = 24.dp, vertical = padding)
+                        .padding(horizontal = 24.dp, vertical = (activeLineFontSize / 3f).dp)
                 )
             }
 
@@ -267,7 +264,8 @@ private fun BilingualLyricLineItem(
             fontSize = if (isActive) activeFontSize.sp else inactiveFontSize.sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            lineHeight = activeFontSize.sp * 1.2f
         )
 
         // 翻译歌词（如果存在）
@@ -280,7 +278,7 @@ private fun BilingualLyricLineItem(
                 fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
-                lineHeight = activeFontSize.sp
+                lineHeight = activeFontSize.sp * 1.2f
             )
         }
     }

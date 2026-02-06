@@ -5,19 +5,16 @@ import android.graphics.Color
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.graphics.ColorUtils.calculateLuminance
+import androidx.core.graphics.toColorInt
 import androidx.palette.graphics.Palette
-import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.fox.music.core.ui.modifier.BlurTransformation
-import kotlinx.coroutines.launch
 
 // 使用 Palette API 提取颜色
 fun extractColorsWithPalette(bitmap: Bitmap): Pair<Int, Int> {
@@ -53,7 +50,7 @@ fun ImageWithPaletteColors(
     url: String?,
     onColorsExtracted: (dominantColor: Int, contrastColor: Int) -> Unit,
 ) {
-    onColorsExtracted(Color.WHITE, Color.BLACK)
+    onColorsExtracted("#f6f7f9".toColorInt(), "#333333".toColorInt())
     val painter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(LocalContext.current)
             .data(processUrl(url))

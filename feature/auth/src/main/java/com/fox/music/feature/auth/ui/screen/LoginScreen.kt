@@ -1,5 +1,6 @@
 package com.fox.music.feature.auth.ui.screen
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,7 +44,7 @@ fun LoginScreen(
             state.password.length in 1 until 6
         }
     }
-    LaunchedEffect(state.waitingSecond) {
+    LaunchedEffect(state) {
         if (state.waitingSecond == 60) {
             while (state.waitingSecond > 0 && isActive) {
                 viewModel.sendIntent(AuthIntent.UpdateWaiting(state.waitingSecond - 1))
@@ -82,118 +83,127 @@ fun LoginScreen(
             }
         }
     }
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = if (state.isLoginMode) "Login" else "Register",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(top = 48.dp, bottom = 24.dp)
-        )
-        if (!state.isLoginMode || state.isResetMode) {
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = state.email,
-                onValueChange = { viewModel.sendIntent(AuthIntent.EmailChange(it)) },
-                label = { Text("邮箱") },
-                modifier = Modifier.fillMaxWidth(),
-                supportingText = {
-                    if (emailHasErrors) {
-                        Text("邮箱格式错误")
-                    }
-                },
-                isError = emailHasErrors
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = if (state.isLoginMode) "Login" else "Register",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(top = 48.dp, bottom = 24.dp)
             )
-        }
-        if (state.isResetMode) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (! state.isLoginMode || state.isResetMode) {
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
-                    value = state.verifyCode,
-                    onValueChange = { viewModel.sendIntent(AuthIntent.VerifyChange(it)) },
-                    label = { Text("邮箱验证码") },
-                    modifier = Modifier.weight(1f),
+                    value = state.email,
+                    onValueChange = {viewModel.sendIntent(AuthIntent.EmailChange(it))},
+                    label = {Text("邮箱")},
+                    modifier = Modifier.fillMaxWidth(),
                     supportingText = {
-                        if (verifyError) {
-                            Text("请输入6位数验证码")
+                        if (emailHasErrors) {
+                            Text("邮箱格式错误")
                         }
                     },
-                    isError = verifyError
+                    isError = emailHasErrors
                 )
-
-                TextButton(onClick = {
-                    viewModel.sendIntent(AuthIntent.SendVerify)
-                }) {
-                    Text("发送")
-                }
             }
+            if (state.isResetMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = state.verifyCode,
+                        onValueChange = {viewModel.sendIntent(AuthIntent.VerifyChange(it))},
+                        label = {Text("邮箱验证码")},
+                        modifier = Modifier.weight(1f),
+                        supportingText = {
+                            if (verifyError) {
+                                Text("请输入6位数验证码")
+                            }
+                        },
+                        isError = verifyError
+                    )
 
-        }
-        if (!state.isResetMode) {
+                    TextButton(
+                        onClick = {
+                            viewModel.sendIntent(AuthIntent.SendVerify)
+                        },
+                        enabled = ! emailHasErrors && state.email.isNotEmpty() && state.waitingSecond <= 0
+                    ) {
+                        Text(if (state.waitingSecond>0) "${state.waitingSecond}s" else "发送")
+                    }
+                }
+
+            }
+            if (! state.isResetMode) {
+                OutlinedTextField(
+                    value = state.username,
+                    onValueChange = {viewModel.sendIntent(AuthIntent.UsernameChange(it))},
+                    label = {Text(if (state.isLoginMode) "用户名或密码" else "用户名")},
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = usernameError,
+                    supportingText = {
+                        if (usernameError) {
+                            Text("用户名不能为空")
+                        }
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
-                value = state.username,
-                onValueChange = { viewModel.sendIntent(AuthIntent.UsernameChange(it)) },
-                label = { Text(if (state.isLoginMode) "用户名或密码" else "用户名") },
+                value = state.password,
+                onValueChange = {viewModel.sendIntent(AuthIntent.PasswordChange(it))},
+                label = {Text("密码")},
                 modifier = Modifier.fillMaxWidth(),
-                isError = usernameError,
+                isError = passwordError,
                 supportingText = {
-                    if (usernameError) {
-                        Text("用户名不能为空")
+                    if (passwordError) {
+                        Text("密码至少6位数")
                     }
                 }
             )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        OutlinedTextField(
-            value = state.password,
-            onValueChange = { viewModel.sendIntent(AuthIntent.PasswordChange(it)) },
-            label = { Text("密码") },
-            modifier = Modifier.fillMaxWidth(),
-            isError = passwordError,
-            supportingText = {
-                if (passwordError) {
-                    Text("密码至少6位数")
+            state.error?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = {viewModel.sendIntent(AuthIntent.Submit)},
+                modifier = Modifier.fillMaxWidth(),
+                enabled = ! state.isLoading
+                    && ((! emailHasErrors && state.email.isNotEmpty()) || state.isLoginMode)
+                    && (! verifyError || ! state.isResetMode)
+                    && ! passwordError
+                    && state.password.isNotEmpty()
+                    && (! usernameError || state.isResetMode)
+            ) {
+                Text(if (state.isResetMode) "修改密码" else if (state.isLoginMode) "登录" else "注册")
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            if (! state.isResetMode) {
+                Button(
+                    onClick = {viewModel.sendIntent(AuthIntent.ToggleToRegisterMode)},
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (state.isLoginMode) "去注册" else "返回登录")
                 }
             }
-        )
-        state.error?.let {
-            Text(
-                it,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = { viewModel.sendIntent(AuthIntent.Submit) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !state.isLoading && ((!emailHasErrors && state.email.isNotEmpty()) || state.isLoginMode) && !passwordError && state.password.isNotEmpty() && !usernameError
-        ) {
-            Text(if (state.isLoginMode) "登录" else "注册")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        if (!state.isResetMode) {
-            Button(
-                onClick = { viewModel.sendIntent(AuthIntent.ToggleToRegisterMode) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (state.isLoginMode) "去注册" else "返回登录")
-            }
-        }
-        if (state.isLoginMode || state.isResetMode) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = { viewModel.sendIntent(AuthIntent.ToggleToResetMode) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (state.isResetMode) "返回登录" else "忘记密码")
+            if (state.isLoginMode || state.isResetMode) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {viewModel.sendIntent(AuthIntent.ToggleToResetMode)},
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (state.isResetMode) "返回登录" else "忘记密码")
+                }
             }
         }
         if (state.isLoading) {
-            Spacer(modifier = Modifier.height(16.dp))
             CircularProgressIndicator(Modifier.height(24.dp))
         }
     }

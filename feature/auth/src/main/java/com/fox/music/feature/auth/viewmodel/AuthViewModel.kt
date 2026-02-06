@@ -22,7 +22,7 @@ data class AuthState(
     val error: String? = null,
     val isLoginMode: Boolean = true,
     val isResetMode: Boolean = false,
-    val waitingSecond: Int = 60
+    val waitingSecond: Int = 0
 ) : UiState
 
 sealed interface AuthIntent : UiIntent {
