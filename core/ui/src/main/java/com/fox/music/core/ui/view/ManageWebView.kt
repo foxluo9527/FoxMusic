@@ -12,7 +12,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.network.BuildConfig.BASE_URL
-import dagger.hilt.android.EntryPointAccessors
+import com.fox.music.core.network.token.TokenManager
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -21,21 +21,15 @@ import kotlinx.coroutines.runBlocking
 class ManageWebView @JvmOverloads constructor(
     context: Context,
     attrs: android.util.AttributeSet? = null,
-    defStyleAttr: Int = 0
+    defStyleAttr: Int = 0,
+    private val tokenManager: TokenManager
 ) : WebView(context, attrs, defStyleAttr) {
 
     val apiUrl
-        get() = BASE_URL + "/uploads/permanent/apk/mobile-music-manager.html"
+        get() = BASE_URL + "uploads/permanent/apk/mobile-music-manager.html"
 
     private val jsBridge by lazy {
         JsBridge()
-    }
-
-    private val tokenManager by lazy {
-        EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            TokenManagerEntryPoint::class.java
-        ).getTokenManager()
     }
 
     private var token: String? = runBlocking { tokenManager.accessToken.first() }

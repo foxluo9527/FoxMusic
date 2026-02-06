@@ -19,7 +19,7 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(project(":core:common"))
     implementation(project(":core:model"))
-    implementation(project(":core:network"))
+    api(project(":core:network"))
     api(platform(libs.androidx.compose.bom))
     api(libs.bundles.compose)
     implementation(libs.androidx.palette.ktx)

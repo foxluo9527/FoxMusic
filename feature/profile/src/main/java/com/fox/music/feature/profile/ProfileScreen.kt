@@ -76,7 +76,7 @@ fun ProfileScreen(
                             RoundedCornerShape(10.dp)
                         ).clickable{
                             manageMusics()
-                        },
+                        }.padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("查看曲库", Modifier.weight(1f))
