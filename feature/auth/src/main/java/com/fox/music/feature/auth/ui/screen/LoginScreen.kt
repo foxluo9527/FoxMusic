@@ -44,12 +44,10 @@ fun LoginScreen(
             state.password.length in 1 until 6
         }
     }
-    LaunchedEffect(state) {
-        if (state.waitingSecond == 60) {
-            while (state.waitingSecond > 0 && isActive) {
-                viewModel.sendIntent(AuthIntent.UpdateWaiting(state.waitingSecond - 1))
-                delay(1000)
-            }
+    LaunchedEffect(state.waitingSecond) {
+        if (state.waitingSecond > 0) {
+            delay(1000)
+            viewModel.sendIntent(AuthIntent.UpdateWaiting(state.waitingSecond - 1))
         }
     }
 
@@ -66,7 +64,7 @@ fun LoginScreen(
 
     val verifyError by remember {
         derivedStateOf {
-            state.verifyCode.length != 6
+            state.verifyCode.length != 6 && state.verifyCode.isNotEmpty()
         }
     }
 
@@ -141,7 +139,7 @@ fun LoginScreen(
                 OutlinedTextField(
                     value = state.username,
                     onValueChange = {viewModel.sendIntent(AuthIntent.UsernameChange(it))},
-                    label = {Text(if (state.isLoginMode) "用户名或密码" else "用户名")},
+                    label = {Text(if (state.isLoginMode) "用户名或邮箱" else "用户名")},
                     modifier = Modifier.fillMaxWidth(),
                     isError = usernameError,
                     supportingText = {
@@ -177,9 +175,8 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = ! state.isLoading
                     && ((! emailHasErrors && state.email.isNotEmpty()) || state.isLoginMode)
-                    && (! verifyError || ! state.isResetMode)
-                    && ! passwordError
-                    && state.password.isNotEmpty()
+                    && ((! verifyError && state.verifyCode.isNotEmpty()) || ! state.isResetMode)
+                    && (! passwordError && state.password.isNotEmpty())
                     && (! usernameError || state.isResetMode)
             ) {
                 Text(if (state.isResetMode) "修改密码" else if (state.isLoginMode) "登录" else "注册")

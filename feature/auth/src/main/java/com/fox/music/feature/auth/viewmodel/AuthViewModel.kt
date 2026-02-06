@@ -55,16 +55,24 @@ class AuthViewModel @Inject constructor(
             is AuthIntent.PasswordChange -> updateState { copy(password = intent.value) }
             is AuthIntent.EmailChange -> updateState { copy(email = intent.value) }
             is AuthIntent.UpdateWaiting -> updateState { copy(waitingSecond = intent.value) }
+            is AuthIntent.VerifyChange -> updateState {copy(verifyCode = intent.value)}
             AuthIntent.Submit -> submit()
             AuthIntent.ToggleToRegisterMode -> updateState {
                 copy(
                     isLoginMode = !isLoginMode,
-                    isResetMode = false
+                    isResetMode = false,
+                    isLoading = false,
+                    error = null
                 )
             }
 
-            AuthIntent.ToggleToResetMode -> updateState { copy(isResetMode = !isResetMode) }
-            is AuthIntent.VerifyChange -> updateState { copy(verifyCode = intent.value) }
+            AuthIntent.ToggleToResetMode -> updateState {
+                copy(
+                    isResetMode = ! isResetMode,
+                    isLoading = false,
+                    error = null
+                )
+            }
             AuthIntent.SendVerify -> sendCode()
         }
     }
@@ -80,7 +88,8 @@ class AuthViewModel @Inject constructor(
                     updateState {
                         copy(
                             isLoading = false,
-                            error = msg ?: "Send failed"
+                            error = msg ?: "Send failed",
+                            waitingSecond = 60
                         )
                     }
                 }
