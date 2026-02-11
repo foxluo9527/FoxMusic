@@ -11,8 +11,8 @@ import androidx.compose.ui.Modifier
 const val SOCIAL_ROUTE = "social"
 
 @Composable
-fun SocialScreen(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+fun SocialScreen(modifier: Modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text("Social", style = MaterialTheme.typography.headlineMedium)
     }
 }

@@ -162,7 +162,7 @@ class MusicControllerImpl @Inject constructor(
 
     override fun togglePlay() {
         controller?.let {
-            if (it.isPlaying && !it.isLoading) {
+            if (it.isPlaying) {
                 pause()
             } else {
                 play()

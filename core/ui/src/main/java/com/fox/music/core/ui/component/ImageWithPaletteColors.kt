@@ -50,7 +50,7 @@ fun ImageWithPaletteColors(
     url: String?,
     onColorsExtracted: (dominantColor: Int, contrastColor: Int) -> Unit,
 ) {
-    onColorsExtracted("#f6f7f9".toColorInt(), "#333333".toColorInt())
+    onColorsExtracted("#f6f7f9".toColorInt(), "#202122".toColorInt())
     val painter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(LocalContext.current)
             .data(processUrl(url))

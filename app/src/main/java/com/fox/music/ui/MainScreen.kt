@@ -6,15 +6,18 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -85,6 +88,7 @@ fun MainScreen(
                 Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .statusBarsPadding()
             )
             if (showBottomBar) {
                 MiniPlayer(
@@ -100,7 +104,8 @@ fun MainScreen(
     }
 
     Scaffold(
-        modifier = modifier
+        modifier = modifier,
+        contentWindowInsets = WindowInsets(0.dp)
     ) { innerPadding ->
         SharedTransitionLayout(modifier = Modifier.padding(innerPadding)) {
             NavHost(
@@ -138,33 +143,23 @@ fun MainScreen(
                     }
                 }
                 composable(SEARCH_ROUTE) {
-                    MainScreenWithBottomBar(
-                        showBottomBar,
-                        this@SharedTransitionLayout
-                    ) {
-                        SearchScreen(
-                            modifier = it,
-                            sharedTransitionScope = this@SharedTransitionLayout,
-                            animatedContentScope = this,
-                            onMusicClick = ::onMusicClick,
-                            updateMusicList = ::onUpdateMusicList,
-                        )
-                    }
+                    SearchScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        sharedTransitionScope = this@SharedTransitionLayout,
+                        animatedContentScope = this,
+                        onMusicClick = ::onMusicClick,
+                        updateMusicList = ::onUpdateMusicList,
+                    )
                 }
                 composable(PLAYLIST_LIST_ROUTE) {
-                    MainScreenWithBottomBar(
-                        showBottomBar,
-                        this@SharedTransitionLayout
-                    ) {
-                        PlaylistListScreen(
-                            modifier = it,
-                            sharedTransitionScope = this@SharedTransitionLayout,
-                            animatedContentScope = this,
-                            isLogin = authState.isLoggedIn,
-                            onPlaylistClick = ::onPlaylistClick,
-                            onLogin = { navController.navigate(LOGIN_ROUTE) }
-                        )
-                    }
+                    PlaylistListScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        sharedTransitionScope = this@SharedTransitionLayout,
+                        animatedContentScope = this,
+                        isLogin = authState.isLoggedIn,
+                        onPlaylistClick = ::onPlaylistClick,
+                        onLogin = {navController.navigate(LOGIN_ROUTE)}
+                    )
                 }
                 composable(
                     route = "playlist_detail/{playlistId}",
@@ -178,7 +173,12 @@ fun MainScreen(
                     )
                 }
                 composable(PROFILE_ROUTE) {
-                    ProfileScreen(isLogin = authState.isLoggedIn,onLogin = { navController.navigate(LOGIN_ROUTE) }){
+                    ProfileScreen(
+                        Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        isLogin = authState.isLoggedIn,
+                        onLogin = {navController.navigate(LOGIN_ROUTE)}) {
                         navController.navigate(MANAGE_ROUTER)
                     }
                 }
@@ -209,12 +209,12 @@ fun MainScreen(
                 composable(PLAYER_ROUTE, enterTransition = {
                     slideIntoContainer(
                         towards = SlideDirection.Up,
-                        animationSpec = tween(500)
+                        animationSpec = tween(700)
                     )
                 }, exitTransition = {
                     slideOutOfContainer(
                         towards = SlideDirection.Down,
-                        animationSpec = tween(500)
+                        animationSpec = tween(700)
                     )
                 }) {
                     PlayerScreen(
@@ -225,7 +225,12 @@ fun MainScreen(
                     )
                 }
                 composable(SOCIAL_ROUTE) {
-                    SocialScreen()
+                    MainScreenWithBottomBar(
+                        showBottomBar,
+                        this@SharedTransitionLayout
+                    ) {
+                        SocialScreen(it)
+                    }
                 }
                 composable(CHAT_ROUTE) {
                     ChatScreen()

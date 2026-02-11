@@ -32,7 +32,7 @@ const val PROFILE_ROUTE = "profile"
 
 @Composable
 fun ProfileScreen(
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier.fillMaxSize(),
     viewModel: ProfileViewModel = hiltViewModel(),
     isLogin: Boolean,
     onLogin: () -> Unit = {},
@@ -50,7 +50,6 @@ fun ProfileScreen(
         state.error != null && state.user == null -> ErrorView(message = state.error!!)
         else -> state.user?.let { user ->
             Column(modifier = modifier
-                .fillMaxSize()
                 .padding(24.dp)) {
                 CachedImage(
                     imageUrl = user.avatar,
