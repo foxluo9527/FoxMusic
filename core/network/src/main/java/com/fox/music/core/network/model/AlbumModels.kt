@@ -1,5 +1,6 @@
 package com.fox.music.core.network.model
 
+import com.fox.music.core.model.ZeroOneBooleanSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -18,6 +19,7 @@ data class AlbumDto(
     @SerialName("creator_id")
     val creatorId: Long? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean = true,
     val duration: Long = 0,
     @SerialName("track_count")
@@ -29,6 +31,7 @@ data class AlbumDto(
     @SerialName("collection_count")
     val collectionCount: Int = 0,
     @SerialName("is_featured")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isFeatured: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
@@ -57,6 +60,7 @@ data class AlbumDetailDto(
     @SerialName("creator_id")
     val creatorId: Long? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean = true,
     val duration: Long = 0,
     @SerialName("track_count")
@@ -68,6 +72,7 @@ data class AlbumDetailDto(
     @SerialName("collection_count")
     val collectionCount: Int = 0,
     @SerialName("is_featured")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isFeatured: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,

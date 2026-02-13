@@ -49,11 +49,7 @@ class PlaylistRepositoryImpl @Inject constructor(
     ): Result<Playlist> = suspendRunCatching {
         val response = playlistApi.createPlaylist(
             com.fox.music.core.network.model.CreatePlaylistRequest(
-                title = title,
-                description = description,
-                coverImage = coverImage,
-                isPublic = isPublic,
-                tags = tagIds
+                title = title
             )
         )
         val data = response.data
@@ -98,7 +94,7 @@ class PlaylistRepositoryImpl @Inject constructor(
         val response = playlistApi.getRecommendedPlaylists(page, limit)
         val data = response.data
         if (response.isSuccess && data != null) {
-            data.toPagedData { it.toPlaylist() }
+            PagedData(data.map { it.toPlaylist() })
         } else throw Exception(response.message)
     }
 
@@ -169,6 +165,26 @@ class PlaylistRepositoryImpl @Inject constructor(
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPagedData { it.toPlaylist() }
+        } else throw Exception(response.message)
+    }
+
+    override suspend fun getRanks(page: Int, limit: Int): Result<List<Playlist>> = suspendRunCatching {
+        val response = playlistApi.getRanks(page, limit)
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.map { it.toPlaylist() }
+        } else throw Exception(response.message)
+    }
+
+    override suspend fun getRankDetail(
+        id: Long,
+        page: Int,
+        limit: Int
+    ): Result<PlaylistDetail> = suspendRunCatching {
+        val response = playlistApi.getRankDetail(id, page, limit)
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.toPlaylistDetail()
         } else throw Exception(response.message)
     }
 }

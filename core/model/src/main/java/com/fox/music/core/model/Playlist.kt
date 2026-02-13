@@ -11,6 +11,7 @@ data class Playlist(
     @SerialName("cover_image")
     val coverImage: String? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean = true,
     @SerialName("creator_id")
     val creatorId: Long? = null,

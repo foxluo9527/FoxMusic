@@ -33,7 +33,7 @@ interface PlaylistApiService {
     suspend fun getRecommendedPlaylists(
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
-    ): ApiResponse<PagedResponse<PlaylistDto>>
+    ): ApiResponse<List<PlaylistDto>>
 
     @POST("api/playlists/{id}/tracks")
     suspend fun addTracks(
@@ -73,4 +73,17 @@ interface PlaylistApiService {
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20
     ): ApiResponse<PagedResponse<PlaylistDto>>
+
+    @GET("api/playlists/ranks")
+    suspend fun getRanks(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): ApiResponse<List<PlaylistDto>>
+
+    @GET("api/playlists/ranks/{id}")
+    suspend fun getRankDetail(
+        @Path("id") id: Long,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): ApiResponse<PlaylistDetailDto>
 }

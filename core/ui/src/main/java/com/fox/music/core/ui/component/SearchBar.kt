@@ -1,7 +1,9 @@
 package com.fox.music.core.ui.component
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -26,7 +28,7 @@ fun FoxSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "Search music, artists, playlists...",
+    placeholder: String = "Search for music...",
     onSearch: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
@@ -36,9 +38,9 @@ fun FoxSearchBar(
         onValueChange = onQueryChange,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .height(44.dp),
         placeholder = {
-            Text(text = placeholder)
+            Text(text = placeholder, maxLines = 1)
         },
         leadingIcon = {
             Icon(
@@ -57,7 +59,7 @@ fun FoxSearchBar(
             }
         },
         singleLine = true,
-        shape = MaterialTheme.shapes.large,
+        shape = CircleShape,
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,

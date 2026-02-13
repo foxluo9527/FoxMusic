@@ -62,7 +62,8 @@ fun PostDto.toPost(): Post = Post(
     isLiked = isLiked,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    user = user?.toUser()
+    authorName = authorName,
+    authorAvatar = authorAvatar
 )
 
 fun FavoriteDto.toFavorite(): Favorite = Favorite(

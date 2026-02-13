@@ -90,9 +90,10 @@ class SocialRepositoryImpl @Inject constructor(
     override suspend fun getPosts(
         page: Int,
         limit: Int,
-        keyword: String?
+        keyword: String?,
+        sort : String
     ): Result<PagedData<Post>> = suspendRunCatching {
-        val response = socialApi.getPosts(page, limit, keyword)
+        val response = socialApi.getPosts(page, limit, keyword,sort)
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPagedData { it.toPost() }

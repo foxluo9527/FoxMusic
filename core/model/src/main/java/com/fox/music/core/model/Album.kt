@@ -18,6 +18,7 @@ data class Album(
     @SerialName("creator_id")
     val creatorId: Long? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean = true,
     val duration: Long = 0,
     @SerialName("track_count")
@@ -29,6 +30,7 @@ data class Album(
     @SerialName("collection_count")
     val collectionCount: Int = 0,
     @SerialName("is_featured")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isFeatured: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,

@@ -1,6 +1,8 @@
 package com.fox.music.feature.search
 
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
@@ -8,24 +10,23 @@ import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.usecase.ClearSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.GetHotKeywordsUseCase
 import com.fox.music.core.domain.usecase.GetSearchHistoryUseCase
+import com.fox.music.core.domain.usecase.GetSearchMusicPagingUseCase
 import com.fox.music.core.domain.usecase.SaveSearchHistoryUseCase
-import com.fox.music.core.domain.usecase.SearchMusicUseCase
+import com.fox.music.core.model.HotKeyword
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.SearchHistory
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SearchState(
     val query: String = "",
-    val results: List<Music> = emptyList(),
+    val results: Flow<PagingData<Music>> = flowOf(PagingData.empty()),
     val searchHistory: List<SearchHistory> = emptyList(),
-    val hotKeywords: List<String> = emptyList(),
+    val hotKeywords: List<HotKeyword> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val hasSearched: Boolean = false
@@ -45,7 +46,7 @@ sealed interface SearchEffect : UiEffect {
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val searchMusicUseCase: SearchMusicUseCase,
+    private val getSearchMusicPagingUseCase: GetSearchMusicPagingUseCase,
     private val getSearchHistoryUseCase: GetSearchHistoryUseCase,
     private val saveSearchHistoryUseCase: SaveSearchHistoryUseCase,
     private val clearSearchHistoryUseCase: ClearSearchHistoryUseCase,
@@ -88,27 +89,16 @@ class SearchViewModel @Inject constructor(
     private fun performSearch(keyword: String? = null) {
         val q = keyword?.trim() ?: currentState.query.trim()
         if (q.isEmpty()) return
+
         viewModelScope.launch {
-            updateState { copy(isLoading = true, error = null, hasSearched = true) }
+            updateState { copy(hasSearched = true) }
             saveSearchHistoryUseCase(q)
-            searchMusicUseCase(keyword = q, limit = 30)
-                .onSuccess { data ->
-                    updateState {
-                        copy(
-                            results = data.list,
-                            isLoading = false,
-                            error = null
-                        )
-                    }
-                }
-                .onError { _, message ->
-                    updateState {
-                        copy(
-                            isLoading = false,
-                            error = message ?: "Search failed"
-                        )
-                    }
-                }
+
+            updateState {
+                copy(
+                    results = getSearchMusicPagingUseCase(q).cachedIn(viewModelScope)
+                )
+            }
         }
     }
 

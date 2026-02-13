@@ -38,6 +38,7 @@ data class Music(
     @SerialName("is_explicit")
     val isExplicit: Boolean = false,
     @SerialName("is_featured")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isFeatured: Boolean = false,
     @SerialName("created_by")
     val createdBy: Long? = null,

@@ -84,7 +84,7 @@ fun FoxMusicApp(startRoute: MutableState<String>) {
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showBottomNavBar by remember {mutableStateOf(true)}
     LaunchedEffect(startRoute.value) {
-        navController.navigate(startRoute.value)
+//        navController.navigate(startRoute.value)
     }
     LaunchedEffect(currentRoute) {
         showBottomNavBar = AppDestinations.entries.map {it.route}.contains(currentRoute)

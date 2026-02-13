@@ -34,10 +34,13 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
-    
+
+    // Paging3
+    implementation(libs.paging)
+
     // Coroutines
     implementation(libs.bundles.coroutines)
-    
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }

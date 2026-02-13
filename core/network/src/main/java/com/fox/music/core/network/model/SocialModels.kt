@@ -61,7 +61,7 @@ data class SetRemarkRequest(
 @Serializable
 data class PostDto(
     val id: Long,
-    @SerialName("user_id")
+    @SerialName("author_id")
     val userId: Long,
     val content: String,
     val images: List<String> = emptyList(),
@@ -72,12 +72,16 @@ data class PostDto(
     val commentCount: Int = 0,
     @SerialName("share_count")
     val shareCount: Int = 0,
+    @SerialName("is_liked")
     val isLiked: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
     @SerialName("updated_at")
     val updatedAt: String? = null,
-    val user: UserDto? = null
+    @SerialName("author_name")
+    val authorName:String?,
+    @SerialName("author_avatar")
+    val authorAvatar:String?,
 )
 
 @Serializable

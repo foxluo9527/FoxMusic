@@ -7,6 +7,7 @@ import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.database.dao.SearchHistoryDao
 import com.fox.music.core.database.entity.SearchHistoryEntity
 import com.fox.music.core.domain.repository.SearchRepository
+import com.fox.music.core.model.HotKeyword
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.SearchHistory
@@ -36,12 +37,13 @@ class SearchRepositoryImpl @Inject constructor(
         } else throw Exception(response.message)
     }
 
-    override suspend fun getHotKeywords(type: String?, limit: Int): Result<List<String>> =
+    override suspend fun getHotKeywords(type: String?, limit: Int): Result<List<HotKeyword>> =
         suspendRunCatching {
             val response = searchApi.getHotKeywords(type, limit)
             if (response.isSuccess) {
                 @Suppress("UNCHECKED_CAST")
-                (response.data as? List<String>) ?: emptyList()
+                (response.data?.map {HotKeyword(it.keyword, it.type, it.searchCount)})
+                    ?: emptyList()
             } else emptyList()
         }
 

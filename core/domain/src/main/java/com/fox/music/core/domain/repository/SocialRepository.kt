@@ -29,7 +29,8 @@ interface SocialRepository {
     suspend fun getPosts(
         page: Int = 1,
         limit: Int = 20,
-        keyword: String? = null
+        keyword: String? = null,
+        sort:String = "latest"
     ): Result<PagedData<Post>>
 
     suspend fun createPost(content: String, images: List<String> = emptyList(), musicId: Long? = null): Result<Post>

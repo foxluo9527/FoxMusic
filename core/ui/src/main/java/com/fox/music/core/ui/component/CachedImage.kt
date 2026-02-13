@@ -27,6 +27,10 @@ fun CachedImage(
     placeholderIcon: ImageVector = Icons.Filled.MusicNote,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
+    if (imageUrl.isNullOrEmpty()){
+        PlaceholderBox(modifier.clip(shape),icon = placeholderIcon)
+        return
+    }
     SubcomposeAsyncImage(
         model = processUrl(imageUrl),
         contentDescription = contentDescription,
@@ -48,9 +52,9 @@ private fun processUrl(url: String?): String? {
 }
 
 @Composable
-private fun PlaceholderBox(icon: ImageVector) {
+private fun PlaceholderBox(modifier: Modifier= Modifier,icon: ImageVector) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {

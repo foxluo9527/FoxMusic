@@ -3,6 +3,7 @@ package com.fox.music.core.domain.repository
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.model.Album
 import com.fox.music.core.model.Artist
+import com.fox.music.core.model.HotKeyword
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.Playlist
@@ -13,7 +14,7 @@ interface SearchRepository {
 
     suspend fun searchMusic(keyword: String, page: Int = 1, limit: Int = 20): Result<PagedData<Music>>
 
-    suspend fun getHotKeywords(type: String? = null, limit: Int = 10): Result<List<String>>
+    suspend fun getHotKeywords(type: String? = null, limit: Int = 10): Result<List<HotKeyword>>
 
     fun getSearchHistory(limit: Int = 20): Flow<List<SearchHistory>>
 

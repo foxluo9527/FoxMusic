@@ -79,6 +79,7 @@ data class CreatePlaylistRequest(
     @SerialName("cover_image")
     val coverImage: String? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean = true,
     val tags: List<Long>? = null
 )
@@ -90,6 +91,7 @@ data class UpdatePlaylistRequest(
     @SerialName("cover_image")
     val coverImage: String? = null,
     @SerialName("is_public")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isPublic: Boolean? = null,
     val tags: List<Long>? = null
 )

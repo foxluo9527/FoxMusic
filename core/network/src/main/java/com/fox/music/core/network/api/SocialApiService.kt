@@ -1,7 +1,29 @@
 package com.fox.music.core.network.api
 
-import com.fox.music.core.network.model.*
-import retrofit2.http.*
+import com.fox.music.core.network.model.AcceptFriendRequest
+import com.fox.music.core.network.model.ApiResponse
+import com.fox.music.core.network.model.CommentDto
+import com.fox.music.core.network.model.CreatePostRequest
+import com.fox.music.core.network.model.DeleteNotificationsRequest
+import com.fox.music.core.network.model.FavoriteDto
+import com.fox.music.core.network.model.FriendDto
+import com.fox.music.core.network.model.FriendRequestBody
+import com.fox.music.core.network.model.FriendRequestDto
+import com.fox.music.core.network.model.MarkReadRequest
+import com.fox.music.core.network.model.NotificationDto
+import com.fox.music.core.network.model.PagedResponse
+import com.fox.music.core.network.model.PostCommentRequest
+import com.fox.music.core.network.model.PostDto
+import com.fox.music.core.network.model.SearchedUserDto
+import com.fox.music.core.network.model.SetRemarkRequest
+import com.fox.music.core.network.model.UnreadCountDto
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.HTTP
+import retrofit2.http.POST
+import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface SocialApiService {
 
@@ -34,7 +56,8 @@ interface SocialApiService {
     suspend fun getPosts(
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20,
-        @Query("keyword") keyword: String? = null
+        @Query("keyword") keyword: String? = null,
+        @Query("sort") sort: String,
     ): ApiResponse<PagedResponse<PostDto>>
 
     @POST("api/posts")

@@ -111,4 +111,9 @@ object NetworkModule {
     @Singleton
     fun provideImportApiService(retrofit: Retrofit): ImportApiService =
         retrofit.create(ImportApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideFavoriteApiService(retrofit: Retrofit): FavoriteApiService =
+        retrofit.create(FavoriteApiService::class.java)
 }

@@ -1,6 +1,7 @@
 package com.fox.music.core.network.api
 
 import com.fox.music.core.network.model.ApiResponse
+import com.fox.music.core.network.model.SearchKeywordDto
 import retrofit2.http.*
 
 interface SearchApiService {
@@ -9,7 +10,7 @@ interface SearchApiService {
     suspend fun getHotKeywords(
         @Query("type") type: String? = null,
         @Query("limit") limit: Int = 10
-    ): ApiResponse<List<String>>
+    ): ApiResponse<List<SearchKeywordDto>>
 
     @GET("api/search/history")
     suspend fun getSearchHistory(

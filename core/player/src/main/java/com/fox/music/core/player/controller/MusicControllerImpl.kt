@@ -49,10 +49,6 @@ class MusicControllerImpl @Inject constructor(
 
     private var currentPlaylist: List<Music> = emptyList()
 
-    private var replacePlaylist: List<MediaItem>? = null
-
-    private var waitForReplaceOnPlayingMusicId: Long? = null
-
     private var playingKey: String? = null
 
     init {
@@ -85,6 +81,9 @@ class MusicControllerImpl @Inject constructor(
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    controller?.play()
+                }
                 updatePlayerState()
             }
 
@@ -126,18 +125,6 @@ class MusicControllerImpl @Inject constructor(
         val player = controller ?: return
         val currentIndex = player.currentMediaItemIndex
         val currentMusic = currentPlaylist.getOrNull(currentIndex)
-        if (waitForReplaceOnPlayingMusicId != null && (waitForReplaceOnPlayingMusicId != currentMusic?.id || player.playbackState == Player.STATE_ENDED)) {
-            replacePlaylist?.let {
-                controller?.run {
-                    setMediaItems(it, currentPlaylist.indexOf(currentMusic), 0L)
-                    prepare()
-                    play()
-                }
-            }
-            waitForReplaceOnPlayingMusicId = null
-            replacePlaylist = null
-            return
-        }
         _playerState.value = PlayerState(
             currentMusic = currentMusic,
             playlist = currentPlaylist,
@@ -172,56 +159,23 @@ class MusicControllerImpl @Inject constructor(
 
     override fun stop() {
         val player = controller ?: return
-        val currentIndex = player.currentMediaItemIndex
-        if (waitForReplaceOnPlayingMusicId != null && replacePlaylist != null) {
-            replacePlaylist?.let {
-                controller?.run {
-                    setMediaItems(it, currentIndex + 1, 0L)
-                    prepare()
-                    play()
-                }
-            }
-            waitForReplaceOnPlayingMusicId = null
-            replacePlaylist = null
-            return
-        }
         player.stop()
     }
 
     override fun next() {
         val player = controller ?: return
-        val currentIndex = player.currentMediaItemIndex
-        if (waitForReplaceOnPlayingMusicId != null && replacePlaylist != null) {
-            replacePlaylist?.let {
-                controller?.run {
-                    setMediaItems(it, currentIndex + 1, 0L)
-                    prepare()
-                    play()
-                }
-            }
-            waitForReplaceOnPlayingMusicId = null
-            replacePlaylist = null
-            return
-        }
         player.seekToNextMediaItem()
+        if (! player.isPlaying) {
+            player.play()
+        }
     }
 
     override fun previous() {
         val player = controller ?: return
-        val currentIndex = player.currentMediaItemIndex
-        if (waitForReplaceOnPlayingMusicId != null && replacePlaylist != null) {
-            replacePlaylist?.let {
-                controller?.run {
-                    setMediaItems(it, currentIndex + 1, 0L)
-                    prepare()
-                    play()
-                }
-            }
-            waitForReplaceOnPlayingMusicId = null
-            replacePlaylist = null
-            return
-        }
         player.seekToPreviousMediaItem()
+        if (! player.isPlaying) {
+            player.play()
+        }
     }
 
     override fun seekTo(positionMs: Long) {
@@ -232,13 +186,18 @@ class MusicControllerImpl @Inject constructor(
         if (key != playingKey) {
             return
         }
-        _playerState.value.currentMusic?.let { music ->
+        _playerState.value.let {state ->
             playingKey = key
             currentPlaylist = musics
-            waitForReplaceOnPlayingMusicId = music.id
-            replacePlaylist = musics.map { it.toMediaItem() }
-        } ?: run {
-            setPlaylist(musics, 0, key)
+            val mediaItems = musics.map {it.toMediaItem()}
+            controller?.run {
+                setMediaItems(
+                    mediaItems,
+                    state.currentIndex,
+                    if (musics[state.currentIndex].url == state.currentMusic?.url) state.position else 0L
+                )
+                prepare()
+            }
         }
     }
 
@@ -249,12 +208,18 @@ class MusicControllerImpl @Inject constructor(
         controller?.run {
             setMediaItems(mediaItems, startIndex, 0L)
             prepare()
-            play()
         }
     }
 
     override fun addToQueue(music: Music) {
-        currentPlaylist = currentPlaylist + music
+        currentPlaylist = currentPlaylist.apply {
+            val currentPosition = currentPosition.value
+            if (currentPosition == 0L) {
+                toMutableList().add(0, music)
+            } else {
+                toMutableList().add(currentPosition.toInt() + 1, music)
+            }
+        }
         controller?.addMediaItem(music.toMediaItem())
     }
 

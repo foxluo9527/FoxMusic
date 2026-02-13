@@ -4,6 +4,8 @@ import com.fox.music.core.data.repository.AlbumRepositoryImpl
 import com.fox.music.core.data.repository.ArtistRepositoryImpl
 import com.fox.music.core.data.repository.AuthRepositoryImpl
 import com.fox.music.core.data.repository.ChatRepositoryImpl
+import com.fox.music.core.data.repository.FavoriteRepositoryImpl
+import com.fox.music.core.data.repository.ImportRepositoryImpl
 import com.fox.music.core.data.repository.MusicRepositoryImpl
 import com.fox.music.core.data.repository.PlaylistRepositoryImpl
 import com.fox.music.core.data.repository.SearchRepositoryImpl
@@ -13,6 +15,8 @@ import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.ChatRepository
+import com.fox.music.core.domain.repository.FavoriteRepository
+import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SearchRepository
@@ -65,4 +69,12 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindSocialRepository(impl: SocialRepositoryImpl): SocialRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFavoriteRepository(impl: FavoriteRepositoryImpl): FavoriteRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindImportRepository(impl: ImportRepositoryImpl): ImportRepository
 }

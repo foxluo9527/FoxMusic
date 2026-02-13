@@ -28,7 +28,7 @@ class GetMusicListUseCase @Inject constructor(
     ) = Pager(
         config = PagingConfig(
             pageSize = limit,
-            prefetchDistance = 5,
+            prefetchDistance = 20,
             initialLoadSize = limit
         ),
         pagingSourceFactory = {MusicPagingSource(musicRepository, keyword, tagId, sort)}
