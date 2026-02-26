@@ -113,7 +113,9 @@ class MusicControllerImpl @Inject constructor(
                     // Also update position in player state
                     _playerState.value = _playerState.value.copy(
                         position = player.currentPosition,
-                        duration = player.duration.coerceAtLeast(0)
+                        duration = player.duration.coerceAtLeast(0),
+                        playlist = currentPlaylist,
+                        currentIndex = player.currentMediaItemIndex
                     )
                 }
                 delay(500L)
@@ -198,6 +200,7 @@ class MusicControllerImpl @Inject constructor(
                 )
                 prepare()
             }
+            updatePlayerState()
         }
     }
 
@@ -209,18 +212,20 @@ class MusicControllerImpl @Inject constructor(
             setMediaItems(mediaItems, startIndex, 0L)
             prepare()
         }
+        updatePlayerState()
     }
 
     override fun addToQueue(music: Music) {
-        currentPlaylist = currentPlaylist.apply {
-            val currentPosition = currentPosition.value
-            if (currentPosition == 0L) {
-                toMutableList().add(0, music)
-            } else {
-                toMutableList().add(currentPosition.toInt() + 1, music)
-            }
+        val newPlaylist = currentPlaylist.toMutableList()
+        val currentPosition = currentPosition.value
+        if (currentPosition == 0L) {
+            newPlaylist.add(0, music)
+        } else {
+            newPlaylist.add(currentPosition.toInt() + 1, music)
         }
+        currentPlaylist = newPlaylist
         controller?.addMediaItem(music.toMediaItem())
+        updatePlayerState()
     }
 
     override fun setRepeatMode(repeatMode: RepeatMode) {
@@ -236,6 +241,39 @@ class MusicControllerImpl @Inject constructor(
 
     override fun setPlaybackSpeed(speed: Float) {
         controller?.setPlaybackSpeed(speed)
+    }
+
+    override fun removeFromQueue(index: Int) {
+        if (index >= 0 && index < currentPlaylist.size) {
+            currentPlaylist = currentPlaylist.filterIndexed { i, _ -> i != index }
+            controller?.removeMediaItem(index)
+
+            // 如果删除的是当前播放的歌曲，更新状态
+            val currentIndex = _playerState.value.currentIndex
+            if (index == currentIndex && currentPlaylist.isNotEmpty()) {
+                if (currentIndex < currentPlaylist.size) {
+                    controller?.seekToDefaultPosition(currentIndex)
+                } else {
+                    controller?.seekToDefaultPosition(currentPlaylist.size - 1)
+                }
+            }
+            // 更新 PlayerState
+            updatePlayerState()
+        }
+    }
+
+    override fun clearQueue() {
+        currentPlaylist = emptyList()
+        controller?.setMediaItems(emptyList())
+        // 更新 PlayerState
+        updatePlayerState()
+    }
+
+    override fun seekToQueueItem(index: Int) {
+        if (index >= 0 && index < currentPlaylist.size) {
+            controller?.seekToDefaultPosition(index)
+            updatePlayerState()
+        }
     }
 
     private fun processUrl(url: String?): String? {

@@ -13,6 +13,8 @@ import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
 
+class UnauthorizedException(message: String = "登录已失效，请重新登录") : Exception(message)
+
 @Singleton
 class TokenAuthenticator @Inject constructor(
     private val tokenManager: TokenManager,
@@ -31,6 +33,7 @@ class TokenAuthenticator @Inject constructor(
 
             if (currentToken != requestToken && !currentToken.isNullOrBlank()) {
                 // Token was already refreshed by another thread
+                Timber.d("Token was already refreshed by another thread")
                 return response.request.newBuilder()
                     .header("Authorization", currentToken)
                     .build()
@@ -39,11 +42,13 @@ class TokenAuthenticator @Inject constructor(
             // Check if there are no cached tokens
             if (currentToken.isNullOrBlank() && currentRefreshToken.isNullOrBlank()) {
                 // No cached tokens, let user re-login
+                Timber.w("No cached tokens available, user needs to re-login")
                 return null
             }
 
             // Try to refresh the token
             return try {
+                Timber.d("Attempting to refresh token")
                 val refreshResponse = runBlocking {
                     authApiServiceProvider.get().refreshToken()
                 }
@@ -51,17 +56,19 @@ class TokenAuthenticator @Inject constructor(
                 if (refreshResponse.isSuccess && refreshResponse.data != null) {
                     val newToken = refreshResponse.data.token
                     runBlocking { tokenManager.saveAccessToken(newToken) }
+                    Timber.d("Token refreshed successfully")
 
                     response.request.newBuilder()
                         .header("Authorization", newToken)
                         .build()
                 } else {
                     // Refresh failed, clear tokens and let user re-login
+                    Timber.w("Token refresh failed: ${refreshResponse.message}")
                     runBlocking { tokenManager.clearTokens() }
                     null
                 }
             } catch (e: Exception) {
-                Timber.e(e, "Token refresh failed")
+                Timber.e(e, "Token refresh exception: ${e.message}")
                 runBlocking { tokenManager.clearTokens() }
                 null
             }

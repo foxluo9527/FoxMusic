@@ -33,6 +33,12 @@ interface MusicApiService {
         @Query("limit") limit: Int = 20
     ): ApiResponse<PagedResponse<CommentDto>>
 
+
+    @POST("api/music-comments/like/{id}")
+    suspend fun likeMusicComment(
+        @Path("id") commentId: Long
+    ): ApiResponse<Unit>
+
     @POST("api/music-comments")
     suspend fun postComment(@Body request: PostCommentRequest): ApiResponse<CommentDto>
 

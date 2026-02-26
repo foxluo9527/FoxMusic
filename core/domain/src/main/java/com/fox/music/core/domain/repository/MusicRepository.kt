@@ -40,6 +40,8 @@ interface MusicRepository {
         limit: Int = 20
     ): Result<PagedData<Comment>>
 
+    suspend fun likeMusicComment(commentId: Long): Result<Unit>
+
     suspend fun getPlayHistory(page: Int = 1, limit: Int = 20): Result<PagedData<PlayHistory>>
 
     suspend fun deletePlayHistory(musicIds: List<Long>): Result<Unit>

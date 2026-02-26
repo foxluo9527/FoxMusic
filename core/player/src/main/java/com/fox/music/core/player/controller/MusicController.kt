@@ -37,4 +37,19 @@ interface MusicController {
     fun setRepeatMode(repeatMode: RepeatMode)
 
     fun setPlaybackSpeed(speed: Float)
+
+    /**
+     * 从播放队列中删除指定索引的歌曲
+     */
+    fun removeFromQueue(index: Int)
+
+    /**
+     * 清空播放队列
+     */
+    fun clearQueue()
+
+    /**
+     * 跳转到指定索引的歌曲进行播放
+     */
+    fun seekToQueueItem(index: Int)
 }

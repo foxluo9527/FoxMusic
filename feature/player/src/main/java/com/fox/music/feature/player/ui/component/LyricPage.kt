@@ -55,6 +55,7 @@ fun LyricPage(
     musicController: MusicController,
     dominantColor: Color,
     contrastColor: Color,
+    onCommentClick: (Long) -> Unit = {}
 ) {
     val playerState by musicController.playerState.collectAsState(PlayerState())
     val bilingualLyricLines by remember {
@@ -95,7 +96,7 @@ fun LyricPage(
                     .weight(1f)
                     .height(40.dp)
                     .background(contrastColor, CircleShape)
-                    .clickable { /* 打开评论 */},
+                    .clickable { onCommentClick(playerState.currentMusic?.id ?: 0L) },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(

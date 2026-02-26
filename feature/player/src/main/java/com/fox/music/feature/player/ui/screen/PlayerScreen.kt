@@ -17,6 +17,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,7 +47,9 @@ import com.fox.music.core.ui.component.TabSwitch
 import com.fox.music.feature.player.lyric.manager.LyricStyleManager
 import com.fox.music.feature.player.ui.component.LyricPage
 import com.fox.music.feature.player.ui.component.LyricSettings
+import com.fox.music.feature.player.ui.component.PlaylistBottomSheet
 import com.fox.music.feature.player.ui.component.SongPage
+import com.fox.music.feature.player.ui.component.MusicCommentBottomSheet
 import kotlinx.coroutines.launch
 
 const val PLAYER_ROUTE = "player"
@@ -79,6 +82,8 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
     val pager = rememberPagerState {2}
     var showLyricSettings by remember {mutableStateOf(false)}
+    var showPlaylistSheet by remember {mutableStateOf(false)}
+    var showCommentSheet by remember {mutableStateOf(false)}
 
     // 获取当前 Window 以控制状态栏
     val view = LocalView.current
@@ -157,7 +162,8 @@ fun PlayerScreen(
                             null,
                             musicController,
                             dominantColor,
-                            contrastColor
+                            contrastColor,
+                            onCommentClick = { showCommentSheet = true }
                         )
                     }
                 }
@@ -190,7 +196,17 @@ fun PlayerScreen(
                             showLyricSettings = ! showLyricSettings
                         }, Modifier.align(Alignment.CenterEnd)) {
                             Icon(
-                                Icons.Default.Settings, contentDescription = "Back",
+                                Icons.Default.Settings, contentDescription = "Lyric Settings",
+                                modifier = Modifier.size(24.dp),
+                                tint = contrastColor
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            showPlaylistSheet = true
+                        }, Modifier.align(Alignment.CenterEnd)) {
+                            Icon(
+                                Icons.Default.QueueMusic, contentDescription = "Playlist",
                                 modifier = Modifier.size(24.dp),
                                 tint = contrastColor
                             )
@@ -207,7 +223,26 @@ fun PlayerScreen(
                 }
             }
         }
+
+        // 播放列表底部工作表
+        if (showPlaylistSheet) {
+            PlaylistBottomSheet(
+                playerState = playerState,
+                musicController = musicController,
+                onDismiss = {
+                    showPlaylistSheet = false
+                }
+            )
+        }
+
+        // 评论底部弹窗
+        if (showCommentSheet) {
+            MusicCommentBottomSheet(
+                musicId = playerState.currentMusic?.id ?: 0L,
+                onDismiss = {
+                    showCommentSheet = false
+                }
+            )
+        }
     }
 }
-
-

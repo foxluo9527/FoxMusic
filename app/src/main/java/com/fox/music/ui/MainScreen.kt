@@ -11,12 +11,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -24,28 +31,14 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.MainActivityViewModel
 import com.fox.music.core.model.Album
 import com.fox.music.core.model.DetailType
 import com.fox.music.core.model.Music
 import com.fox.music.core.model.Playlist
-import com.fox.music.core.ui.component.MiniPlayer
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Button
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.unit.dp
-import com.blankj.utilcode.util.ToastUtils
+import com.fox.music.core.ui.component.MiniPlayer
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
 import com.fox.music.feature.chat.CHAT_ROUTE
@@ -70,6 +63,7 @@ import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
 import com.fox.music.feature.social.SOCIAL_ROUTE
 import com.fox.music.feature.social.SocialScreen
+
 
 @Composable
 fun MainScreen(

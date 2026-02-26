@@ -112,6 +112,11 @@ class MusicRepositoryImpl @Inject constructor(
         } else throw Exception(response.message)
     }
 
+    override suspend fun likeMusicComment(commentId: Long): Result<Unit> = suspendRunCatching {
+        val response = musicApi.likeMusicComment(commentId)
+        if (response.isSuccess) Unit else throw Exception(response.message)
+    }
+
     override suspend fun getPlayHistory(page: Int, limit: Int): Result<PagedData<PlayHistory>> =
         suspendRunCatching {
             val response = musicApi.getPlayHistory(page, limit)

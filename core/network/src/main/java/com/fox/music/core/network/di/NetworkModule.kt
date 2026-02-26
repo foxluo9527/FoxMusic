@@ -2,7 +2,16 @@ package com.fox.music.core.network.di
 
 import com.fox.music.core.common.constants.AppConstants
 import com.fox.music.core.network.BuildConfig
-import com.fox.music.core.network.api.*
+import com.fox.music.core.network.api.AlbumApiService
+import com.fox.music.core.network.api.ArtistApiService
+import com.fox.music.core.network.api.AuthApiService
+import com.fox.music.core.network.api.ChatApiService
+import com.fox.music.core.network.api.FavoriteApiService
+import com.fox.music.core.network.api.ImportApiService
+import com.fox.music.core.network.api.MusicApiService
+import com.fox.music.core.network.api.PlaylistApiService
+import com.fox.music.core.network.api.SearchApiService
+import com.fox.music.core.network.api.SocialApiService
 import com.fox.music.core.network.interceptor.AuthInterceptor
 import com.fox.music.core.network.interceptor.TokenAuthenticator
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
