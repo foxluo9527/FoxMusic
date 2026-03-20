@@ -29,7 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.fox.music.core.model.HotKeyword
+import com.fox.music.core.model.music.HotKeyword
 import kotlinx.coroutines.delay
 
 @Composable

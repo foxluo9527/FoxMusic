@@ -1,13 +1,10 @@
 package com.fox.music.core.domain.repository
 
 import com.fox.music.core.common.result.Result
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.Artist
-import com.fox.music.core.model.HotKeyword
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.HotKeyword
+import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.Playlist
-import com.fox.music.core.model.SearchHistory
+import com.fox.music.core.model.music.SearchHistory
 import kotlinx.coroutines.flow.Flow
 
 interface SearchRepository {

@@ -41,10 +41,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.fox.music.core.model.Artist
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.Playlist
-import com.fox.music.core.model.PlaylistDetail
+import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.HotKeywordsCarousel
 import com.fox.music.core.ui.component.MusicListItem

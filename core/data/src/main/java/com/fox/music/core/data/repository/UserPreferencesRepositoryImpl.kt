@@ -4,9 +4,9 @@ import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.datastore.FoxPreferencesDataStore
-import com.fox.music.core.model.DarkMode
-import com.fox.music.core.model.PlayQuality
-import com.fox.music.core.model.UserPreferences
+import com.fox.music.core.model.user.DarkMode
+import com.fox.music.core.model.user.PlayQuality
+import com.fox.music.core.model.user.UserPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map

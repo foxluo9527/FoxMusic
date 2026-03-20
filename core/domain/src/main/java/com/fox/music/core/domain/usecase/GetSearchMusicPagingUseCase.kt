@@ -5,7 +5,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import com.fox.music.core.domain.paging.SearchMusicPagingSource
 import com.fox.music.core.domain.repository.SearchRepository
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Music
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 

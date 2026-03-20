@@ -1,10 +1,8 @@
 package com.fox.music.core.data.mapper
 
-import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.Playlist
-import com.fox.music.core.model.PlaylistCategory
-import com.fox.music.core.model.PlaylistDetail
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.music.PlaylistCategory
+import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.core.network.model.PlaylistCategoryDto
 import com.fox.music.core.network.model.PlaylistDetailDto
 import com.fox.music.core.network.model.PlaylistDto

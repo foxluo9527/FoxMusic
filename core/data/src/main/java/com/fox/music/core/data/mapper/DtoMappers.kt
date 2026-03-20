@@ -1,12 +1,15 @@
 package com.fox.music.core.data.mapper
 
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.Artist
-import com.fox.music.core.model.Comment
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.social.Comment
+import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.Tag
-import com.fox.music.core.model.User
+import com.fox.music.core.model.music.Tag
+import com.fox.music.core.model.user.User
+import com.fox.music.core.model.music.AlbumDetail
+import com.fox.music.core.model.music.ArtistDetail
+import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.network.model.AlbumDto
 import com.fox.music.core.network.model.AlbumDetailDto
 import com.fox.music.core.network.model.ArtistDetailDto
@@ -130,7 +133,7 @@ fun CommentDto.toComment(): Comment = Comment(
     replies = replies.map { it.toComment() }
 )
 
-fun PlayHistoryDto.toPlayHistory(): com.fox.music.core.model.PlayHistory = com.fox.music.core.model.PlayHistory(
+fun PlayHistoryDto.toPlayHistory(): PlayHistory = PlayHistory(
     id = id,
     music = music.toMusic(),
     playTime = playTime,
@@ -146,7 +149,7 @@ fun <T, R> PagedResponse<T>.toPagedData(transform: (T) -> R): PagedData<R> = Pag
     totalPages = totalPages
 )
 
-fun ArtistDetailDto.toArtistDetail(): com.fox.music.core.model.ArtistDetail = com.fox.music.core.model.ArtistDetail(
+fun ArtistDetailDto.toArtistDetail(): ArtistDetail = ArtistDetail(
     artist = ArtistDto(
         id = id,
         name = name,
@@ -172,8 +175,8 @@ fun ArtistDetailDto.toArtistDetail(): com.fox.music.core.model.ArtistDetail = co
     albums = albums.map { it.toAlbum() }
 )
 
-fun AlbumDetailDto.toAlbumDetail(): com.fox.music.core.model.AlbumDetail = com.fox.music.core.model.AlbumDetail(
-    album = com.fox.music.core.model.Album(
+fun AlbumDetailDto.toAlbumDetail(): AlbumDetail = AlbumDetail(
+    album = Album(
         id = id,
         title = title,
         coverImage = coverImage,

@@ -1,5 +1,6 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.chat
 
+import com.fox.music.core.model.user.User
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

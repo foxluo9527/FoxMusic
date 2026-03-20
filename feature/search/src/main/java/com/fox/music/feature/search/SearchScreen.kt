@@ -27,15 +27,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.ui.components.SearchBar
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.ErrorView
-import com.fox.music.core.ui.component.FoxSearchBar
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
 

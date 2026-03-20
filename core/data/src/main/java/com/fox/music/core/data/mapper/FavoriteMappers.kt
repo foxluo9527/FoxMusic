@@ -1,8 +1,6 @@
 package com.fox.music.core.data.mapper
 
-import com.fox.music.core.model.Favorite
-import com.fox.music.core.model.FavoriteType
-import com.fox.music.core.network.model.FavoriteDto
+import com.fox.music.core.model.music.FavoriteType
 
 
 fun FavoriteType.toApiString(): String {

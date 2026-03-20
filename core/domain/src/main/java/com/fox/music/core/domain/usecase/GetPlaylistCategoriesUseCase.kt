@@ -2,7 +2,7 @@ package com.fox.music.core.domain.usecase
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.PlaylistRepository
-import com.fox.music.core.model.PlaylistCategory
+import com.fox.music.core.model.music.PlaylistCategory
 import javax.inject.Inject
 
 class GetPlaylistCategoriesUseCase @Inject constructor(

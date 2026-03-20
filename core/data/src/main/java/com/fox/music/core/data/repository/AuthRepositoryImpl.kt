@@ -6,7 +6,7 @@ import com.fox.music.core.data.mapper.toUser
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.LoginResult
-import com.fox.music.core.model.User
+import com.fox.music.core.model.user.User
 import com.fox.music.core.network.api.AuthApiService
 import com.fox.music.core.network.model.ForgotPasswordRequest
 import com.fox.music.core.network.model.ResetPasswordRequest

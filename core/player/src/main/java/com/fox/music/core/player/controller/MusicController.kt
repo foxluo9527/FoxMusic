@@ -1,8 +1,8 @@
 package com.fox.music.core.player.controller
 
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.PlayerState
-import com.fox.music.core.model.RepeatMode
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlayerState
+import com.fox.music.core.model.music.RepeatMode
 import kotlinx.coroutines.flow.StateFlow
 
 interface MusicController {

@@ -4,8 +4,8 @@ import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
-import com.fox.music.core.model.DetailType
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.DetailType
+import com.fox.music.core.model.music.Music
 
 class CollectionDetailPagingSource(
     private val playlistRepository: PlaylistRepository,

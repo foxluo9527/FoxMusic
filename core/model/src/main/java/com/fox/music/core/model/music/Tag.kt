@@ -1,4 +1,4 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.music
 
 import kotlinx.serialization.Serializable
 

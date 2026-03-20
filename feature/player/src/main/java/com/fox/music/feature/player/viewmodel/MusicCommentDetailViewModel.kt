@@ -12,7 +12,7 @@ import com.fox.music.core.domain.usecase.GetMusicCommentsPagingUseCase
 import com.fox.music.core.domain.usecase.LikeMusicCommentUseCase
 import com.fox.music.core.domain.usecase.PostMusicCommentUseCase
 import com.fox.music.core.domain.usecase.GetCommentRepliesUseCase
-import com.fox.music.core.model.Comment
+import com.fox.music.core.model.social.Comment
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch

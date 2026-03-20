@@ -8,12 +8,12 @@ import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.data.mapper.toPlayHistory
 import com.fox.music.core.data.mapper.toTag
 import com.fox.music.core.domain.repository.MusicRepository
-import com.fox.music.core.model.Comment
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.MusicDetail
+import com.fox.music.core.model.social.Comment
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.MusicDetail
 import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.PlayHistory
-import com.fox.music.core.model.Tag
+import com.fox.music.core.model.music.PlayHistory
+import com.fox.music.core.model.music.Tag
 import com.fox.music.core.network.api.MusicApiService
 import javax.inject.Inject
 import javax.inject.Singleton

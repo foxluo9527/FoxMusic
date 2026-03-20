@@ -1,7 +1,7 @@
 package com.fox.music.core.domain.repository
 
 import com.fox.music.core.common.result.Result
-import com.fox.music.core.model.User
+import com.fox.music.core.model.user.User
 
 data class LoginResult(
     val token: String,

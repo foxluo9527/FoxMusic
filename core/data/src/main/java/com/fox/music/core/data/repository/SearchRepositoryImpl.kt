@@ -7,14 +7,17 @@ import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.database.dao.SearchHistoryDao
 import com.fox.music.core.database.entity.SearchHistoryEntity
 import com.fox.music.core.domain.repository.SearchRepository
-import com.fox.music.core.model.HotKeyword
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.HotKeyword
+import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.SearchHistory
+import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.network.api.MusicApiService
 import com.fox.music.core.network.api.SearchApiService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -53,10 +56,10 @@ class SearchRepositoryImpl @Inject constructor(
                 SearchHistory(
                     id = entity.id,
                     keyword = entity.query,
-                    searchTime = java.text.SimpleDateFormat(
+                    searchTime = SimpleDateFormat(
                         "yyyy-MM-dd'T'HH:mm:ss",
-                        java.util.Locale.getDefault()
-                    ).format(java.util.Date(entity.searchedAt))
+                        Locale.getDefault()
+                    ).format(Date(entity.searchedAt))
                 )
             }
         }

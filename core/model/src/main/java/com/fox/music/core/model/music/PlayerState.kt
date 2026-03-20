@@ -1,4 +1,4 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.music
 
 data class PlayerState(
     val currentMusic: Music? = null,
@@ -18,14 +18,4 @@ enum class RepeatMode {
     RANDOM,
     ONE,
     ALL
-}
-
-enum class PlayerEvent {
-    PLAY,
-    PAUSE,
-    STOP,
-    NEXT,
-    PREVIOUS,
-    SEEK,
-    COMPLETE
 }

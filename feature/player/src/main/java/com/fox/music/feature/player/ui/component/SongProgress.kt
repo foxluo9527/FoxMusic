@@ -27,7 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.fox.music.core.model.PlayerState
+import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
 
 /**

@@ -1,5 +1,6 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.music
 
+import com.fox.music.core.model.music.Tag
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

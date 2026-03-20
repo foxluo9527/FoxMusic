@@ -2,7 +2,7 @@ package com.fox.music.core.domain.usecase
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.MusicRepository
-import com.fox.music.core.model.Comment
+import com.fox.music.core.model.social.Comment
 import javax.inject.Inject
 
 class PostMusicCommentUseCase @Inject constructor(

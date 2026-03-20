@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Music
 
 /**
  *    Author : 罗福林

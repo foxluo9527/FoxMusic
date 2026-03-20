@@ -1,12 +1,12 @@
 package com.fox.music.core.domain.repository
 
 import com.fox.music.core.common.result.Result
-import com.fox.music.core.model.Comment
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.MusicDetail
+import com.fox.music.core.model.social.Comment
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.MusicDetail
 import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.PlayHistory
-import com.fox.music.core.model.Tag
+import com.fox.music.core.model.music.PlayHistory
+import com.fox.music.core.model.music.Tag
 
 interface MusicRepository {
 

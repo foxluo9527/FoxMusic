@@ -30,8 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.fox.music.core.model.PlayerState
-import com.fox.music.core.model.RepeatMode
+import com.fox.music.core.model.music.PlayerState
+import com.fox.music.core.model.music.RepeatMode
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.feature.player.R

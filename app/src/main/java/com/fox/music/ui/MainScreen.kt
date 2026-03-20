@@ -33,10 +33,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.MainActivityViewModel
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.DetailType
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.Playlist
+import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.DetailType
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlayerState
+import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
 import com.fox.music.core.ui.component.MiniPlayer
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
@@ -73,7 +74,7 @@ fun MainScreen(
 ) {
     val musicController = viewModel.musicController
     val authState by viewModel.authState.collectAsState()
-    val playerState by musicController.playerState.collectAsState(com.fox.music.core.model.PlayerState())
+    val playerState by musicController.playerState.collectAsState(PlayerState())
     val showBottomBar = remember(
         playerState.currentMusic
     ) { playerState.currentMusic != null }

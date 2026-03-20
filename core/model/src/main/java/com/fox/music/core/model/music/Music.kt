@@ -1,5 +1,8 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.music
 
+import com.fox.music.core.model.music.LyricsParser
+import com.fox.music.core.model.music.Tag
+import com.fox.music.core.model.ZeroOneBooleanSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

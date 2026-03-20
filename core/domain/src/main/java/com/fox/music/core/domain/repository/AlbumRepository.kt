@@ -1,8 +1,8 @@
 package com.fox.music.core.domain.repository
 
 import com.fox.music.core.common.result.Result
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.AlbumDetail
+import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.AlbumDetail
 import com.fox.music.core.model.PagedData
 
 interface AlbumRepository {

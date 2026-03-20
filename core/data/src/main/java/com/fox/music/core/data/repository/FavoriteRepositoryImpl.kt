@@ -6,8 +6,8 @@ import com.fox.music.core.data.mapper.toApiString
 import com.fox.music.core.data.mapper.toFavorite
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.domain.repository.FavoriteRepository
-import com.fox.music.core.model.Favorite
-import com.fox.music.core.model.FavoriteType
+import com.fox.music.core.model.music.Favorite
+import com.fox.music.core.model.music.FavoriteType
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.FavoriteApiService
 import javax.inject.Inject

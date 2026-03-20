@@ -8,7 +8,7 @@ import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.usecase.GetAlbumListUseCase
-import com.fox.music.core.model.Album
+import com.fox.music.core.model.music.Album
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf

@@ -8,9 +8,9 @@ import com.fox.music.core.data.mapper.toPlaylistCategory
 import com.fox.music.core.data.mapper.toPlaylistDetail
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.Playlist
-import com.fox.music.core.model.PlaylistCategory
-import com.fox.music.core.model.PlaylistDetail
+import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.music.PlaylistCategory
+import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.core.network.api.PlaylistApiService
 import javax.inject.Inject
 import javax.inject.Singleton

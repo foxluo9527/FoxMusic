@@ -2,8 +2,8 @@ package com.fox.music.core.domain.usecase
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.FavoriteRepository
-import com.fox.music.core.model.Favorite
-import com.fox.music.core.model.FavoriteType
+import com.fox.music.core.model.music.Favorite
+import com.fox.music.core.model.music.FavoriteType
 import com.fox.music.core.model.PagedData
 import javax.inject.Inject
 

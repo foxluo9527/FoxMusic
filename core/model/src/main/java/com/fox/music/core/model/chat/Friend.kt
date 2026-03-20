@@ -1,4 +1,4 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.chat
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

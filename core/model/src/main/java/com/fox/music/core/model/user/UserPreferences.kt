@@ -1,4 +1,4 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.user
 
 data class UserPreferences(
     val isLoggedIn: Boolean = false,

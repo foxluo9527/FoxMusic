@@ -1,8 +1,8 @@
 package com.fox.music.core.domain.repository
 
 import com.fox.music.core.common.result.Result
-import com.fox.music.core.model.ChatConversation
-import com.fox.music.core.model.Message
+import com.fox.music.core.model.chat.ChatConversation
+import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.PagedData
 
 interface ChatRepository {

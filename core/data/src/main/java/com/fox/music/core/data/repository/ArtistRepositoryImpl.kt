@@ -7,9 +7,9 @@ import com.fox.music.core.data.mapper.toArtistDetail
 import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.domain.repository.ArtistRepository
-import com.fox.music.core.model.Artist
-import com.fox.music.core.model.ArtistDetail
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.ArtistDetail
+import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.ArtistApiService
 import javax.inject.Inject

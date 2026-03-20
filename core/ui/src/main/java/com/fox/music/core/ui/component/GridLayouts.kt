@@ -23,8 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.Playlist
+import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.Playlist
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

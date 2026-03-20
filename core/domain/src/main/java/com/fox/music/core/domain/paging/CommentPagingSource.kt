@@ -3,7 +3,7 @@ package com.fox.music.core.domain.paging
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.fox.music.core.domain.repository.MusicRepository
-import com.fox.music.core.model.Comment
+import com.fox.music.core.model.social.Comment
 
 class CommentPagingSource(
     private val repo: MusicRepository,

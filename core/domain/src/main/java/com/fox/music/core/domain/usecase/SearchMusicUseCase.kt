@@ -2,7 +2,7 @@ package com.fox.music.core.domain.usecase
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SearchRepository
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
 import javax.inject.Inject
 

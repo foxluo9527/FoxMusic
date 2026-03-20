@@ -41,8 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
-import com.fox.music.core.model.DetailType
-import com.fox.music.core.model.Playlist
+import com.fox.music.core.model.music.DetailType
+import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator

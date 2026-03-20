@@ -40,7 +40,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
-import com.fox.music.core.model.PlayerState
+import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.ImageWithPaletteColors
 import com.fox.music.core.ui.component.TabSwitch

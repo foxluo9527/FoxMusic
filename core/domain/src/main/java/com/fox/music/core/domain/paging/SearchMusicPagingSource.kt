@@ -3,7 +3,7 @@ package com.fox.music.core.domain.paging
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.fox.music.core.domain.repository.SearchRepository
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Music
 
 class SearchMusicPagingSource(
     private val repo: SearchRepository,

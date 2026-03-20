@@ -9,8 +9,8 @@ import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.usecase.GetPlaylistCategoriesUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistsPagingUseCase
-import com.fox.music.core.model.Playlist
-import com.fox.music.core.model.PlaylistCategory
+import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.music.PlaylistCategory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf

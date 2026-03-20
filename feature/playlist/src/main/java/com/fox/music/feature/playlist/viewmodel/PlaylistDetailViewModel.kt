@@ -18,14 +18,13 @@ import com.fox.music.core.domain.usecase.GetAlbumDetailUseCase
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistDetailUseCase
 import com.fox.music.core.domain.usecase.GetRankDetailUseCase
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.DetailType
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.Playlist
+import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.DetailType
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.Playlist
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import okhttp3.internal.http.toHttpDateString
 import javax.inject.Inject
 
 /**

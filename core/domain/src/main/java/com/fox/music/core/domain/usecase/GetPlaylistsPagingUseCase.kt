@@ -5,7 +5,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import com.fox.music.core.domain.paging.PlaylistPagingSource
 import com.fox.music.core.domain.repository.PlaylistRepository
-import com.fox.music.core.model.Playlist
+import com.fox.music.core.model.music.Playlist
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 

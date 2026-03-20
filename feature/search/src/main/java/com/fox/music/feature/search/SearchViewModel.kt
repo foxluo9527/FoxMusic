@@ -12,9 +12,9 @@ import com.fox.music.core.domain.usecase.GetHotKeywordsUseCase
 import com.fox.music.core.domain.usecase.GetSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.GetSearchMusicPagingUseCase
 import com.fox.music.core.domain.usecase.SaveSearchHistoryUseCase
-import com.fox.music.core.model.HotKeyword
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.SearchHistory
+import com.fox.music.core.model.music.HotKeyword
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.SearchHistory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch

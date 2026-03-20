@@ -35,9 +35,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.Playlist
+import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.HotKeywordsCarousel
 import com.fox.music.core.ui.component.MusicListItem

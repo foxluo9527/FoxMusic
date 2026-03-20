@@ -6,8 +6,8 @@ import com.fox.music.core.data.mapper.toAlbum
 import com.fox.music.core.data.mapper.toAlbumDetail
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.domain.repository.AlbumRepository
-import com.fox.music.core.model.Album
-import com.fox.music.core.model.AlbumDetail
+import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.AlbumDetail
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.AlbumApiService
 import javax.inject.Inject

@@ -40,8 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blankj.utilcode.util.ConvertUtils.px2dp
-import com.fox.music.core.model.LyricsParser
-import com.fox.music.core.model.PlayerState
+import com.fox.music.core.model.music.LyricsParser
+import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.feature.player.R
 import com.fox.music.feature.player.lyric.data.LyricStyle

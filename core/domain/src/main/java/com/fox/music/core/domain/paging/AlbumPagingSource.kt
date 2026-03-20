@@ -3,7 +3,7 @@ package com.fox.music.core.domain.paging
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.fox.music.core.domain.repository.AlbumRepository
-import com.fox.music.core.model.Album
+import com.fox.music.core.model.music.Album
 
 /**
  *    Author : 罗福林

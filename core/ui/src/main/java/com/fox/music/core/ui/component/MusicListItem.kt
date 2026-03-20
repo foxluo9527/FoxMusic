@@ -22,7 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.fox.music.core.model.Music
+import com.fox.music.core.model.music.Music
 
 @Composable
 fun MusicListItem(

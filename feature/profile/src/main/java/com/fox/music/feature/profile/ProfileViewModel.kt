@@ -10,10 +10,10 @@ import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.usecase.GetFavoritesUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistListUseCase
 import com.fox.music.core.domain.usecase.GetProfileUseCase
-import com.fox.music.core.model.Favorite
-import com.fox.music.core.model.FavoriteType
-import com.fox.music.core.model.Playlist
-import com.fox.music.core.model.User
+import com.fox.music.core.model.music.Favorite
+import com.fox.music.core.model.music.FavoriteType
+import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.user.User
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject

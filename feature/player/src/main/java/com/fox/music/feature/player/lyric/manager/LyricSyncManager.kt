@@ -15,7 +15,7 @@ import com.blankj.utilcode.util.ActivityUtils
 import com.blankj.utilcode.util.SPUtils
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.core.common.EventViewModel
-import com.fox.music.core.model.PlayerState
+import com.fox.music.core.model.music.PlayerState
 import com.fox.music.feature.player.lyric.data.LyricStyle
 import com.fox.music.feature.player.lyric.ui.DesktopLyricContainer
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE

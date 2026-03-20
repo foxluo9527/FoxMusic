@@ -5,7 +5,7 @@ import androidx.paging.PagingConfig
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.paging.AlbumPagingSource
 import com.fox.music.core.domain.repository.AlbumRepository
-import com.fox.music.core.model.Album
+import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.PagedData
 import javax.inject.Inject
 

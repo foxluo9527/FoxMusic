@@ -1,14 +1,14 @@
 package com.fox.music.core.domain.repository
 
 import com.fox.music.core.common.result.Result
-import com.fox.music.core.model.Comment
-import com.fox.music.core.model.Favorite
-import com.fox.music.core.model.Friend
-import com.fox.music.core.model.FriendRequest
-import com.fox.music.core.model.Notification
-import com.fox.music.core.model.Post
+import com.fox.music.core.model.social.Comment
+import com.fox.music.core.model.music.Favorite
+import com.fox.music.core.model.chat.Friend
+import com.fox.music.core.model.chat.FriendRequest
+import com.fox.music.core.model.chat.Notification
+import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.PagedData
-import com.fox.music.core.model.SearchedUser
+import com.fox.music.core.model.chat.SearchedUser
 
 interface SocialRepository {
 

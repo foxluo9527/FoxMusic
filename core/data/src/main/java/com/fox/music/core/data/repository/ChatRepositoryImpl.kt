@@ -6,8 +6,8 @@ import com.fox.music.core.data.mapper.toChatConversation
 import com.fox.music.core.data.mapper.toMessage
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.domain.repository.ChatRepository
-import com.fox.music.core.model.ChatConversation
-import com.fox.music.core.model.Message
+import com.fox.music.core.model.chat.ChatConversation
+import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.ChatApiService
 import javax.inject.Inject

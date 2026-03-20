@@ -1,4 +1,4 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.music
 
 enum class DetailType {
     PLAYLIST,  // 歌单

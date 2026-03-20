@@ -10,11 +10,11 @@ import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
-import com.fox.music.core.model.Artist
-import com.fox.music.core.model.HotKeyword
-import com.fox.music.core.model.Music
-import com.fox.music.core.model.Playlist
-import com.fox.music.core.model.PlaylistDetail
+import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.HotKeyword
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.music.PlaylistDetail
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

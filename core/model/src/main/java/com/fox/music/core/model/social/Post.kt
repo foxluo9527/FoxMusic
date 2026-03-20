@@ -1,5 +1,7 @@
-package com.fox.music.core.model
+package com.fox.music.core.model.social
 
+import com.fox.music.core.model.user.User
+import com.fox.music.core.model.music.Music
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
