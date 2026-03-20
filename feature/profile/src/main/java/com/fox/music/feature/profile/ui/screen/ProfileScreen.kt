@@ -1,4 +1,4 @@
-package com.fox.music.feature.profile
+package com.fox.music.feature.profile.ui.screen
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +46,9 @@ import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.SectionHeader
+import com.fox.music.feature.profile.viewmodel.ProfileEffect
+import com.fox.music.feature.profile.viewmodel.ProfileIntent
+import com.fox.music.feature.profile.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
 
 const val PROFILE_ROUTE = "profile"

@@ -21,8 +21,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
     override val userPreferences: Flow<UserPreferences> =
         dataStore.accessToken.map { !it.isNullOrBlank() }
             .combine(dataStore.accessToken) { a, b -> Pair(a, b) }
-            .combine(dataStore.refreshToken) { p, c -> Triple(p.first, p.second, c) }
-            .combine(dataStore.userId) { t, id -> listOf(t.first, t.second, t.third, id) }
+            .combine(dataStore.userId) { t, id -> listOf(t.first, t.second, id) }
             .combine(dataStore.username) { list, name -> list + name }
             .combine(dataStore.darkMode) { list, v -> list + v }
             .combine(dataStore.autoPlay) { list, v -> list + v }
@@ -35,20 +34,18 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                 @Suppress("UNCHECKED_CAST")
                 val isLoggedIn = list[0] as Boolean
                 val token = list[1] as? String
-                val refreshToken = list[2] as? String
-                val userId = list[3] as? String
-                val username = list[4] as? String
-                val darkMode = list[5] as Boolean
-                val autoPlay = list[6] as Boolean
-                val playQuality = list[7] as String
-                val downloadQuality = list[8] as String
-                val downloadOnWifiOnly = list[9] as Boolean
-                val showLyrics = list[10] as Boolean
-                val language = list[11] as String
+                val userId = list[2] as? String
+                val username = list[3] as? String
+                val darkMode = list[4] as Boolean
+                val autoPlay = list[5] as Boolean
+                val playQuality = list[6] as String
+                val downloadQuality = list[7] as String
+                val downloadOnWifiOnly = list[8] as Boolean
+                val showLyrics = list[9] as Boolean
+                val language = list[10] as String
                 UserPreferences(
                     isLoggedIn = isLoggedIn,
                     token = token,
-                    refreshToken = refreshToken,
                     userId = userId?.toLongOrNull(),
                     username = username,
                     darkMode = if (darkMode) DarkMode.DARK else DarkMode.LIGHT,

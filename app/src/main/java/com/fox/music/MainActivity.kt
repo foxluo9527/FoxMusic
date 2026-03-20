@@ -31,7 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
-import com.fox.music.feature.profile.PROFILE_ROUTE
+import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
 import com.fox.music.feature.social.SOCIAL_ROUTE
 import com.fox.music.ui.MainScreen
 import com.fox.music.ui.theme.FoxMusicTheme

@@ -58,8 +58,8 @@ import com.fox.music.feature.playlist.ui.component.PlaylistListScreen
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.feature.playlist.ui.screen.ALBUM_LIST_ROUTE
 import com.fox.music.feature.playlist.ui.screen.AlbumListScreen
-import com.fox.music.feature.profile.PROFILE_ROUTE
-import com.fox.music.feature.profile.ProfileScreen
+import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
+import com.fox.music.feature.profile.ui.screen.ProfileScreen
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
 import com.fox.music.feature.social.SOCIAL_ROUTE

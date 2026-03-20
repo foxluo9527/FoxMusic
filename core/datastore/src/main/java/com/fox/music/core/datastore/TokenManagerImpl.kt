@@ -12,16 +12,10 @@ class TokenManagerImpl @Inject constructor(
 
     override val accessToken: Flow<String?> = dataStore.accessToken
 
-    override val refreshToken: Flow<String?> = dataStore.refreshToken
-
     override val isLoggedIn: Flow<Boolean> = dataStore.isLoggedIn
 
     override suspend fun saveAccessToken(token: String) {
         dataStore.saveAccessToken(token)
-    }
-
-    override suspend fun saveRefreshToken(token: String) {
-        dataStore.saveRefreshToken(token)
     }
 
     override suspend fun saveTokens(accessToken: String, refreshToken: String?) {

@@ -1,4 +1,4 @@
-package com.fox.music.feature.profile
+package com.fox.music.feature.profile.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel

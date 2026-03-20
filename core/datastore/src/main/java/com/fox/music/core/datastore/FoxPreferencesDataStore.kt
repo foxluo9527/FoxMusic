@@ -22,7 +22,6 @@ class FoxPreferencesDataStore @Inject constructor(
 
     private object PreferencesKeys {
         val ACCESS_TOKEN = stringPreferencesKey("access_token")
-        val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val USER_ID = stringPreferencesKey("user_id")
         val USERNAME = stringPreferencesKey("username")
         val DARK_MODE = booleanPreferencesKey("dark_mode")
@@ -36,7 +35,6 @@ class FoxPreferencesDataStore @Inject constructor(
 
     // Token flows
     val accessToken: Flow<String?> = context.dataStore.data.map { it[PreferencesKeys.ACCESS_TOKEN] }
-    val refreshToken: Flow<String?> = context.dataStore.data.map { it[PreferencesKeys.REFRESH_TOKEN] }
     val isLoggedIn: Flow<Boolean> = accessToken.map { !it.isNullOrBlank() }
 
     // User info flows
@@ -56,7 +54,6 @@ class FoxPreferencesDataStore @Inject constructor(
     suspend fun saveTokens(accessToken: String, refreshToken: String? = null) {
         context.dataStore.edit { prefs ->
             prefs[PreferencesKeys.ACCESS_TOKEN] = accessToken
-            refreshToken?.let { prefs[PreferencesKeys.REFRESH_TOKEN] = it }
         }
     }
 
@@ -64,14 +61,9 @@ class FoxPreferencesDataStore @Inject constructor(
         context.dataStore.edit { it[PreferencesKeys.ACCESS_TOKEN] = token }
     }
 
-    suspend fun saveRefreshToken(token: String) {
-        context.dataStore.edit { it[PreferencesKeys.REFRESH_TOKEN] = token }
-    }
-
     suspend fun clearTokens() {
         context.dataStore.edit { prefs ->
             prefs.remove(PreferencesKeys.ACCESS_TOKEN)
-            prefs.remove(PreferencesKeys.REFRESH_TOKEN)
         }
     }
 

@@ -66,16 +66,6 @@ class AuthRepositoryImpl @Inject constructor(
             Unit
         }
 
-    override suspend fun refreshToken(): Result<String> =
-        suspendRunCatchingWithParser(ErrorParser::parseError) {
-            val response = authApi.refreshToken()
-            val data = response.data
-            if (response.isSuccess && data != null) {
-                tokenManager.saveAccessToken(data.token)
-                data.token
-            } else throw Exception(response.message)
-        }
-
     override suspend fun getProfile(): Result<User> =
         suspendRunCatchingWithParser(ErrorParser::parseError) {
             val response = authApi.getProfile()

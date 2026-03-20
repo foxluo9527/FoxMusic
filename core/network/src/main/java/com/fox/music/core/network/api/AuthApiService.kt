@@ -14,9 +14,6 @@ interface AuthApiService {
     @POST("api/auth/logout")
     suspend fun logout(): ApiResponse<Unit>
 
-    @POST("api/auth/refresh-token")
-    suspend fun refreshToken(): ApiResponse<TokenResponse>
-
     @GET("api/auth/profile")
     suspend fun getProfile(): ApiResponse<UserDto>
 

@@ -3,7 +3,6 @@ package com.fox.music.core.model.user
 data class UserPreferences(
     val isLoggedIn: Boolean = false,
     val token: String? = null,
-    val refreshToken: String? = null,
     val userId: Long? = null,
     val username: String? = null,
     val darkMode: DarkMode = DarkMode.FOLLOW_SYSTEM,

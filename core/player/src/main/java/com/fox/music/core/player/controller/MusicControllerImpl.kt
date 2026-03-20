@@ -196,7 +196,7 @@ class MusicControllerImpl @Inject constructor(
                 setMediaItems(
                     mediaItems,
                     state.currentIndex,
-                    if (musics[state.currentIndex].url == state.currentMusic?.url) state.position else 0L
+                    if (musics.getOrNull(state.currentIndex)?.url == state.currentMusic?.url) state.position else 0L
                 )
                 prepare()
             }

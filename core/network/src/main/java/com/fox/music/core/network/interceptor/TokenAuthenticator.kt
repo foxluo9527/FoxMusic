@@ -1,6 +1,5 @@
 package com.fox.music.core.network.interceptor
 
-import com.fox.music.core.network.api.AuthApiService
 import com.fox.music.core.network.token.TokenManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -10,15 +9,13 @@ import okhttp3.Response
 import okhttp3.Route
 import timber.log.Timber
 import javax.inject.Inject
-import javax.inject.Provider
 import javax.inject.Singleton
 
 class UnauthorizedException(message: String = "登录已失效，请重新登录") : Exception(message)
 
 @Singleton
 class TokenAuthenticator @Inject constructor(
-    private val tokenManager: TokenManager,
-    private val authApiServiceProvider: Provider<AuthApiService>
+    private val tokenManager: TokenManager
 ) : Authenticator {
 
     private val lock = Any()
@@ -26,8 +23,6 @@ class TokenAuthenticator @Inject constructor(
     override fun authenticate(route: Route?, response: Response): Request? {
         synchronized(lock) {
             val currentToken = runBlocking { tokenManager.accessToken.first() }
-            val currentRefreshToken = runBlocking { tokenManager.refreshToken.first() }
-
             // Check if the request that failed already has the latest token
             val requestToken = response.request.header("Authorization")
 
@@ -38,40 +33,8 @@ class TokenAuthenticator @Inject constructor(
                     .header("Authorization", currentToken)
                     .build()
             }
-
-            // Check if there are no cached tokens
-            if (currentToken.isNullOrBlank() && currentRefreshToken.isNullOrBlank()) {
-                // No cached tokens, let user re-login
-                Timber.w("No cached tokens available, user needs to re-login")
-                return null
-            }
-
-            // Try to refresh the token
-            return try {
-                Timber.d("Attempting to refresh token")
-                val refreshResponse = runBlocking {
-                    authApiServiceProvider.get().refreshToken()
-                }
-
-                if (refreshResponse.isSuccess && refreshResponse.data != null) {
-                    val newToken = refreshResponse.data.token
-                    runBlocking { tokenManager.saveAccessToken(newToken) }
-                    Timber.d("Token refreshed successfully")
-
-                    response.request.newBuilder()
-                        .header("Authorization", newToken)
-                        .build()
-                } else {
-                    // Refresh failed, clear tokens and let user re-login
-                    Timber.w("Token refresh failed: ${refreshResponse.message}")
-                    runBlocking { tokenManager.clearTokens() }
-                    null
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Token refresh exception: ${e.message}")
-                runBlocking { tokenManager.clearTokens() }
-                null
-            }
+            runBlocking { tokenManager.clearTokens() }
+            return null
         }
     }
 }
