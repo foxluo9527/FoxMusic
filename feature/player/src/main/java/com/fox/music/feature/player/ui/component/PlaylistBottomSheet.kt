@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -75,7 +76,6 @@ fun PlaylistBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 32.dp)
         ) {
             // 标题栏
             Box(
@@ -91,16 +91,20 @@ fun PlaylistBottomSheet(
                     color = textColor,
                     modifier = Modifier.align(Alignment.CenterStart)
                 )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                ) {
-                    Icon(
-                        Icons.Default.ArrowBackIosNew,
-                        contentDescription = "Close",
-                        tint = textColor,
-                        modifier = Modifier.size(24.dp).rotate(-90f)
-                    )
+                if (playerState.playlist.isNotEmpty()) {
+                    IconButton(
+                        onClick = {
+                            showClearConfirm = true
+                        },
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Icon(
+                            Icons.Default.DeleteSweep,
+                            contentDescription = "Clear",
+                            tint = textColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
 
@@ -154,29 +158,6 @@ fun PlaylistBottomSheet(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 操作按钮
-            if (playerState.playlist.isNotEmpty()) {
-                Button(
-                    onClick = { showClearConfirm = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .height(40.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Clear",
-                        modifier = Modifier
-                            .size(18.dp)
-                            .padding(end = 4.dp)
-                    )
-                    Text("清空列表")
-                }
-            }
         }
     }
 
@@ -190,7 +171,6 @@ fun PlaylistBottomSheet(
                 Button(
                     onClick = {
                         musicController.clearQueue()
-                        showClearConfirm = false
                         onDismiss()
                     }
                 ) {
@@ -243,8 +223,6 @@ private fun PlaylistItem(
                 tint = textColor
             )
             Spacer(modifier = Modifier.width(8.dp))
-        } else {
-            Spacer(modifier = Modifier.width(28.dp))
         }
 
         // ...existing code...

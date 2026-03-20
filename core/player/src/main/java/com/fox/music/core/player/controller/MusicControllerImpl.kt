@@ -188,6 +188,9 @@ class MusicControllerImpl @Inject constructor(
         if (key != playingKey) {
             return
         }
+        if (musics == currentPlaylist) {
+            return
+        }
         _playerState.value.let {state ->
             playingKey = key
             currentPlaylist = musics
@@ -257,6 +260,10 @@ class MusicControllerImpl @Inject constructor(
                     controller?.seekToDefaultPosition(currentPlaylist.size - 1)
                 }
             }
+            if (currentPlaylist.isEmpty()) {
+                playingKey = null
+
+            }
             // 更新 PlayerState
             updatePlayerState()
         }
@@ -265,6 +272,7 @@ class MusicControllerImpl @Inject constructor(
     override fun clearQueue() {
         currentPlaylist = emptyList()
         controller?.setMediaItems(emptyList())
+        playingKey = null
         // 更新 PlayerState
         updatePlayerState()
     }

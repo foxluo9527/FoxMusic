@@ -231,6 +231,7 @@ fun PlayerScreen(
                 musicController = musicController,
                 onDismiss = {
                     showPlaylistSheet = false
+                    onBack()
                 }
             )
         }
