@@ -32,6 +32,7 @@ class MainActivityViewModel @Inject constructor(
     
     init {
         observeAuthState()
+        observeSessionExpired()
     }
     
     private fun observeAuthState() {
@@ -41,9 +42,22 @@ class MainActivityViewModel @Inject constructor(
             }
             .launchIn(viewModelScope)
     }
+
+    private fun observeSessionExpired() {
+        tokenManager.sessionExpired
+            .onEach {
+                _authState.update { it.copy(requireReLogin = true) }
+            }
+            .launchIn(viewModelScope)
+    }
+
+    fun onRequireReLoginHandled() {
+        _authState.update { it.copy(requireReLogin = false) }
+    }
     
     data class AuthState(
-        val isLoggedIn: Boolean = true
+        val isLoggedIn: Boolean = true,
+        val requireReLogin: Boolean = false,
     )
 
     data class PlaylistState(

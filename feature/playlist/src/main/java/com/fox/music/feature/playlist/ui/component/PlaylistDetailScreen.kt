@@ -83,29 +83,29 @@ fun PlaylistDetailScreen(
     val state by viewModel.uiState.collectAsState()
     val pagingItems = viewModel.tracks.collectAsLazyPagingItems()
     val context = LocalContext.current
-    var updateKey by remember {mutableStateOf("")}
+    val playlistKey = viewModel.playlistKey
     // 收集当前加载的歌曲列表
     LaunchedEffect(pagingItems.itemCount) {
         val currentList = (0 until pagingItems.itemCount).mapNotNull {pagingItems[it]}
         viewModel.updateCurrentTrackList(currentList)
     }
-    LaunchedEffect(pagingItems.itemSnapshotList.items) {
-        updateMusicList(pagingItems.itemSnapshotList.items, updateKey)
+    LaunchedEffect(pagingItems.itemSnapshotList.items, playlistKey) {
+        if (playlistKey.isNotEmpty()) {
+            updateMusicList(pagingItems.itemSnapshotList.items, playlistKey)
+        }
     }
     LaunchedEffect(Unit) {
         viewModel.effect.collect {effect ->
             when(effect) {
                 is PlaylistDetailEffect.NavigateToMusic -> {
-                    val key = "collection_detail/${state.headerInfo?.id}"
-                    onMusicClick(effect.music, effect.musicList, key)
-                    updateKey = key
+                    if (playlistKey.isNotEmpty()) {
+                        onMusicClick(effect.music, effect.musicList, playlistKey)
+                    }
                 }
 
                 is PlaylistDetailEffect.PlayAllTracks -> {
-                    val key = "collection_detail/${state.headerInfo?.id}"
-                    if (effect.musicList.isNotEmpty()) {
-                        onMusicClick(effect.musicList.first(), effect.musicList, key)
-                        updateKey = key
+                    if (playlistKey.isNotEmpty() && effect.musicList.isNotEmpty()) {
+                        onMusicClick(effect.musicList.first(), effect.musicList, playlistKey)
                     }
                 }
 

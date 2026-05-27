@@ -28,9 +28,9 @@ interface MusicController {
     /**
      * 无感切换歌单列表
      */
-    fun updatePlaylist(musics: List<Music>,key: String)
+    fun updatePlaylist(musics: List<Music>, key: String)
 
-    fun setPlaylist(musics: List<Music>, startIndex: Int = 0,key: String)
+    fun setPlaylist(musics: List<Music>, startIndex: Int = 0, key: String)
 
     fun addToQueue(music: Music)
 
@@ -52,4 +52,9 @@ interface MusicController {
      * 跳转到指定索引的歌曲进行播放
      */
     fun seekToQueueItem(index: Int)
+
+    /**
+     * 立即将当前播放状态写入本地存储（供应用进入后台时调用）
+     */
+    fun flushPlaybackState()
 }

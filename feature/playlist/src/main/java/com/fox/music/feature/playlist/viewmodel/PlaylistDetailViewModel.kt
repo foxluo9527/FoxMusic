@@ -109,15 +109,24 @@ class PlaylistDetailViewModel @Inject constructor(
 
     private val detailId: Long = savedStateHandle.get<String>("playlistId")?.toLongOrNull() ?: 0L
     val detailType: DetailType = (savedStateHandle.get<String>("type")
-        ?.let {runCatching {DetailType.valueOf(it)}.getOrNull()} ?: DetailType.PLAYLIST).also {
-        updateState {copy(detailType = it)}
+        ?.let { runCatching { DetailType.valueOf(it) }.getOrNull() } ?: DetailType.PLAYLIST).also {
+        updateState { copy(detailType = it) }
     }
+
+    /** 与路由绑定，不依赖 header 接口返回，避免 playlistKey 为空导致点播无响应 */
+    val playlistKey: String
+        get() = when (detailType) {
+            DetailType.RECOMMEND -> "collection_detail/${Long.MAX_VALUE}"
+            DetailType.NEW_MUSIC -> "collection_detail/${Long.MAX_VALUE - 1}"
+            else -> if (detailId > 0L) "collection_detail/$detailId" else ""
+        }
 
     // 歌曲列表分页数据
     val tracks: Flow<PagingData<Music>> by lazy {
         if (detailType == DetailType.NEW_MUSIC || detailType == DetailType.RECOMMEND) {
             getMusicListUseCase.getPagingSource(
-                sort = if (detailType == DetailType.NEW_MUSIC) "latest" else "recommend"
+                sort = if (detailType == DetailType.NEW_MUSIC) "latest" else "recommend",
+                maxTotalItems = 100,
             ).flow.cachedIn(viewModelScope)
         } else {
             Pager(

@@ -15,7 +15,12 @@ data class PlayerState(
 )
 
 enum class RepeatMode {
-    RANDOM,
+    /** 顺序播放，播完停止 */
+    SEQUENTIAL,
+    /** 列表循环 */
+    ALL,
+    /** 单曲循环 */
     ONE,
-    ALL
+    /** 随机播放 */
+    RANDOM,
 }

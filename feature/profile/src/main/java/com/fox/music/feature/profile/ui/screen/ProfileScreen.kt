@@ -61,6 +61,7 @@ fun ProfileScreen(
     onLogin: () -> Unit = {},
     onPlaylistClick: (Long) -> Unit = {},
     onCreatePlaylistClick: () -> Unit = {},
+    onArtistClick: (Long) -> Unit = {},
     manageMusics: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -313,7 +314,7 @@ fun ProfileScreen(
                                         FavoriteCard(
                                             favorite = favorite,
                                             isCircle = true,
-                                            onClick = { /* Navigate to artist */}
+                                            onClick = { onArtistClick(favorite.targetId) },
                                         )
                                     }
                                 } else {

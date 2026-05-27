@@ -151,10 +151,11 @@ fun SharedTransitionScope.SongPage(
             IconButton(onClick = {musicController.setRepeatMode(nextRepeatMode(playerState.repeatMode))}) {
                 Icon(
                     painter = painterResource(
-                        when(playerState.repeatMode) {
-                            RepeatMode.RANDOM -> R.drawable.ic_random
-                            RepeatMode.ONE -> R.drawable.ic_single
+                        when (playerState.repeatMode) {
+                            RepeatMode.SEQUENTIAL -> R.drawable.ic_sequential
                             RepeatMode.ALL -> R.drawable.ic_cycle
+                            RepeatMode.ONE -> R.drawable.ic_single
+                            RepeatMode.RANDOM -> R.drawable.ic_random
                         }
                     ),
                     contentDescription = "RepeatModel", modifier = Modifier.size(28.dp),
@@ -222,7 +223,8 @@ fun SharedTransitionScope.SongPage(
 }
 
 private fun nextRepeatMode(current: RepeatMode): RepeatMode = when (current) {
-    RepeatMode.RANDOM -> RepeatMode.ALL
+    RepeatMode.SEQUENTIAL -> RepeatMode.ALL
     RepeatMode.ALL -> RepeatMode.ONE
     RepeatMode.ONE -> RepeatMode.RANDOM
+    RepeatMode.RANDOM -> RepeatMode.SEQUENTIAL
 }

@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -32,7 +31,6 @@ import androidx.navigation.compose.rememberNavController
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
-import com.fox.music.feature.social.SOCIAL_ROUTE
 import com.fox.music.ui.MainScreen
 import com.fox.music.ui.theme.FoxMusicTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -71,7 +69,6 @@ enum class AppDestinations(
 ) {
     HOME(HOME_ROUTE, "Home", Icons.Default.Home),
     DISCOVER(DISCOVER_ROUTE, "Discover", Icons.Default.Explore),
-    COMMUNITY(SOCIAL_ROUTE, "Community", Icons.Default.SupervisorAccount),
     PROFILE(PROFILE_ROUTE, "Profile", Icons.Default.AccountBox),
 }
 

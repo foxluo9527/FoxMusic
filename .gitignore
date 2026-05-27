@@ -16,6 +16,13 @@
 .cxx
 local.properties
 
+# Release signing (do not commit secrets)
+keystore.properties
+app/keystore/
+*.jks
+*.keystore
+.kotlin/
+app/release/
 # Project exclude paths
 /core/common/build/
 /core/common/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/

@@ -58,6 +58,7 @@ data class ArtistDetailDto(
     @SerialName("favorite_count")
     val favoriteCount: Int = 0,
     @SerialName("is_verified")
+    @Serializable(with = ZeroOneBooleanSerializer::class)
     val isVerified: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,

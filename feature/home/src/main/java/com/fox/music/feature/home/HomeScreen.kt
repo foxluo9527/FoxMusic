@@ -41,7 +41,6 @@ import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.HotKeywordsCarousel
 import com.fox.music.core.ui.component.MusicListItem
-import com.fox.music.core.ui.component.PostCard
 import com.fox.music.core.ui.component.SectionHeader
 
 const val HOME_ROUTE = "home"
@@ -57,12 +56,9 @@ fun HomeScreen(
     updateMusicList: (List<Music>, String) -> Unit = {_, _ ->},
     onPlaylistClick: (Long) -> Unit = {},
     onAlbumClick: (Long) -> Unit = {},
-    onPostClick: (Long) -> Unit = {},
-    onUserClick: (Long) -> Unit = {},
     onSearchClick: () -> Unit = {},
     onPlaylistCategoryClick: () -> Unit = {},
     onAlbumCategoryClick: () -> Unit = {},
-    onSocialClick: () -> Unit = {},
     onRecommendClick:()-> Unit={}
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -79,11 +75,9 @@ fun HomeScreen(
 
                 is HomeEffect.NavigateToPlaylist -> onPlaylistClick(effect.playlistId)
                 is HomeEffect.NavigateToAlbum -> onAlbumClick(effect.albumId)
-                is HomeEffect.NavigateToPost -> onPostClick(effect.postId)
                 is HomeEffect.NavigateToSearch -> onSearchClick()
                 is HomeEffect.NavigateToPlaylistCategory -> onPlaylistCategoryClick()
                 is HomeEffect.NavigateToAlbumCategory -> onAlbumCategoryClick()
-                is HomeEffect.NavigateToSocial -> onSocialClick()
             }
         }
     }
@@ -206,42 +200,6 @@ fun HomeScreen(
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
                             onClick = {viewModel.sendIntent(HomeIntent.OnAlbumClick(album))},
-                        )
-                    }
-                }
-
-                // 社区动态
-                if (state.posts.isNotEmpty()) {
-                    // 标题 - 占据整行
-                    item(
-                        span = {GridItemSpan(4)},
-                        key = "post_header",
-                        contentType = "section_header"
-                    ) {
-                        SectionHeader(
-                            title = "社区动态",
-                            onMoreClick = {viewModel.onSocialMoreClick()},
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                        )
-                    }
-
-                    // 动态卡片 - 每个占据整行
-                    items(
-                        count = state.posts.size,
-                        key = {index -> "post_${state.posts[index].id}"},
-                        span = {GridItemSpan(4)},
-                        contentType = {"post_item"}
-                    ) {index ->
-                        val post = state.posts[index]
-                        PostCard(
-                            post = post,
-                            onPostClick = {viewModel.sendIntent(HomeIntent.OnPostClick(post))},
-                            onLikeClick = {viewModel.sendIntent(HomeIntent.OnPostLike(post))},
-                            onCommentClick = {viewModel.sendIntent(HomeIntent.OnPostClick(post))},
-                            onUserClick = {onUserClick(post.userId)},
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp)
-                                .animateItem(),
                         )
                     }
                 }

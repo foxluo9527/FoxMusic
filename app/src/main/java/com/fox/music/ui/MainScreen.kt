@@ -44,8 +44,15 @@ import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
 import com.fox.music.feature.chat.CHAT_ROUTE
 import com.fox.music.feature.chat.ChatScreen
+import com.fox.music.feature.discover.ALL_ARTIST_LIST_ROUTE
+import com.fox.music.feature.discover.ARTIST_DETAIL_ROUTE
+import com.fox.music.feature.discover.ArtistDetailScreen
+import com.fox.music.feature.discover.ArtistListScreen
+import com.fox.music.feature.discover.HOT_ARTIST_LIST_ROUTE
+import com.fox.music.feature.discover.HotArtistListScreen
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.discover.DiscoverScreen
+import com.fox.music.feature.discover.artistDetailRoute
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.home.HomeScreen
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
@@ -62,10 +69,6 @@ import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.ProfileScreen
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
-import com.fox.music.feature.social.SOCIAL_ROUTE
-import com.fox.music.feature.social.SocialScreen
-
-
 @Composable
 fun MainScreen(
     modifier: Modifier,
@@ -90,6 +93,17 @@ fun MainScreen(
     // 监听歌单状态变化
     val playlistState by viewModel.playlistState.collectAsState()
     
+    LaunchedEffect(authState.requireReLogin) {
+        if (authState.requireReLogin) {
+            ToastUtils.showLong("登录已失效，请重新登录")
+            navController.navigate(LOGIN_ROUTE) {
+                popUpTo(HOME_ROUTE) { inclusive = false }
+                launchSingleTop = true
+            }
+            viewModel.onRequireReLoginHandled()
+        }
+    }
+
     // 当歌单创建或导入成功后，刷新页面
     LaunchedEffect(playlistState) {
         if (playlistState.isPlaylistCreated || playlistState.isPlaylistImported) {
@@ -107,7 +121,11 @@ fun MainScreen(
     }
 
     fun onMusicClick(music: Music, list: List<Music>, key: String) {
-        musicController.setPlaylist(list, list.indexOf(music), key)
+        if (list.isEmpty()) {
+            return
+        }
+        val startIndex = list.indexOfFirst { it.id == music.id }.coerceAtLeast(0)
+        musicController.setPlaylist(list, startIndex, key)
         navController.navigate(PLAYER_ROUTE)
     }
 
@@ -121,6 +139,10 @@ fun MainScreen(
 
     fun onAlbumClick(album: Album) {
         navController.navigate(playlistDetailRoute(album.id, DetailType.ALBUM))
+    }
+
+    fun onArtistClick(artistId: Long) {
+        navController.navigate(artistDetailRoute(artistId))
     }
 
     // 弹窗处理函数
@@ -225,9 +247,6 @@ fun MainScreen(
                             onSearchClick = {
                                 navController.navigate(SEARCH_ROUTE)
                             },
-                            onSocialClick = {
-                                navController.navigate(SOCIAL_ROUTE)
-                            },
                             onRecommendClick = {
                                 navController.navigate(
                                     playlistDetailRoute(
@@ -270,7 +289,11 @@ fun MainScreen(
                                         type = DetailType.NEW_MUSIC
                                     )
                                 )
-                            }
+                            },
+                            onHotArtistMore = {
+                                navController.navigate(HOT_ARTIST_LIST_ROUTE)
+                            },
+                            onArtistClick = ::onArtistClick,
                         )
                     }
                 }
@@ -285,7 +308,9 @@ fun MainScreen(
                             animatedContentScope = this,
                             onMusicClick = ::onMusicClick,
                             updateMusicList = ::onUpdateMusicList,
-                            onBack = {navController.popBackStack()}
+                            onArtistClick = ::onArtistClick,
+                            onAlbumClick = ::onAlbumClick,
+                            onBack = { navController.popBackStack() },
                         )
                     }
                 }
@@ -336,6 +361,84 @@ fun MainScreen(
                     )
                 }
                 composable(
+                    route = HOT_ARTIST_LIST_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    HotArtistListScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onArtistClick = ::onArtistClick,
+                        onAllArtistsClick = {
+                            navController.navigate(ALL_ARTIST_LIST_ROUTE)
+                        },
+                        onBackClick = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = ALL_ARTIST_LIST_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    ArtistListScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onArtistClick = ::onArtistClick,
+                        onBackClick = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = ARTIST_DETAIL_ROUTE,
+                    arguments = listOf(
+                        navArgument("artistId") { type = NavType.LongType },
+                    ),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    MainScreenWithBottomBar(
+                        showBottomBar,
+                        this@SharedTransitionLayout
+                    ) {
+                        ArtistDetailScreen(
+                            modifier = it,
+                            sharedTransitionScope = this@SharedTransitionLayout,
+                            animatedContentScope = this,
+                            onMusicClick = ::onMusicClick,
+                            updateMusicList = ::onUpdateMusicList,
+                            onAlbumClick = ::onAlbumClick,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                composable(
                     route = "playlist_detail/{playlistId}/{type}",
                     arguments = listOf(
                         navArgument("playlistId") {type = NavType.StringType},
@@ -382,6 +485,7 @@ fun MainScreen(
                         onCreatePlaylistClick = {
                             showCreatePlaylistBottomSheet = true
                         },
+                        onArtistClick = ::onArtistClick,
                         manageMusics = {
                             navController.navigate(MANAGE_ROUTER)
                         }
@@ -403,13 +507,15 @@ fun MainScreen(
                         animationSpec = tween(300)
                     )
                 }) {
-                    LoginScreen(onNavigateToHome = {
-                        navController.navigate(HOME_ROUTE) {
-                            popUpTo(0) {
-                                inclusive = true
+                    LoginScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToHome = {
+                            navController.navigate(HOME_ROUTE) {
+                                popUpTo(HOME_ROUTE) { inclusive = false }
+                                launchSingleTop = true
                             }
-                        }
-                    })
+                        },
+                    )
                 }
                 composable(PLAYER_ROUTE, enterTransition = {
                     slideIntoContainer(
@@ -428,14 +534,6 @@ fun MainScreen(
                         animatedContentScope = this,
                         onBack = { navController.popBackStack() }
                     )
-                }
-                composable(SOCIAL_ROUTE) {
-                    MainScreenWithBottomBar(
-                        showBottomBar,
-                        this@SharedTransitionLayout
-                    ) {
-                        SocialScreen(it)
-                    }
                 }
                 composable(CHAT_ROUTE) {
                     ChatScreen()

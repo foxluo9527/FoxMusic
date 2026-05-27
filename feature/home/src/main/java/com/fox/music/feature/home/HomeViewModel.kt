@@ -11,13 +11,11 @@ import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SearchRepository
-import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
-import com.fox.music.core.model.social.Post
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -29,7 +27,6 @@ data class HomeState(
     val recommendedPlaylists: List<Playlist> = emptyList(),
     val recommendedMusic: Flow<PagingData<Music>> = flowOf(),
     val recommendedAlbums: List<Album> = emptyList(),
-    val posts: List<Post> = emptyList(),
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null,
@@ -40,19 +37,15 @@ sealed interface HomeIntent : UiIntent {
     data object Refresh : HomeIntent
     data class OnPlaylistClick(val playlist: Playlist) : HomeIntent
     data class OnAlbumClick(val album: Album) : HomeIntent
-    data class OnPostClick(val post: Post) : HomeIntent
-    data class OnPostLike(val post: Post) : HomeIntent
 }
 
 sealed interface HomeEffect : UiEffect {
     data class NavigateToMusic(val music: Music) : HomeEffect
     data class NavigateToPlaylist(val playlistId: Long) : HomeEffect
     data class NavigateToAlbum(val albumId: Long) : HomeEffect
-    data class NavigateToPost(val postId: Long) : HomeEffect
     data object NavigateToSearch : HomeEffect
     data object NavigateToPlaylistCategory : HomeEffect
     data object NavigateToAlbumCategory : HomeEffect
-    data object NavigateToSocial : HomeEffect
 }
 
 @HiltViewModel
@@ -61,7 +54,6 @@ class HomeViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val playlistRepository: PlaylistRepository,
     private val albumRepository: AlbumRepository,
-    private val socialRepository: SocialRepository,
 ): MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState()) {
 
     init {
@@ -80,12 +72,6 @@ class HomeViewModel @Inject constructor(
             is HomeIntent.OnAlbumClick -> {
                 sendEffect(HomeEffect.NavigateToAlbum(intent.album.id))
             }
-            is HomeIntent.OnPostClick -> {
-                sendEffect(HomeEffect.NavigateToPost(intent.post.id))
-            }
-            is HomeIntent.OnPostLike -> {
-                togglePostLike(intent.post.id)
-            }
         }
     }
 
@@ -99,10 +85,6 @@ class HomeViewModel @Inject constructor(
 
     fun onPlaylistMoreClick() {
         sendEffect(HomeEffect.NavigateToPlaylistCategory)
-    }
-
-    fun onSocialMoreClick() {
-        sendEffect(HomeEffect.NavigateToSocial)
     }
 
     fun onAlbumMoreClick() {
@@ -160,46 +142,8 @@ class HomeViewModel @Inject constructor(
                 else -> {}
             }
 
-            // 加载社区动态
-            when (val result = socialRepository.getPosts(page = 1, limit = 10, sort = "hot")) {
-                is Result.Success -> {
-                    updateState { copy(posts = result.data.list) }
-                }
-                is Result.Error -> {
-                    // 忽略动态加载失败
-                }
-                else -> {}
-            }
-
             updateState { copy(isLoading = false, isRefreshing = false) }
         }
     }
 
-    private fun togglePostLike(postId: Long) {
-        viewModelScope.launch {
-            when (socialRepository.togglePostLike(postId)) {
-                is Result.Success -> {
-                    // 更新本地状态
-                    updateState {
-                        copy(
-                            posts = posts.map { post ->
-                                if (post.id == postId) {
-                                    post.copy(
-                                        isLiked = !post.isLiked,
-                                        likeCount = if (post.isLiked) post.likeCount - 1 else post.likeCount + 1
-                                    )
-                                } else {
-                                    post
-                                }
-                            }
-                        )
-                    }
-                }
-                is Result.Error -> {
-                    // 忽略点赞失败
-                }
-                else -> {}
-            }
-        }
-    }
 }

@@ -124,7 +124,7 @@ class DiscoverViewModel @Inject constructor(
             }
 
             // 加载新歌速递
-            when (val result = getMusicListUseCase(page = 1, limit = 5, sort = "latest")) {
+            when (val result = getMusicListUseCase(page = 1, limit = 25, sort = "latest")) {
                 is Result.Success -> {
                     updateState { copy(newMusic = result.data.list) }
                 }

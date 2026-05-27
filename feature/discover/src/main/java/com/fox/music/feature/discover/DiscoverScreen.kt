@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -64,7 +66,8 @@ fun DiscoverScreen(
     onRankClick: (Long) -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onSearchClick: () -> Unit = {},
-    onNewMusicMore:()->Unit={}
+    onNewMusicMore:()->Unit={},
+    onHotArtistMore: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -84,7 +87,9 @@ fun DiscoverScreen(
     }
 
     LaunchedEffect(state.newMusic) {
-        updateMusicList(state.newMusic, DISCOVER_ROUTE)
+        if (state.newMusic.isNotEmpty()) {
+            updateMusicList(state.newMusic, DISCOVER_ROUTE)
+        }
     }
 
     with(sharedTransitionScope) {
@@ -185,7 +190,7 @@ fun DiscoverScreen(
                     ) {
                         SectionHeader(
                             title = "热门歌手",
-                            onMoreClick = {},
+                            onMoreClick = onHotArtistMore,
                             modifier = Modifier.padding(horizontal = 8.dp),
                         )
                     }
@@ -216,22 +221,26 @@ private fun RankPager(
     onRankClick: (Playlist) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val pagerState = rememberPagerState(pageCount = { ranks.size })
+    val cardWidth = 280.dp
+    val lazyListState = rememberLazyListState()
 
-    HorizontalPager(
-        state = pagerState,
-        modifier = modifier,
-        contentPadding = PaddingValues(end = 100.dp), // 右侧显示下一页的1/3
-        pageSpacing = 12.dp,
-    ) { page ->
-        val rank = ranks[page]
-        val detail = rankDetails[rank.id]
-
-        RankCard(
-            rank = rank,
-            detail = detail,
-            onClick = { onRankClick(rank) },
-        )
+    LazyRow(
+        state = lazyListState,
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        flingBehavior = rememberSnapFlingBehavior(lazyListState),
+    ) {
+        itemsIndexed(
+            items = ranks,
+            key = { _, rank -> rank.id },
+        ) { _, rank ->
+            RankCard(
+                rank = rank,
+                detail = rankDetails[rank.id],
+                onClick = { onRankClick(rank) },
+                modifier = Modifier.width(cardWidth),
+            )
+        }
     }
 }
 
@@ -243,9 +252,7 @@ private fun RankCard(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier
-            .width(280.dp)
-            .clickable(onClick = onClick),
+        modifier = modifier.clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),

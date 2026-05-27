@@ -20,6 +20,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:model"))
     api(libs.androidx.core.ktx)
     api(libs.bundles.coroutines)
     api(libs.timber)

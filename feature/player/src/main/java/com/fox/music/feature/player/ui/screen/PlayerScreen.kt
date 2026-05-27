@@ -229,10 +229,7 @@ fun PlayerScreen(
             PlaylistBottomSheet(
                 playerState = playerState,
                 musicController = musicController,
-                onDismiss = {
-                    showPlaylistSheet = false
-                    onBack()
-                }
+                onDismiss = { showPlaylistSheet = false }
             )
         }
 

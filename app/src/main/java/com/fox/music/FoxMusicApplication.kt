@@ -7,11 +7,17 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.util.UnstableApi
 import com.fox.music.core.common.EventViewModel
+import com.fox.music.core.player.controller.MusicController
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
 @HiltAndroidApp
-class FoxMusicApplication : Application(){
+class FoxMusicApplication : Application() {
+
+    @Inject
+    lateinit var musicController: MusicController
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -24,7 +30,8 @@ class FoxMusicApplication : Application(){
 
             override fun onStop(owner: LifecycleOwner) {
                 super.onStop(owner)
-                EventViewModel.appInForeground.value= false
+                EventViewModel.appInForeground.value = false
+                musicController.flushPlaybackState()
             }
         })
     }

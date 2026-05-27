@@ -1,7 +1,6 @@
 package com.fox.music.core.network.interceptor
 
 import com.fox.music.core.network.token.TokenManager
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.Authenticator
 import okhttp3.Request
@@ -11,8 +10,6 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-class UnauthorizedException(message: String = "登录已失效，请重新登录") : Exception(message)
-
 @Singleton
 class TokenAuthenticator @Inject constructor(
     private val tokenManager: TokenManager
@@ -21,20 +18,26 @@ class TokenAuthenticator @Inject constructor(
     private val lock = Any()
 
     override fun authenticate(route: Route?, response: Response): Request? {
-        synchronized(lock) {
-            val currentToken = runBlocking { tokenManager.accessToken.first() }
-            // Check if the request that failed already has the latest token
-            val requestToken = response.request.header("Authorization")
+        if (response.code != 401) return null
 
-            if (currentToken != requestToken && !currentToken.isNullOrBlank()) {
-                // Token was already refreshed by another thread
-                Timber.d("Token was already refreshed by another thread")
-                return response.request.newBuilder()
-                    .header("Authorization", currentToken)
-                    .build()
+        synchronized(lock) {
+            if (responseCount(response) >= 2) {
+                Timber.w("401 after retry, giving up")
+                return null
             }
-            runBlocking { tokenManager.clearTokens() }
+            Timber.d("401 Unauthorized — clearing session, require re-login")
+            runBlocking { tokenManager.invalidateSession() }
             return null
         }
+    }
+
+    private fun responseCount(response: Response): Int {
+        var count = 1
+        var prior = response.priorResponse
+        while (prior != null) {
+            count++
+            prior = prior.priorResponse
+        }
+        return count
     }
 }

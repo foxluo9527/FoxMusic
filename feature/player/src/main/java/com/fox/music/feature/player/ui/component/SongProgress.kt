@@ -56,13 +56,11 @@ fun SongProgress(
         verticalAlignment = Alignment.CenterVertically
     ) {
         var nextPosition by remember {mutableFloatStateOf(0f)}
-        val progress by remember(playerState, nextPosition) {
+        val progress by remember(playerState.duration, position, nextPosition) {
             derivedStateOf {
-                if (nextPosition == 0f) {
-                    playerState.position / (playerState.duration * 1f)
-                } else {
-                    nextPosition / (playerState.duration * 1f)
-                }
+                val duration = playerState.duration.coerceAtLeast(1L).toFloat()
+                val pos = if (nextPosition == 0f) position.toFloat() else nextPosition
+                (pos / duration).coerceIn(0f, 1f)
             }
         }
         Text(
@@ -74,7 +72,7 @@ fun SongProgress(
             value = if (nextPosition == 0f) position.toFloat()
                 .coerceIn(
                     0f,
-                    playerState.position.toFloat().coerceAtLeast(1f)
+                    playerState.duration.toFloat().coerceAtLeast(1f)
                 ) else nextPosition,
             onValueChange = {nextPosition = it},
             onValueChangeFinished = {

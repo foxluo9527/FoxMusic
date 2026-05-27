@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,8 +8,13 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-android {
-    namespace = "com.fox.music"
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
+android {    namespace = "com.fox.music"
     compileSdk = 36
 
     defaultConfig {
@@ -23,8 +30,22 @@ android {
         }
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -72,7 +93,6 @@ dependencies {
     implementation(project(":feature:playlist"))
     implementation(project(":feature:search"))
     implementation(project(":feature:discover"))
-    implementation(project(":feature:social"))
     implementation(project(":feature:chat"))
     implementation(project(":feature:profile"))
 

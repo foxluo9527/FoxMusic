@@ -1,5 +1,6 @@
 package com.fox.music.feature.auth.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,7 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +42,7 @@ const val LOGIN_ROUTE = "login"
 fun LoginScreen(
     modifier: Modifier = Modifier,
     viewModel: AuthViewModel = hiltViewModel(),
+    onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -81,24 +88,43 @@ fun LoginScreen(
             }
         }
     }
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+
+    BackHandler(onBack = onNavigateBack)
+
+    Box(modifier = modifier.statusBarsPadding(), contentAlignment = Alignment.TopCenter) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            IconButton(
+                onClick = onNavigateBack,
+                Modifier.align(Alignment.CenterStart)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                )
+            }
+            Text(
+                text = if (state.isLoginMode) "Login" else "Register",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
         Column(
             modifier = modifier
+                .padding(top = 48.dp)
                 .fillMaxSize()
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = if (state.isLoginMode) "Login" else "Register",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(top = 48.dp, bottom = 24.dp)
-            )
-            if (! state.isLoginMode || state.isResetMode) {
+            if (!state.isLoginMode || state.isResetMode) {
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = state.email,
-                    onValueChange = {viewModel.sendIntent(AuthIntent.EmailChange(it))},
-                    label = {Text("邮箱")},
+                    onValueChange = { viewModel.sendIntent(AuthIntent.EmailChange(it)) },
+                    label = { Text("邮箱") },
                     modifier = Modifier.fillMaxWidth(),
                     supportingText = {
                         if (emailHasErrors) {
@@ -113,8 +139,8 @@ fun LoginScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = state.verifyCode,
-                        onValueChange = {viewModel.sendIntent(AuthIntent.VerifyChange(it))},
-                        label = {Text("邮箱验证码")},
+                        onValueChange = { viewModel.sendIntent(AuthIntent.VerifyChange(it)) },
+                        label = { Text("邮箱验证码") },
                         modifier = Modifier.weight(1f),
                         supportingText = {
                             if (verifyError) {
@@ -128,18 +154,18 @@ fun LoginScreen(
                         onClick = {
                             viewModel.sendIntent(AuthIntent.SendVerify)
                         },
-                        enabled = ! emailHasErrors && state.email.isNotEmpty() && state.waitingSecond <= 0
+                        enabled = !emailHasErrors && state.email.isNotEmpty() && state.waitingSecond <= 0
                     ) {
-                        Text(if (state.waitingSecond>0) "${state.waitingSecond}s" else "发送")
+                        Text(if (state.waitingSecond > 0) "${state.waitingSecond}s" else "发送")
                     }
                 }
 
             }
-            if (! state.isResetMode) {
+            if (!state.isResetMode) {
                 OutlinedTextField(
                     value = state.username,
-                    onValueChange = {viewModel.sendIntent(AuthIntent.UsernameChange(it))},
-                    label = {Text(if (state.isLoginMode) "用户名或邮箱" else "用户名")},
+                    onValueChange = { viewModel.sendIntent(AuthIntent.UsernameChange(it)) },
+                    label = { Text(if (state.isLoginMode) "用户名或邮箱" else "用户名") },
                     modifier = Modifier.fillMaxWidth(),
                     isError = usernameError,
                     supportingText = {
@@ -152,8 +178,8 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
                 value = state.password,
-                onValueChange = {viewModel.sendIntent(AuthIntent.PasswordChange(it))},
-                label = {Text("密码")},
+                onValueChange = { viewModel.sendIntent(AuthIntent.PasswordChange(it)) },
+                label = { Text("密码") },
                 modifier = Modifier.fillMaxWidth(),
                 isError = passwordError,
                 supportingText = {
@@ -171,20 +197,20 @@ fun LoginScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
             Button(
-                onClick = {viewModel.sendIntent(AuthIntent.Submit)},
+                onClick = { viewModel.sendIntent(AuthIntent.Submit) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = ! state.isLoading
-                    && ((! emailHasErrors && state.email.isNotEmpty()) || state.isLoginMode)
-                    && ((! verifyError && state.verifyCode.isNotEmpty()) || ! state.isResetMode)
-                    && (! passwordError && state.password.isNotEmpty())
-                    && (! usernameError || state.isResetMode)
+                enabled = !state.isLoading
+                        && ((!emailHasErrors && state.email.isNotEmpty()) || state.isLoginMode)
+                        && ((!verifyError && state.verifyCode.isNotEmpty()) || !state.isResetMode)
+                        && (!passwordError && state.password.isNotEmpty())
+                        && (!usernameError || state.isResetMode)
             ) {
                 Text(if (state.isResetMode) "修改密码" else if (state.isLoginMode) "登录" else "注册")
             }
             Spacer(modifier = Modifier.height(16.dp))
-            if (! state.isResetMode) {
+            if (!state.isResetMode) {
                 Button(
-                    onClick = {viewModel.sendIntent(AuthIntent.ToggleToRegisterMode)},
+                    onClick = { viewModel.sendIntent(AuthIntent.ToggleToRegisterMode) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (state.isLoginMode) "去注册" else "返回登录")
@@ -193,7 +219,7 @@ fun LoginScreen(
             if (state.isLoginMode || state.isResetMode) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
-                    onClick = {viewModel.sendIntent(AuthIntent.ToggleToResetMode)},
+                    onClick = { viewModel.sendIntent(AuthIntent.ToggleToResetMode) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (state.isResetMode) "返回登录" else "忘记密码")
@@ -201,7 +227,9 @@ fun LoginScreen(
             }
         }
         if (state.isLoading) {
-            CircularProgressIndicator(Modifier.height(24.dp))
+            CircularProgressIndicator(Modifier
+                .height(24.dp)
+                .align(Alignment.Center))
         }
     }
 }

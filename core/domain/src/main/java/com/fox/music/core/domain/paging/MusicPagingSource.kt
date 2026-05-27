@@ -10,6 +10,7 @@ class MusicPagingSource(
     private val keyword: String? = "",
     private val tagId: Long? = null,
     private val sort: String? = "",
+    private val maxTotalItems: Int? = null,
 ): PagingSource<Int, Music>() {
     private val mapPageDataList = mutableMapOf<Int, List<Music>>()
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Music> {
@@ -37,11 +38,32 @@ class MusicPagingSource(
                             }
                         }
                 }
-                mapPageDataList[page] = list
+                val max = maxTotalItems
+                val previousTotal = if (max != null) {
+                    mapPageDataList.filterKeys { it < page }.values.sumOf { it.size }
+                } else {
+                    0
+                }
+                val cappedList = if (max != null) {
+                    val remaining = max - previousTotal
+                    when {
+                        remaining <= 0 -> emptyList()
+                        list.size > remaining -> list.take(remaining)
+                        else -> list
+                    }
+                } else {
+                    list
+                }
+                val cappedNextKey = if (max != null && (previousTotal + cappedList.size >= max || cappedList.size < list.size)) {
+                    null
+                } else {
+                    nextKey
+                }
+                mapPageDataList[page] = cappedList
                 LoadResult.Page(
-                    data = list,
+                    data = cappedList,
                     prevKey = prevKey,
-                    nextKey = nextKey
+                    nextKey = cappedNextKey
                 )
             }
         } catch (e: Exception) {
