@@ -141,11 +141,9 @@ fun MainScreen(
     }
 
     fun onMusicClick(music: Music, list: List<Music>, key: String) {
-        if (list.isEmpty()) {
-            return
-        }
-        val startIndex = list.indexOfFirst { it.id == music.id }.coerceAtLeast(0)
-        musicController.setPlaylist(list, startIndex, key)
+        val playlist = list.takeIf { it.isNotEmpty() } ?: listOf(music)
+        val startIndex = playlist.indexOfFirst { it.id == music.id }.coerceAtLeast(0)
+        musicController.setPlaylist(playlist, startIndex, key)
         navController.navigate(PLAYER_ROUTE)
     }
 

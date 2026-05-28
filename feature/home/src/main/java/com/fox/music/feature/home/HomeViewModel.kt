@@ -40,7 +40,7 @@ sealed interface HomeIntent : UiIntent {
 }
 
 sealed interface HomeEffect : UiEffect {
-    data class NavigateToMusic(val music: Music) : HomeEffect
+    data class NavigateToMusic(val music: Music, val musicList: List<Music>) : HomeEffect
     data class NavigateToPlaylist(val playlistId: Long) : HomeEffect
     data class NavigateToAlbum(val albumId: Long) : HomeEffect
     data object NavigateToSearch : HomeEffect
@@ -55,6 +55,8 @@ class HomeViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val albumRepository: AlbumRepository,
 ): MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState()) {
+
+    private var currentMusicList: List<Music> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -75,8 +77,13 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun updateCurrentMusicList(list: List<Music>) {
+        currentMusicList = list
+    }
+
     fun onMusicClick(music: Music) {
-        sendEffect(HomeEffect.NavigateToMusic(music))
+        val list = currentMusicList.takeIf { it.isNotEmpty() } ?: listOf(music)
+        sendEffect(HomeEffect.NavigateToMusic(music, list))
     }
 
     fun onSearchClick() {

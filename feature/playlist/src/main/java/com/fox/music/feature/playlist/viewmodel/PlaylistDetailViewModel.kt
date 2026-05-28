@@ -343,8 +343,11 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     fun onMusicClick(music: Music, currentList: List<Music>) {
-        currentTrackList = currentList
-        sendEffect(PlaylistDetailEffect.NavigateToMusic(music, currentList))
+        val list = currentList.takeIf { it.isNotEmpty() }
+            ?: currentTrackList.takeIf { it.isNotEmpty() }
+            ?: listOf(music)
+        currentTrackList = list
+        sendEffect(PlaylistDetailEffect.NavigateToMusic(music, list))
     }
 
     fun updateCurrentTrackList(list: List<Music>) {

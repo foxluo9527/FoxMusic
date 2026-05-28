@@ -114,9 +114,8 @@ fun PlaylistDetailScreen(
     }
 
     // 收集当前加载的歌曲列表
-    LaunchedEffect(pagingItems.itemCount) {
-        val currentList = (0 until pagingItems.itemCount).mapNotNull {pagingItems[it]}
-        viewModel.updateCurrentTrackList(currentList)
+    LaunchedEffect(pagingItems.itemSnapshotList.items) {
+        viewModel.updateCurrentTrackList(pagingItems.itemSnapshotList.items)
     }
     LaunchedEffect(pagingItems.itemSnapshotList.items, playlistKey) {
         if (playlistKey.isNotEmpty()) {
@@ -268,9 +267,7 @@ fun PlaylistDetailScreen(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     onMusicClick = { music ->
-                        val currentList =
-                            (0 until pagingItems.itemCount).mapNotNull { pagingItems[it] }
-                        viewModel.onMusicClick(music, currentList)
+                        viewModel.onMusicClick(music, pagingItems.itemSnapshotList.items)
                     },
                     onPlayAll = { viewModel.sendIntent(PlaylistDetailIntent.PlayAll) },
                     onToggleFavorite = { viewModel.sendIntent(PlaylistDetailIntent.ToggleFavorite) },

@@ -70,7 +70,7 @@ fun HomeScreen(
             when (effect) {
                 is HomeEffect.NavigateToMusic -> onMusicClick(
                     effect.music,
-                    recommendedMusicPagingItems.itemSnapshotList.items,
+                    effect.musicList,
                     HOME_ROUTE
                 )
 
@@ -84,7 +84,11 @@ fun HomeScreen(
     }
 
     LaunchedEffect(recommendedMusicPagingItems.itemSnapshotList.items) {
-        updateMusicList(recommendedMusicPagingItems.itemSnapshotList.items, HOME_ROUTE)
+        val items = recommendedMusicPagingItems.itemSnapshotList.items
+        viewModel.updateCurrentMusicList(items)
+        if (items.isNotEmpty()) {
+            updateMusicList(items, HOME_ROUTE)
+        }
     }
 
     with(sharedTransitionScope) {
