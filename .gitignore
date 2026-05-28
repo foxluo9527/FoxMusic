@@ -22,6 +22,7 @@ app/keystore/
 *.jks
 *.keystore
 .kotlin/
+.cursor/
 app/release/
 # Project exclude paths
 /core/common/build/
