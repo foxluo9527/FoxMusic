@@ -1,5 +1,6 @@
 package com.fox.music.ui
 
+import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
 import androidx.compose.animation.SharedTransitionLayout
@@ -28,12 +29,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.MainActivityViewModel
 import com.fox.music.core.model.music.Album
@@ -51,16 +53,16 @@ import com.fox.music.feature.discover.ALL_ARTIST_LIST_ROUTE
 import com.fox.music.feature.discover.ARTIST_DETAIL_ROUTE
 import com.fox.music.feature.discover.ArtistDetailScreen
 import com.fox.music.feature.discover.ArtistListScreen
-import com.fox.music.feature.discover.HOT_ARTIST_LIST_ROUTE
-import com.fox.music.feature.discover.HotArtistListScreen
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.discover.DiscoverScreen
+import com.fox.music.feature.discover.HOT_ARTIST_LIST_ROUTE
+import com.fox.music.feature.discover.HotArtistListScreen
 import com.fox.music.feature.discover.artistDetailRoute
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.home.HomeScreen
+import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
 import com.fox.music.feature.player.ui.screen.ManageScreen
-import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.PlayerScreen
 import com.fox.music.feature.playlist.ui.component.PLAYLIST_LIST_ROUTE
@@ -72,8 +74,8 @@ import com.fox.music.feature.playlist.ui.screen.AlbumListScreen
 import com.fox.music.feature.playlist.ui.screen.PLAYLIST_EDIT_ROUTE
 import com.fox.music.feature.playlist.ui.screen.PlaylistEditScreen
 import com.fox.music.feature.playlist.ui.screen.playlistEditRoute
-import com.fox.music.feature.profile.ui.screen.DownloadScreen
 import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
+import com.fox.music.feature.profile.ui.screen.DownloadScreen
 import com.fox.music.feature.profile.ui.screen.EDIT_PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.EditProfileScreen
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
@@ -82,6 +84,8 @@ import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.SettingsScreen
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
+
+@OptIn(UnstableApi::class)
 @Composable
 fun MainScreen(
     modifier: Modifier,

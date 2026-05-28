@@ -10,7 +10,6 @@ import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.crash.BuglyInitializer
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
-import com.tencent.bugly.crashreport.CrashReport
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

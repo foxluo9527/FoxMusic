@@ -1,23 +1,31 @@
 package com.fox.music.crash
 
 import android.app.Application
-import android.os.Process
 import com.fox.music.BuildConfig
 import com.tencent.bugly.crashreport.CrashReport
-import java.io.BufferedReader
-import java.io.FileReader
+import timber.log.Timber
 
 object BuglyInitializer {
 
+    private const val TAG = "Bugly"
+    /** Bugly 后台注册包名（与 release 的 applicationId 一致，勿含 .debug 后缀） */
+    private const val BUGLY_PACKAGE_NAME = "com.fox.music"
+
     fun init(application: Application) {
         val context = application.applicationContext
-        val packageName = context.packageName
-        val processName = currentProcessName()
-        val isMainProcess = processName.isNullOrEmpty() || processName == packageName
+
+        val appVersion = if (BuildConfig.DEBUG) {
+            "${BuildConfig.VERSION_NAME}-debug"
+        } else {
+            BuildConfig.VERSION_NAME
+        }
+        val channel = if (BuildConfig.DEBUG) "debug" else "release"
 
         val strategy = CrashReport.UserStrategy(context).apply {
-            setUploadProcess(isMainProcess)
-            setAppVersion(BuildConfig.VERSION_NAME)
+            isUploadProcess = true
+            appPackageName = BUGLY_PACKAGE_NAME
+            setAppVersion(appVersion)
+            appChannel = channel
         }
 
         CrashReport.initCrashReport(
@@ -26,13 +34,8 @@ object BuglyInitializer {
             BuildConfig.DEBUG,
             strategy,
         )
-    }
-
-    private fun currentProcessName(): String? {
-        return runCatching {
-            BufferedReader(FileReader("/proc/${Process.myPid()}/cmdline")).use { reader ->
-                reader.readLine()?.trim()?.takeIf { it.isNotEmpty() }
-            }
-        }.getOrNull()
+        CrashReport.setIsDevelopmentDevice(context, BuildConfig.DEBUG)
+        Timber.tag(TAG)
+            .i("initialized: package=$BUGLY_PACKAGE_NAME, version=$appVersion, channel=$channel")
     }
 }
