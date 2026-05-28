@@ -61,7 +61,6 @@ fun HomeScreen(
     onAlbumCategoryClick: () -> Unit = {},
     onRecommendClick:()-> Unit={},
     onMusicMoreClick: (Music) -> Unit = {},
-    onArtistClick: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val recommendedMusicPagingItems = state.recommendedMusic.collectAsLazyPagingItems()
@@ -167,6 +166,7 @@ fun HomeScreen(
                 ) {index ->
                     recommendedMusicPagingItems[index]?.let { music ->
                         MusicListItem(
+                            modifier = Modifier.padding(start = 4.dp),
                             music = music,
                             sharedTransitionScope = this@with,
                             animatedContentScope = animatedContentScope,

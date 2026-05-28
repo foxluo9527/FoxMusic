@@ -276,7 +276,6 @@ fun MainScreen(
                                 )
                             },
                             onMusicMoreClick = ::onMusicMoreClick,
-                            onArtistClick = ::onArtistClick,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedContentScope = this@composable
                         )

@@ -173,6 +173,7 @@ fun DiscoverScreen(
                     ) { index ->
                         val music = state.newMusic[index]
                         MusicListItem(
+                            modifier = Modifier.padding(start = 4.dp),
                             music = music,
                             sharedTransitionScope = this@with,
                             animatedContentScope = animatedContentScope,

@@ -82,12 +82,11 @@ private val ProfileBodyColor = Color(0xFF555555)
 private val ProfileHintColor = Color(0xFF999999)
 private val ProfileAccentColor = Color(0xFF5B9BD5)
 private val ProfileAccentLight = Color(0xFFE8F4FD)
-private val ProfileCardBg = Color(0xFFF7F8FA)
+private val ProfileCardBg = Color(0xFFFFFFFF)
 private val ProfileDividerColor = Color(0xFFEEEEEE)
 
 private val ProfileCardShape = RoundedCornerShape(20.dp)
 private val ProfileCoverShape = RoundedCornerShape(12.dp)
-private val ProfileButtonShape = RoundedCornerShape(16.dp)
 
 private val ProfileCoverSize = 56.dp
 
@@ -163,7 +162,6 @@ fun ProfileScreen(
             Column(
                 modifier = modifier
                     .fillMaxSize()
-                    .background(Color.White)
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -171,15 +169,7 @@ fun ProfileScreen(
                     nickname = user.nickname ?: user.username,
                     signature = user.signature,
                     avatarUrl = user.avatar,
-                    playlistCount = state.playlists.size,
-                    favoriteCount = state.favoritePlaylistTotal,
-                    albumCount = state.favoriteAlbumTotal,
-                    onUserInfoClick = { viewModel.sendIntent(ProfileIntent.OnSettingsClick) },
-                    onStatClick = { index ->
-                        scope.launch {
-                            collectState.animateScrollToPage(index.coerceIn(0, ProfileTabs.lastIndex))
-                        }
-                    },
+                    onUserInfoClick = { viewModel.sendIntent(ProfileIntent.OnSettingsClick) }
                 )
                 ProfileTabRow(
                     selectedTab = collectState.currentPage,
@@ -379,11 +369,7 @@ private fun ProfileHeaderCard(
     nickname: String,
     signature: String?,
     avatarUrl: String?,
-    playlistCount: Int,
-    favoriteCount: Int,
-    albumCount: Int,
-    onUserInfoClick: () -> Unit,
-    onStatClick: (Int) -> Unit,
+    onUserInfoClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -456,34 +442,6 @@ private fun ProfileHeaderCard(
             }
 
             Spacer(modifier = Modifier.height(14.dp))
-            HorizontalDivider(color = ProfileDividerColor, thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ProfileStatItem(
-                    label = "歌单",
-                    count = playlistCount,
-                    onClick = { onStatClick(0) },
-                    modifier = Modifier.weight(1f),
-                )
-                VerticalStatDivider()
-                ProfileStatItem(
-                    label = "收藏",
-                    count = favoriteCount,
-                    onClick = { onStatClick(1) },
-                    modifier = Modifier.weight(1f),
-                )
-                VerticalStatDivider()
-                ProfileStatItem(
-                    label = "专辑",
-                    count = albumCount,
-                    onClick = { onStatClick(2) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
         }
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -53,7 +54,7 @@ fun MusicListItem(
                     },
                     onLongClick = onLongClick,
                 )
-                .padding(8.dp),
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (isSelectionMode) {
@@ -90,7 +91,7 @@ fun MusicListItem(
             }
 
             if (!isSelectionMode && onMoreClick != null) {
-                IconButton(onClick = onMoreClick) {
+                IconButton(onClick = onMoreClick, modifier = Modifier.offset(x = 10.dp)) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "更多",

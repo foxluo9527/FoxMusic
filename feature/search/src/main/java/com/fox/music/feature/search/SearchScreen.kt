@@ -428,7 +428,7 @@ private fun MusicSearchResults(
         if (music != null) {
             MusicListItem(
                 music = music,
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier.padding(start = 12.dp, end = 8.dp),
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope,
                 onClick = { onMusicClick(music) },
