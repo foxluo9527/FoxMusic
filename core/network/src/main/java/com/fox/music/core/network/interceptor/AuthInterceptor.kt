@@ -16,10 +16,7 @@ class AuthInterceptor @Inject constructor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
 
-        // Skip auth for login/register endpoints
-        val path = originalRequest.url.encodedPath
-        if (path.contains("login") || path.contains("register") ||
-            path.contains("forgot-password") || path.contains("reset-password")) {
+        if (isPublicAuthPath(originalRequest.url.encodedPath)) {
             return chain.proceed(originalRequest)
         }
 

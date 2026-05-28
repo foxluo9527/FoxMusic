@@ -20,6 +20,11 @@ class TokenAuthenticator @Inject constructor(
     override fun authenticate(route: Route?, response: Response): Request? {
         if (response.code != 401) return null
 
+        if (isPublicAuthPath(response.request.url.encodedPath)) {
+            Timber.d("401 on public auth endpoint, skip session invalidation")
+            return null
+        }
+
         synchronized(lock) {
             if (responseCount(response) >= 2) {
                 Timber.w("401 after retry, giving up")
