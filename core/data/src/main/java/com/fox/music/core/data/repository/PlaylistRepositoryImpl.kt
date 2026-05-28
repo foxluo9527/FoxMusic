@@ -187,4 +187,9 @@ class PlaylistRepositoryImpl @Inject constructor(
             data.toPlaylistDetail()
         } else throw Exception(response.message)
     }
+
+    override suspend fun toggleFavorite(id: Long): Result<Unit> = suspendRunCatching {
+        val response = playlistApi.toggleFavorite(id)
+        if (response.isSuccess) Unit else throw Exception(response.message)
+    }
 }

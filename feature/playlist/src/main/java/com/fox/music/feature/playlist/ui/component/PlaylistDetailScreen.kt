@@ -1,6 +1,7 @@
 package com.fox.music.feature.playlist.ui.component
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
@@ -38,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,7 +52,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.fox.music.core.common.R as CommonR
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -60,9 +64,12 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.DeletePlaylistConfirmDialog
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.core.ui.component.MusicSelectionBottomBar
+import com.fox.music.core.ui.component.PlaylistManageBottomSheet
 import com.fox.music.feature.playlist.viewmodel.HeaderInfo
 import com.fox.music.feature.playlist.viewmodel.PlaylistDetailEffect
 import com.fox.music.feature.playlist.viewmodel.PlaylistDetailIntent
@@ -79,11 +86,33 @@ fun PlaylistDetailScreen(
     onMusicClick: (Music, List<Music>, String) -> Unit = {_, _, _ ->},
     updateMusicList: (List<Music>, String) -> Unit = {_, _ ->},
     onBack: () -> Unit = {},
+    onPlaylistDeleted: () -> Unit = {},
+    onEditPlaylist: (Long) -> Unit = {},
+    onMusicMoreClick: (Music) -> Unit = {},
+    onArtistClick: (Long) -> Unit = {},
+    onAddSelectedToQueue: (List<Music>) -> Unit = {},
+    onAddSelectedToPlaylist: (List<Long>) -> Unit = {},
+    onDownloadSelected: (List<Music>) -> Unit = {},
+    onSelectionModeChanged: (Boolean) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val pagingItems = viewModel.tracks.collectAsLazyPagingItems()
     val context = LocalContext.current
     val playlistKey = viewModel.playlistKey
+    var showManageSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.isSelectionMode) {
+        onSelectionModeChanged(state.isSelectionMode)
+    }
+    DisposableEffect(Unit) {
+        onDispose { onSelectionModeChanged(false) }
+    }
+
+    BackHandler(enabled = state.isSelectionMode) {
+        viewModel.sendIntent(PlaylistDetailIntent.ExitSelectionMode)
+    }
+
     // 收集当前加载的歌曲列表
     LaunchedEffect(pagingItems.itemCount) {
         val currentList = (0 until pagingItems.itemCount).mapNotNull {pagingItems[it]}
@@ -112,6 +141,27 @@ fun PlaylistDetailScreen(
                 is PlaylistDetailEffect.ShowToast -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
+
+                PlaylistDetailEffect.NavigateBack -> {
+                    onPlaylistDeleted()
+                    onBack()
+                }
+
+                is PlaylistDetailEffect.AddSelectedToQueue -> {
+                    onAddSelectedToQueue(effect.musics)
+                }
+
+                is PlaylistDetailEffect.AddSelectedToPlaylist -> {
+                    onAddSelectedToPlaylist(effect.musicIds)
+                }
+
+                is PlaylistDetailEffect.DownloadSelected -> {
+                    onDownloadSelected(effect.musics)
+                }
+
+                PlaylistDetailEffect.RefreshTracks -> {
+                    pagingItems.refresh()
+                }
             }
         }
     }
@@ -119,38 +169,89 @@ fun PlaylistDetailScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = getTypeTitle(state.detailType),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
-                        )
-                    }
-                },
-                actions = {
-                    if (state.detailType !== DetailType.RECOMMEND && state.detailType != DetailType.NEW_MUSIC) {
-                        IconButton(onClick = { /* TODO: Search */}) {
+            if (state.isSelectionMode) {
+                TopAppBar(
+                    title = {
+                        Text("已选 ${state.selectedMusicIds.size} 首")
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            viewModel.sendIntent(PlaylistDetailIntent.ExitSelectionMode)
+                        }) {
                             Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "更多"
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "取消",
                             )
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    },
+                    actions = {
+                        Text(
+                            text = "全选",
+                            modifier = Modifier
+                                .clickable { viewModel.sendIntent(PlaylistDetailIntent.SelectAll) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
                 )
-            )
-        }
-    ) {innerPadding ->
+            } else {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = getTypeTitle(state.detailType),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                            )
+                        }
+                    },
+                    actions = {
+                        if (viewModel.canManagePlaylist) {
+                            IconButton(onClick = { showManageSheet = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "更多",
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            }
+        },
+        bottomBar = {
+            if (state.isSelectionMode && state.selectedMusicIds.isNotEmpty()) {
+                MusicSelectionBottomBar(
+                    selectedCount = state.selectedMusicIds.size,
+                    showRemoveFromPlaylist = viewModel.canManagePlaylist,
+                    onAddToQueue = {
+                        viewModel.sendIntent(PlaylistDetailIntent.AddSelectedToQueue)
+                    },
+                    onRemoveFromPlaylist = {
+                        viewModel.sendIntent(PlaylistDetailIntent.RemoveSelectedFromPlaylist)
+                    },
+                    onAddToPlaylist = {
+                        viewModel.sendIntent(PlaylistDetailIntent.AddSelectedToPlaylist)
+                    },
+                    onDownload = {
+                        viewModel.sendIntent(PlaylistDetailIntent.DownloadSelected)
+                    },
+                )
+            }
+        },
+    ) { innerPadding ->
         when {
             state.isLoading && state.headerInfo == null -> {
                 LoadingIndicator(useLottie = false)
@@ -166,19 +267,58 @@ fun PlaylistDetailScreen(
                     pagingItems = pagingItems,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
-                    onMusicClick = {music ->
+                    onMusicClick = { music ->
                         val currentList =
-                            (0 until pagingItems.itemCount).mapNotNull {pagingItems[it]}
+                            (0 until pagingItems.itemCount).mapNotNull { pagingItems[it] }
                         viewModel.onMusicClick(music, currentList)
                     },
-                    onPlayAll = {viewModel.sendIntent(PlaylistDetailIntent.PlayAll)},
-                    onToggleFavorite = {viewModel.sendIntent(PlaylistDetailIntent.ToggleFavorite)},
+                    onPlayAll = { viewModel.sendIntent(PlaylistDetailIntent.PlayAll) },
+                    onToggleFavorite = { viewModel.sendIntent(PlaylistDetailIntent.ToggleFavorite) },
+                    onMusicMoreClick = onMusicMoreClick,
+                    onArtistClick = onArtistClick,
+                    onEnterSelectionMode = { musicId ->
+                        viewModel.sendIntent(PlaylistDetailIntent.EnterSelectionMode(musicId))
+                    },
+                    onToggleSelection = { musicId ->
+                        viewModel.sendIntent(PlaylistDetailIntent.ToggleSelection(musicId))
+                    },
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(innerPadding),
                 )
             }
         }
+    }
+
+    val playlistTitle = state.headerInfo?.title.orEmpty()
+    if (showManageSheet && playlistTitle.isNotEmpty()) {
+        PlaylistManageBottomSheet(
+            playlistTitle = playlistTitle,
+            onDismiss = { showManageSheet = false },
+            onEdit = {
+                showManageSheet = false
+                onEditPlaylist(viewModel.playlistId)
+            },
+            onDelete = {
+                showManageSheet = false
+                showDeleteConfirm = true
+            },
+            onPlayAll = {
+                viewModel.sendIntent(PlaylistDetailIntent.PlayAll)
+                showManageSheet = false
+            },
+        )
+    }
+
+    if (showDeleteConfirm && playlistTitle.isNotEmpty()) {
+        DeletePlaylistConfirmDialog(
+            playlistTitle = playlistTitle,
+            onDismiss = { showDeleteConfirm = false },
+            onConfirm = {
+                viewModel.sendIntent(PlaylistDetailIntent.DeletePlaylist)
+                showDeleteConfirm = false
+            },
+        )
     }
 }
 
@@ -191,6 +331,10 @@ private fun CollectionDetailContent(
     onMusicClick: (Music) -> Unit,
     onPlayAll: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onMusicMoreClick: (Music) -> Unit,
+    onArtistClick: (Long) -> Unit,
+    onEnterSelectionMode: (Long) -> Unit,
+    onToggleSelection: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -210,9 +354,12 @@ private fun CollectionDetailContent(
         item {
             state.headerInfo?.let {headerInfo->
                 ActionButtonRow(
-                    showFavorite = state.detailType !== DetailType.RECOMMEND && state.detailType != DetailType.NEW_MUSIC,
+                    showFavorite = state.detailType !== DetailType.RECOMMEND &&
+                        state.detailType != DetailType.NEW_MUSIC &&
+                        state.detailType != DetailType.FAVORITE_MUSIC,
                     trackCount = headerInfo.trackCount.takeIf {it > 0} ?: pagingItems.itemCount,
                     isFavorite = headerInfo.isFavorite,
+                    isFavoriteLoading = state.isFavoriteLoading,
                     onPlayAll = onPlayAll,
                     onToggleFavorite = onToggleFavorite,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -223,15 +370,23 @@ private fun CollectionDetailContent(
         // 歌曲列表
         items(
             count = pagingItems.itemCount,
-            key = {index -> pagingItems[index]?.id ?: index}
+            key = { index ->
+                val musicId = pagingItems[index]?.id
+                if (musicId != null) "${musicId}_$index" else index
+            }
         ) {index ->
-            pagingItems[index]?.let {music ->
+            pagingItems[index]?.let { music ->
                 MusicListItem(
                     music = music,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                    onClick = {onMusicClick(music)}
+                    modifier = Modifier.padding(horizontal = if (!state.isSelectionMode) 8.dp else 0.dp),
+                    onClick = { onMusicClick(music) },
+                    onMoreClick = { onMusicMoreClick(music) },
+                    isSelectionMode = state.isSelectionMode,
+                    isSelected = music.id in state.selectedMusicIds,
+                    onLongClick = { onEnterSelectionMode(music.id) },
+                    onSelectionToggle = { onToggleSelection(music.id) },
                 )
             }
         }
@@ -332,6 +487,25 @@ private fun CollectionDetailHeader(
                 shape = RoundedCornerShape(8.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
+        } else if (headerInfo.detailType == DetailType.FAVORITE_MUSIC) {
+            Surface(
+                modifier = Modifier.size(120.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(CommonR.drawable.ic_favorite),
+                        contentDescription = headerInfo.title,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
         }
         Column(
             modifier = Modifier.weight(1f)
@@ -431,6 +605,7 @@ private fun CollectionDetailHeader(
 private fun ActionButtonRow(
     isFavorite: Boolean,
     showFavorite: Boolean = true,
+    isFavoriteLoading: Boolean = false,
     onPlayAll: () -> Unit,
     onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier,
@@ -448,8 +623,9 @@ private fun ActionButtonRow(
             Spacer(Modifier.width(10.dp))
             ActionButton(
                 icon = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                label = if (isFavorite) "已收藏" else "收藏",
-                onClick = onToggleFavorite
+                label = if (isFavoriteLoading) "处理中..." else if (isFavorite) "已收藏" else "收藏",
+                onClick = onToggleFavorite,
+                enabled = !isFavoriteLoading,
             )
         }
     }
@@ -460,12 +636,13 @@ private fun RowScope.ActionButton(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .height(40.dp)
             .background(Color.White, CircleShape)
             .weight(1f)
@@ -492,6 +669,7 @@ private fun getTypeTitle(type: DetailType): String {
         DetailType.RANK -> "排行榜"
         DetailType.RECOMMEND -> "推荐歌曲"
         DetailType.NEW_MUSIC -> "新歌速递"
+        DetailType.FAVORITE_MUSIC -> "我的收藏"
     }
 }
 
@@ -502,6 +680,7 @@ private fun getTypeLabel(type: DetailType): String {
         DetailType.RANK -> "榜单"
         DetailType.RECOMMEND -> "推荐"
         DetailType.NEW_MUSIC -> "新歌"
+        DetailType.FAVORITE_MUSIC -> "收藏"
     }
 }
 

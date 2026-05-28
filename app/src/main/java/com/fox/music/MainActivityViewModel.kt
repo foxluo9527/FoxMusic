@@ -3,14 +3,18 @@ package com.fox.music
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fox.music.core.domain.repository.UserPreferencesRepository
+import com.fox.music.core.model.user.UserPreferences
 import com.fox.music.core.network.token.TokenManager
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.feature.home.HOME_ROUTE
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,12 +23,16 @@ import javax.inject.Inject
 class MainActivityViewModel @Inject constructor(
     val musicController: MusicController,
     private val tokenManager: TokenManager,
+    userPreferencesRepository: UserPreferencesRepository,
     private val playlistRepository: com.fox.music.core.domain.repository.PlaylistRepository,
-    private val importRepository: com.fox.music.core.domain.repository.ImportRepository
+    private val importRepository: com.fox.music.core.domain.repository.ImportRepository,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow(AuthState())
     val authState = _authState.asStateFlow()
+
+    val userPreferences = userPreferencesRepository.userPreferences
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserPreferences())
 
     private val _playlistState = MutableStateFlow(PlaylistState())
     val playlistState = _playlistState.asStateFlow()

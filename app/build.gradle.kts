@@ -24,6 +24,13 @@ android {    namespace = "com.fox.music"
         versionCode = 1
         versionName = "1.0.0"
 
+        buildConfigField("String", "BUGLY_APP_ID", "\"79570062b4\"")
+        buildConfigField("String", "BUGLY_APP_KEY", "\"9d6fcb14-8250-4eb8-b053-17b21d0a3aa8\"")
+
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -98,6 +105,8 @@ dependencies {
 
     // AndroidX Core
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.ucrop)
 
     // Lifecycle
     implementation(libs.bundles.lifecycle)
@@ -123,6 +132,9 @@ dependencies {
 
     // Logging
     implementation(libs.timber)
+
+    // Crash reporting
+    implementation(libs.bugly.crashreport)
 
     // Testing
     testImplementation(libs.junit)

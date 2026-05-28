@@ -99,18 +99,14 @@ class HomeViewModel @Inject constructor(
                 updateState { copy(isLoading = true, error = null) }
             }
 
-            // 加载热词
             when (val result = searchRepository.getHotKeywords(limit = 10)) {
                 is Result.Success -> {
                     updateState { copy(hotKeywords = result.data) }
                 }
-                is Result.Error -> {
-                    // 忽略热词加载失败
-                }
+                is Result.Error -> {}
                 else -> {}
             }
 
-            // 加载推荐歌单
             when (val result = playlistRepository.getRecommendedPlaylists(page = 1, limit = 8)) {
                 is Result.Success -> {
                     updateState { copy(recommendedPlaylists = result.data.list) }
@@ -121,7 +117,6 @@ class HomeViewModel @Inject constructor(
                 else -> {}
             }
 
-            // 加载推荐音乐
             updateState {
                 copy(
                     recommendedMusic = getMusicListUseCase.getPagingSource(
@@ -131,19 +126,15 @@ class HomeViewModel @Inject constructor(
                 )
             }
 
-            // 加载推荐专辑
             when (val result = albumRepository.getAlbumList(page = 1, limit = 8, sort = "hot")) {
                 is Result.Success -> {
                     updateState { copy(recommendedAlbums = result.data.list) }
                 }
-                is Result.Error -> {
-                    // 忽略专辑加载失败
-                }
+                is Result.Error -> {}
                 else -> {}
             }
 
             updateState { copy(isLoading = false, isRefreshing = false) }
         }
     }
-
 }

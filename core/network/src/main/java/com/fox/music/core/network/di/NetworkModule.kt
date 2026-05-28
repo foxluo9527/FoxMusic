@@ -10,8 +10,10 @@ import com.fox.music.core.network.api.FavoriteApiService
 import com.fox.music.core.network.api.ImportApiService
 import com.fox.music.core.network.api.MusicApiService
 import com.fox.music.core.network.api.PlaylistApiService
+import com.fox.music.core.network.api.ReportApiService
 import com.fox.music.core.network.api.SearchApiService
 import com.fox.music.core.network.api.SocialApiService
+import com.fox.music.core.network.api.UploadApiService
 import com.fox.music.core.network.interceptor.AuthInterceptor
 import com.fox.music.core.network.interceptor.TokenAuthenticator
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -38,6 +40,7 @@ object NetworkModule {
         coerceInputValues = true
         isLenient = true
         encodeDefaults = true
+        explicitNulls = false
     }
 
     @Provides
@@ -125,4 +128,14 @@ object NetworkModule {
     @Singleton
     fun provideFavoriteApiService(retrofit: Retrofit): FavoriteApiService =
         retrofit.create(FavoriteApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideUploadApiService(retrofit: Retrofit): UploadApiService =
+        retrofit.create(UploadApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideReportApiService(retrofit: Retrofit): ReportApiService =
+        retrofit.create(ReportApiService::class.java)
 }

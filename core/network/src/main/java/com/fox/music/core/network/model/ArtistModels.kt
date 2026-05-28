@@ -35,6 +35,8 @@ data class ArtistDto(
     @SerialName("album_count")
     val albumCount: Int = 0,
     val isFavorite: Boolean = false,
+    @SerialName("favorited_at")
+    val favoritedAt: String? = null,
     val tags: List<TagDto> = emptyList()
 )
 

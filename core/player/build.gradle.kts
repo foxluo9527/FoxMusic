@@ -14,6 +14,8 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:model"))
+    implementation(project(":core:domain"))
+    implementation(project(":core:datastore"))
     // PlaybackStateStore binding provided by core:datastore at runtime via Hilt
     api(libs.bundles.media3)
 //    api(libs.videocache)

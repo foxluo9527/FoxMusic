@@ -23,4 +23,6 @@ interface UserPreferencesRepository {
     suspend fun updateLanguage(language: String): Result<Unit>
 
     suspend fun updateDownloadOnWifiOnly(enabled: Boolean): Result<Unit>
+
+    suspend fun updateCacheMaxBytes(maxBytes: Long): Result<Unit>
 }

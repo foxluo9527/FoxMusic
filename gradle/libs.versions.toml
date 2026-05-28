@@ -6,6 +6,7 @@ gson = "2.13.2"
 kotlin = "2.3.0"
 ksp = "2.1.0-1.0.29"
 coreKtx = "1.17.0"
+appcompat = "1.7.1"
 
 # Compose
 composeBom = "2026.01.01"
@@ -57,20 +58,24 @@ utilcodex = "1.31.1"
 cardview = "1.0.0"
 xxpermissions = "20.0"
 lyricviewx = "1.4.0-alpha02"
+ucrop = "2.2.8"
 constraintlayout = "2.2.1"
 glideTransformations = "4.3.0"
 glideVersion = "5.0.5"
 lifecycleProcess = "2.10.0"
+bugly = "4.1.9.3"
 
 [libraries]
 github-glide = { module = "com.github.bumptech.glide:glide", version.ref = "glideVersion" }
 glide-transformations = { module = "jp.wasabeef:glide-transformations", version.ref = "glideTransformations" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 lyricviewx = { module = "com.github.Moriafly:LyricViewX", version.ref = "lyricviewx" }
+ucrop = { module = "com.github.yalantis:ucrop", version.ref = "ucrop" }
 xxpermissions = { module = "com.github.getActivity:XXPermissions", version.ref = "xxpermissions" }
 utilcodex = { module = "com.blankj:utilcodex", version.ref = "utilcodex" }
 # AndroidX Core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 
 # Lifecycle
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
@@ -166,6 +171,7 @@ androidx-palette-ktx = { group = "androidx.palette", name = "palette-ktx", versi
 androidx-cardview = { group = "androidx.cardview", name = "cardview", version.ref = "cardview" }
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleProcess" }
+bugly-crashreport = { group = "com.tencent.bugly", name = "crashreport", version.ref = "bugly" }
 
 [bundles]
 compose = [

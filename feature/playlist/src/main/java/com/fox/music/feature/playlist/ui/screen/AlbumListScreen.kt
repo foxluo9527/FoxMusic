@@ -63,7 +63,6 @@ fun AlbumListScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val albumPagingItems = state.albums.collectAsLazyPagingItems()
 
-    // Effect handlers
     LaunchedEffect(Unit) {
         viewModel.sendIntent(AlbumListIntent.Load)
         viewModel.effect.collect { effect ->
@@ -75,7 +74,6 @@ fun AlbumListScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Top App Bar
         TopAppBar(
             title = {
                 Text("推荐专辑")
@@ -91,7 +89,6 @@ fun AlbumListScreen(
             scrollBehavior = scrollBehavior
         )
 
-        // Content
         when {
             albumPagingItems.loadState.refresh == LoadState.Loading -> {
                 LoadingIndicator(useLottie = false)
@@ -129,8 +126,7 @@ fun AlbumListScreen(
                             count = albumPagingItems.itemCount,
                             key = { index -> albumPagingItems[index]?.id ?: index },
                             contentType = { "album_item" }
-                        ) {
-                                index ->
+                        ) { index ->
                             albumPagingItems[index]?.let { album ->
                                 AlbumGridItem(
                                     album = album,
@@ -147,7 +143,6 @@ fun AlbumListScreen(
     }
 }
 
-// 专辑网格项组件 (复用自 HomeScreen)
 @Composable
 private fun AlbumGridItem(
     album: Album,

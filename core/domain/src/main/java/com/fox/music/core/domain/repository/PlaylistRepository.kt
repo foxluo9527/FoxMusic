@@ -56,4 +56,6 @@ interface PlaylistRepository {
     suspend fun getRanks(page: Int = 1, limit: Int = 20): Result<List<Playlist>>
 
     suspend fun getRankDetail(id: Long, page: Int = 1, limit: Int = 20): Result<PlaylistDetail>
+
+    suspend fun toggleFavorite(id: Long): Result<Unit>
 }

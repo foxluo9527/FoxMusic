@@ -49,6 +49,8 @@ data class MusicDto(
     @SerialName("updated_at")
     val updatedAt: String? = null,
     val isFavorite: Boolean = false,
+    @SerialName("favorited_at")
+    val favoritedAt: String? = null,
     val tags: List<TagDto> = emptyList(),
     val artists: List<ArtistDto> = emptyList(),
     val album: AlbumDto? = null

@@ -15,6 +15,7 @@ import com.blankj.utilcode.util.ActivityUtils
 import com.blankj.utilcode.util.SPUtils
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.core.common.EventViewModel
+import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.feature.player.lyric.data.LyricStyle
 import com.fox.music.feature.player.lyric.ui.DesktopLyricContainer
@@ -63,12 +64,16 @@ class LyricSyncManager private constructor() {
 
     @Volatile
     private var isShowing = false
-    private val playManager by lazy {
+    private val entryPoint by lazy {
         EntryPointAccessors.fromApplication(
             context.applicationContext,
             MusicControllerEntryPoint::class.java
-        ).getMusicController()
+        )
     }
+
+    private val playManager by lazy { entryPoint.getMusicController() }
+
+    private val toggleMusicFavoriteUseCase by lazy { entryPoint.getToggleMusicFavoriteUseCase() }
 
     private val styleManager by lazy {LyricStyleManager.getInstance()}
 
@@ -138,6 +143,7 @@ class LyricSyncManager private constructor() {
         )
         lyricView.setPlaying(state.isPlaying)
         lyricView.setPlaySong(currentMusic.coverImage, currentMusic.title)
+        lyricView.setFavorite(state.isFavorite || currentMusic.isFavorite)
     }
 
     fun openDesktopLyric(context: Context) {
@@ -229,10 +235,25 @@ class LyricSyncManager private constructor() {
                 }
 
                 override fun onFavorite() {
-                    // 收藏功能实现（需要根据实际情况调整）
-                    val currentMusic = playManager.playerState.value?.currentMusic
-                    if (currentMusic != null) {
-
+                    val currentMusic = playManager.playerState.value.currentMusic ?: return
+                    val wasFavorite = playManager.playerState.value.let { state ->
+                        state.currentMusic?.takeIf { it.id == currentMusic.id }?.isFavorite
+                            ?: state.isFavorite
+                    }
+                    CoroutineScope(Dispatchers.Main).launch {
+                        toggleMusicFavoriteUseCase(currentMusic.id)
+                            .onSuccess {
+                                val newFavorite = !wasFavorite
+                                playManager.updateCurrentMusicFavorite(newFavorite)
+                                lyricView.setFavorite(newFavorite)
+                                ToastUtils.make().show(
+                                    if (newFavorite) "已收藏" else "已取消收藏"
+                                )
+                            }
+                            .onError { _, msg ->
+                                lyricView.setFavorite(wasFavorite)
+                                ToastUtils.make().show(msg ?: "操作失败")
+                            }
                     }
                     resetHideTimer()
                 }

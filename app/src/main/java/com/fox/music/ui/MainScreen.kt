@@ -21,16 +21,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.MainActivityViewModel
 import com.fox.music.core.model.music.Album
@@ -57,6 +60,7 @@ import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.home.HomeScreen
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
 import com.fox.music.feature.player.ui.screen.ManageScreen
+import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.PlayerScreen
 import com.fox.music.feature.playlist.ui.component.PLAYLIST_LIST_ROUTE
@@ -65,8 +69,17 @@ import com.fox.music.feature.playlist.ui.component.PlaylistListScreen
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.feature.playlist.ui.screen.ALBUM_LIST_ROUTE
 import com.fox.music.feature.playlist.ui.screen.AlbumListScreen
+import com.fox.music.feature.playlist.ui.screen.PLAYLIST_EDIT_ROUTE
+import com.fox.music.feature.playlist.ui.screen.PlaylistEditScreen
+import com.fox.music.feature.playlist.ui.screen.playlistEditRoute
+import com.fox.music.feature.profile.ui.screen.DownloadScreen
+import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
+import com.fox.music.feature.profile.ui.screen.EDIT_PROFILE_ROUTE
+import com.fox.music.feature.profile.ui.screen.EditProfileScreen
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.ProfileScreen
+import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
+import com.fox.music.feature.profile.ui.screen.SettingsScreen
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
 @Composable
@@ -74,6 +87,7 @@ fun MainScreen(
     modifier: Modifier,
     navController: NavHostController,
     viewModel: MainActivityViewModel,
+    musicActionsViewModel: MusicActionsViewModel = hiltViewModel(),
 ) {
     val musicController = viewModel.musicController
     val authState by viewModel.authState.collectAsState()
@@ -89,7 +103,9 @@ fun MainScreen(
     var inputValue by remember { mutableStateOf("") }
     var inputDialogTitle by remember { mutableStateOf("") }
     var inputDialogLabel by remember { mutableStateOf("") }
-    
+    var profileRefreshKey by remember { mutableIntStateOf(0) }
+    var hideMiniPlayerInSelection by remember { mutableStateOf(false) }
+
     // 监听歌单状态变化
     val playlistState by viewModel.playlistState.collectAsState()
     
@@ -143,6 +159,10 @@ fun MainScreen(
 
     fun onArtistClick(artistId: Long) {
         navController.navigate(artistDetailRoute(artistId))
+    }
+
+    fun onMusicMoreClick(music: Music) {
+        musicActionsViewModel.showMusicActions(music)
     }
 
     // 弹窗处理函数
@@ -255,6 +275,8 @@ fun MainScreen(
                                     )
                                 )
                             },
+                            onMusicMoreClick = ::onMusicMoreClick,
+                            onArtistClick = ::onArtistClick,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedContentScope = this@composable
                         )
@@ -294,6 +316,7 @@ fun MainScreen(
                                 navController.navigate(HOT_ARTIST_LIST_ROUTE)
                             },
                             onArtistClick = ::onArtistClick,
+                            onMusicMoreClick = ::onMusicMoreClick,
                         )
                     }
                 }
@@ -310,6 +333,7 @@ fun MainScreen(
                             updateMusicList = ::onUpdateMusicList,
                             onArtistClick = ::onArtistClick,
                             onAlbumClick = ::onAlbumClick,
+                            onMusicMoreClick = ::onMusicMoreClick,
                             onBack = { navController.popBackStack() },
                         )
                     }
@@ -435,6 +459,8 @@ fun MainScreen(
                             updateMusicList = ::onUpdateMusicList,
                             onAlbumClick = ::onAlbumClick,
                             onBack = { navController.popBackStack() },
+                            onMusicMoreClick = ::onMusicMoreClick,
+                            onArtistClick = ::onArtistClick,
                         )
                     }
                 }
@@ -459,7 +485,7 @@ fun MainScreen(
                     }
                 ) {
                     MainScreenWithBottomBar(
-                        showBottomBar,
+                        showBottomBar && !hideMiniPlayerInSelection,
                         this@SharedTransitionLayout
                     ) {
                         PlaylistDetailScreen(
@@ -468,27 +494,143 @@ fun MainScreen(
                             animatedContentScope = this,
                             onMusicClick = ::onMusicClick,
                             updateMusicList = ::onUpdateMusicList,
-                            onBack = {navController.popBackStack()}
+                            onBack = { navController.popBackStack() },
+                            onPlaylistDeleted = { profileRefreshKey++ },
+                            onEditPlaylist = { id ->
+                                navController.navigate(playlistEditRoute(id))
+                            },
+                            onMusicMoreClick = ::onMusicMoreClick,
+                            onArtistClick = ::onArtistClick,
+                            onAddSelectedToQueue = { musics ->
+                                musicActionsViewModel.addAllToQueue(musics)
+                            },
+                            onAddSelectedToPlaylist = { musicIds ->
+                                musicActionsViewModel.showAddToPlaylist(musicIds)
+                            },
+                            onDownloadSelected = { musics ->
+                                musicActionsViewModel.downloadMusics(musics)
+                            },
+                            onSelectionModeChanged = { hideMiniPlayerInSelection = it },
                         )
                     }
                 }
-                composable(PROFILE_ROUTE) {
-                    ProfileScreen(
+                composable(
+                    route = PLAYLIST_EDIT_ROUTE,
+                    arguments = listOf(
+                        navArgument("playlistId") { type = NavType.StringType },
+                    ),
+                ) {
+                    PlaylistEditScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .statusBarsPadding(),
-                        isLogin = authState.isLoggedIn,
-                        onLogin = { navController.navigate(LOGIN_ROUTE) },
-                        onPlaylistClick = { id ->
-                            navController.navigate(playlistDetailRoute(id))
+                        onBack = { navController.popBackStack() },
+                        onSaved = { profileRefreshKey++ },
+                    )
+                }
+                composable(PROFILE_ROUTE) {
+                    MainScreenWithBottomBar(
+                        showBottomBar,
+                        this@SharedTransitionLayout
+                    ) {
+                        ProfileScreen(
+                            modifier = it,
+                            isLogin = authState.isLoggedIn,
+                            refreshKey = profileRefreshKey,
+                            onLogin = { navController.navigate(LOGIN_ROUTE) },
+                            onPlaylistClick = { id ->
+                                navController.navigate(playlistDetailRoute(id))
+                            },
+                            onFavoriteTracksClick = {
+                                navController.navigate(
+                                    playlistDetailRoute(
+                                        DetailType.FAVORITE_MUSIC_ID,
+                                        DetailType.FAVORITE_MUSIC,
+                                    )
+                                )
+                            },
+                            onFavoritePlaylistClick = { playlist ->
+                                val type = if (playlist.type.equals("rank", ignoreCase = true)) {
+                                    DetailType.RANK
+                                } else {
+                                    DetailType.PLAYLIST
+                                }
+                                navController.navigate(playlistDetailRoute(playlist.id, type))
+                            },
+                            onAlbumClick = { albumId ->
+                                navController.navigate(playlistDetailRoute(albumId, DetailType.ALBUM))
+                            },
+                            onCreatePlaylistClick = {
+                                showCreatePlaylistBottomSheet = true
+                            },
+                            onArtistClick = ::onArtistClick,
+                            onSettingsClick = {
+                                navController.navigate(SETTINGS_ROUTE)
+                            },
+                            onDownloadManagerClick = {
+                                navController.navigate(DOWNLOAD_MANAGER_ROUTE)
+                            },
+                            onPlayAllPlaylist = { playlistId, musicList ->
+                                if (musicList.isNotEmpty()) {
+                                    onMusicClick(
+                                        musicList.first(),
+                                        musicList,
+                                        "collection_detail/$playlistId",
+                                    )
+                                }
+                            },
+                            onEditPlaylistClick = { id ->
+                                navController.navigate(playlistEditRoute(id))
+                            },
+                        )
+                    }
+                }
+                composable(SETTINGS_ROUTE) {
+                    val settingsContext = LocalContext.current
+                    val lyricSyncManager = remember { LyricSyncManager.getInstance() }
+                    val isDesktopLyricEnabled by lyricSyncManager.isDesktopLyricEnabled.collectAsState()
+                    SettingsScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        isDesktopLyricEnabled = isDesktopLyricEnabled,
+                        onDesktopLyricChange = { enabled ->
+                            if (enabled) {
+                                lyricSyncManager.openDesktopLyric(settingsContext)
+                            } else {
+                                lyricSyncManager.toggleDesktopLyric()
+                            }
                         },
-                        onCreatePlaylistClick = {
-                            showCreatePlaylistBottomSheet = true
+                        onBack = { navController.popBackStack() },
+                        onEditProfile = { navController.navigate(EDIT_PROFILE_ROUTE) },
+                        onManageLibrary = { navController.navigate(MANAGE_ROUTER) },
+                        onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
+                        onLogout = {
+                            navController.navigate(LOGIN_ROUTE) {
+                                popUpTo(HOME_ROUTE) { inclusive = false }
+                            }
                         },
-                        onArtistClick = ::onArtistClick,
-                        manageMusics = {
-                            navController.navigate(MANAGE_ROUTER)
-                        }
+                    )
+                }
+                composable(DOWNLOAD_MANAGER_ROUTE) {
+                    MainScreenWithBottomBar(
+                        showBottomBar,
+                        this@SharedTransitionLayout
+                    ) {
+                        DownloadScreen(
+                            modifier = it,
+                            onBack = { navController.popBackStack() },
+                            onNavigateToPlayer = { navController.navigate(PLAYER_ROUTE) },
+                        )
+                    }
+                }
+                composable(EDIT_PROFILE_ROUTE) {
+                    EditProfileScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onProfileSaved = { profileRefreshKey++ },
                     )
                 }
                 composable(MANAGE_ROUTER) {
@@ -543,6 +685,12 @@ fun MainScreen(
     }
 
     // CreatePlaylistBottomSheet 弹窗
+    MusicActionsHost(
+        onArtistClick = ::onArtistClick,
+        onCreatePlaylist = ::showCreatePlaylistBottomSheet,
+        viewModel = musicActionsViewModel,
+    )
+
     if (showCreatePlaylistBottomSheet) {
         CreatePlaylistBottomSheet(
             onDismiss = { showCreatePlaylistBottomSheet = false },

@@ -34,6 +34,8 @@ interface MusicController {
 
     fun addToQueue(music: Music)
 
+    fun addAllToQueue(musics: List<Music>)
+
     fun setRepeatMode(repeatMode: RepeatMode)
 
     fun setPlaybackSpeed(speed: Float)
@@ -57,4 +59,9 @@ interface MusicController {
      * 立即将当前播放状态写入本地存储（供应用进入后台时调用）
      */
     fun flushPlaybackState()
+
+    /**
+     * 更新当前播放曲目的收藏状态（同步内存歌单与 UI）
+     */
+    fun updateCurrentMusicFavorite(isFavorite: Boolean)
 }

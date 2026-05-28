@@ -4,11 +4,13 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.fox.music.core.database.converter.Converters
+import com.fox.music.core.database.dao.DownloadDao
 import com.fox.music.core.database.dao.MessageDao
 import com.fox.music.core.database.dao.MusicDao
 import com.fox.music.core.database.dao.PlaylistDao
 import com.fox.music.core.database.dao.SearchHistoryDao
 import com.fox.music.core.database.dao.UserDao
+import com.fox.music.core.database.entity.DownloadEntity
 import com.fox.music.core.database.entity.MessageEntity
 import com.fox.music.core.database.entity.MusicEntity
 import com.fox.music.core.database.entity.PlaylistEntity
@@ -22,8 +24,9 @@ import com.fox.music.core.database.entity.UserEntity
         UserEntity::class,
         MessageEntity::class,
         SearchHistoryEntity::class,
+        DownloadEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -33,4 +36,6 @@ abstract class FoxMusicDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun messageDao(): MessageDao
     abstract fun searchHistoryDao(): SearchHistoryDao
+
+    abstract fun downloadDao(): DownloadDao
 }

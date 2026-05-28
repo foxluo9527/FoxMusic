@@ -23,32 +23,38 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             .combine(dataStore.accessToken) { a, b -> Pair(a, b) }
             .combine(dataStore.userId) { t, id -> listOf(t.first, t.second, id) }
             .combine(dataStore.username) { list, name -> list + name }
-            .combine(dataStore.darkMode) { list, v -> list + v }
+            .combine(dataStore.appearanceMode) { list, v -> list + v }
             .combine(dataStore.autoPlay) { list, v -> list + v }
             .combine(dataStore.playQuality) { list, v -> list + v }
             .combine(dataStore.downloadQuality) { list, v -> list + v }
             .combine(dataStore.downloadOnWifiOnly) { list, v -> list + v }
             .combine(dataStore.showLyrics) { list, v -> list + v }
             .combine(dataStore.language) { list, v -> list + v }
+            .combine(dataStore.cacheMaxBytes) { list, v -> list + v }
             .map { list ->
                 @Suppress("UNCHECKED_CAST")
                 val isLoggedIn = list[0] as Boolean
                 val token = list[1] as? String
                 val userId = list[2] as? String
                 val username = list[3] as? String
-                val darkMode = list[4] as Boolean
+                val appearanceMode = list[4] as String
                 val autoPlay = list[5] as Boolean
                 val playQuality = list[6] as String
                 val downloadQuality = list[7] as String
                 val downloadOnWifiOnly = list[8] as Boolean
                 val showLyrics = list[9] as Boolean
                 val language = list[10] as String
+                val cacheMaxBytes = list[11] as Long
                 UserPreferences(
                     isLoggedIn = isLoggedIn,
                     token = token,
                     userId = userId?.toLongOrNull(),
                     username = username,
-                    darkMode = if (darkMode) DarkMode.DARK else DarkMode.LIGHT,
+                    darkMode = when (appearanceMode) {
+                        "dark" -> DarkMode.DARK
+                        "light" -> DarkMode.LIGHT
+                        else -> DarkMode.FOLLOW_SYSTEM
+                    },
                     autoPlay = autoPlay,
                     playQuality = when (playQuality) {
                         "standard" -> PlayQuality.STANDARD
@@ -62,12 +68,18 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                     },
                     downloadOnWifiOnly = downloadOnWifiOnly,
                     showLyrics = showLyrics,
-                    language = language
+                    language = language,
+                    cacheMaxBytes = cacheMaxBytes,
                 )
             }
 
     override suspend fun updateDarkMode(darkMode: DarkMode): Result<Unit> = suspendRunCatching {
-        dataStore.updateDarkMode(darkMode == DarkMode.DARK)
+        val mode = when (darkMode) {
+            DarkMode.DARK -> "dark"
+            DarkMode.LIGHT -> "light"
+            DarkMode.FOLLOW_SYSTEM -> "follow_system"
+        }
+        dataStore.updateAppearanceMode(mode)
         Unit
     }
 
@@ -115,4 +127,9 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             dataStore.updateDownloadOnWifiOnly(enabled)
             Unit
         }
+
+    override suspend fun updateCacheMaxBytes(maxBytes: Long): Result<Unit> = suspendRunCatching {
+        dataStore.updateCacheMaxBytes(maxBytes)
+        Unit
+    }
 }

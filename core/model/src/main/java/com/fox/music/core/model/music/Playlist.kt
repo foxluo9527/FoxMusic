@@ -30,6 +30,9 @@ data class Playlist(
     @SerialName("updated_at")
     val updatedAt: String? = null,
     val isFavorite: Boolean = false,
+    val type: String? = null,
+    @SerialName("favorited_at")
+    val favoritedAt: String? = null,
     val tags: List<Tag> = emptyList(),
     val creator: User? = null
 )

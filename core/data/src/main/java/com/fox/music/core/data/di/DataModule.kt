@@ -1,5 +1,6 @@
 package com.fox.music.core.data.di
 
+import com.fox.music.core.data.download.MusicDownloadManager
 import com.fox.music.core.data.repository.AlbumRepositoryImpl
 import com.fox.music.core.data.repository.ArtistRepositoryImpl
 import com.fox.music.core.data.repository.AuthRepositoryImpl
@@ -8,19 +9,24 @@ import com.fox.music.core.data.repository.FavoriteRepositoryImpl
 import com.fox.music.core.data.repository.ImportRepositoryImpl
 import com.fox.music.core.data.repository.MusicRepositoryImpl
 import com.fox.music.core.data.repository.PlaylistRepositoryImpl
+import com.fox.music.core.data.repository.ReportRepositoryImpl
 import com.fox.music.core.data.repository.SearchRepositoryImpl
 import com.fox.music.core.data.repository.SocialRepositoryImpl
+import com.fox.music.core.data.repository.UploadRepositoryImpl
 import com.fox.music.core.data.repository.UserPreferencesRepositoryImpl
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.ChatRepository
+import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
+import com.fox.music.core.domain.repository.ReportRepository
 import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.repository.SocialRepository
+import com.fox.music.core.domain.repository.UploadRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import dagger.Binds
 import dagger.Module
@@ -77,4 +83,16 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindImportRepository(impl: ImportRepositoryImpl): ImportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUploadRepository(impl: UploadRepositoryImpl): UploadRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReportRepository(impl: ReportRepositoryImpl): ReportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDownloadRepository(impl: MusicDownloadManager): DownloadRepository
 }

@@ -20,6 +20,8 @@ fun PlaylistDto.toPlaylist(): Playlist = Playlist(
     createdAt = createdAt,
     updatedAt = updatedAt,
     isFavorite = isFavorite,
+    type = type,
+    favoritedAt = favoritedAt,
     tags = tags.map { it.toTag() },
     creator = creator?.toUser()
 )

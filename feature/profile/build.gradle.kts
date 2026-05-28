@@ -29,6 +29,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
+    implementation(project(":core:player"))
 
     // Hilt
     implementation(libs.hilt.android)
@@ -37,6 +38,8 @@ dependencies {
     
     // Coroutines
     implementation(libs.bundles.coroutines)
+
+    implementation(libs.ucrop)
     
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

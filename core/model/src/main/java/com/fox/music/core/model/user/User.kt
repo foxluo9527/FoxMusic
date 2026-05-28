@@ -21,6 +21,14 @@ data class User(
     val lastLogin: String? = null
 )
 
+/** 当前用户是否为管理员（`role` 为 admin，不区分大小写） */
+val User.isAdmin: Boolean
+    get() = role?.contains(UserRole.ADMIN, ignoreCase = true) == true
+
+object UserRole {
+    const val ADMIN = "admin"
+}
+
 @Serializable
 data class UserProfile(
     val id: Long,
@@ -41,3 +49,6 @@ data class UserProfile(
     val playlistCount: Int = 0,
     val favoriteCount: Int = 0
 )
+
+val UserProfile.isAdmin: Boolean
+    get() = role.equals(UserRole.ADMIN, ignoreCase = true)

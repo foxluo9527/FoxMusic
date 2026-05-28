@@ -31,7 +31,7 @@ sealed interface AlbumListEffect : UiEffect {
 
 @HiltViewModel
 class AlbumListViewModel @Inject constructor(
-    private val getAlbumListUseCase: GetAlbumListUseCase
+    private val getAlbumListUseCase: GetAlbumListUseCase,
 ) : MviViewModel<AlbumListState, AlbumListIntent, AlbumListEffect>(AlbumListState()) {
 
     override fun handleIntent(intent: AlbumListIntent) {

@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,6 +32,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.blankj.utilcode.util.ToastUtils
+import com.fox.music.feature.player.viewmodel.PlayerEffect
+import com.fox.music.feature.player.viewmodel.PlayerViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,9 +78,17 @@ fun PlayerScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     onBack: () -> Unit = {},
-    onFavoriteClick: (Long?) -> Unit = {},
+    viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val playerState by musicController.playerState.collectAsState(PlayerState())
+
+    LaunchedEffect(Unit) {
+        viewModel.effects.collect { effect ->
+            when (effect) {
+                is PlayerEffect.ShowToast -> ToastUtils.make().show(effect.message)
+            }
+        }
+    }
     var dominantColor by remember {mutableStateOf(Color(0xFFF6F7F9))}
     var contrastColor by remember {mutableStateOf(Color(0xFF202122))}
     val currentStyle by LyricStyleManager.getInstance().styleFlow.collectAsState()
@@ -149,7 +162,7 @@ fun PlayerScreen(
                             musicController,
                             contrastColor,
                             animatedContentScope,
-                            onFavoriteClick
+                            onFavoriteClick = { viewModel.toggleFavorite(it) }
                         ) {
                             scope.launch {
                                 pager.animateScrollToPage(1)

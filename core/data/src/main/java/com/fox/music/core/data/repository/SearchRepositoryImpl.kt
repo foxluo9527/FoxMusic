@@ -61,12 +61,13 @@ class SearchRepositoryImpl @Inject constructor(
                         Locale.getDefault()
                     ).format(Date(entity.searchedAt))
                 )
-            }
+            }.distinctBy { it.keyword }
         }
 
     override suspend fun saveSearchHistory(keyword: String): Result<Unit> = suspendRunCatching {
         val trimmed = keyword.trim()
         if (trimmed.isNotEmpty()) {
+            searchHistoryDao.deleteSearchQueryByText(trimmed)
             searchHistoryDao.insertSearchQuery(SearchHistoryEntity(query = trimmed))
         }
         Unit

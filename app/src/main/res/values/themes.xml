@@ -2,4 +2,14 @@
 <resources>
 
     <style name="Theme.FoxMusic" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.FoxMusic.UCrop.Base" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/ucrop_toolbar</item>
+        <item name="android:navigationBarColor">@color/ucrop_toolbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+
+    <style name="Theme.FoxMusic.UCrop" parent="Theme.FoxMusic.UCrop.Base" />
 </resources>

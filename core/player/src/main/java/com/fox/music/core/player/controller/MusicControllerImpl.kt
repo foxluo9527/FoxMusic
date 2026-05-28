@@ -77,8 +77,6 @@ class MusicControllerImpl @Inject constructor(
     private var activePlaylistGeneration = 0
     /** apply 后短暂窗口内忽略 ENDED 触发的重入逻辑 */
     private var applyingPlaylistUntilMs = 0L
-    private var lastMismatchLogMs = 0L
-
     /** 冷启动 UI 恢复后的待续播进度，在 Exo 未对齐前不被 timeline 轮询覆盖 */
     private var pendingRestorePositionMs: Long? = null
 
@@ -113,7 +111,8 @@ class MusicControllerImpl @Inject constructor(
         currentRepeatMode = savedMode
         applyRepeatModeToPlayer(savedMode)
 
-        if (shouldSkipRestoreForUserPlaylist()) {applyUserPlaylistOnConnect()
+        if (shouldSkipRestoreForUserPlaylist()) {
+            applyUserPlaylistOnConnect()
             hasRestored = true
             return
         }
@@ -121,10 +120,12 @@ class MusicControllerImpl @Inject constructor(
         isRestoring = true
         try {
             val snapshot = playbackStateStore.loadSnapshot()
-            if (shouldSkipRestoreForUserPlaylist()) {applyUserPlaylistOnConnect()
+            if (shouldSkipRestoreForUserPlaylist()) {
+                applyUserPlaylistOnConnect()
                 return
             }
-            if (snapshot != null && snapshot.isValid) {restoreFromSnapshot(snapshot)
+            if (snapshot != null && snapshot.isValid) {
+                restoreFromSnapshot(snapshot)
             } else {
                 updatePlayerState()
             }
@@ -149,8 +150,7 @@ class MusicControllerImpl @Inject constructor(
     }
 
     private fun restoreFromSnapshot(snapshot: PlaybackSnapshot) {
-        if (userPlaylistActive) {return
-        }
+        if (userPlaylistActive) return
         playingKey = snapshot.playingKey
         currentPlaylist = snapshot.playlist
         currentRepeatMode = snapshot.repeatMode
@@ -168,7 +168,8 @@ class MusicControllerImpl @Inject constructor(
             index = safeIndex,
             positionMs = pendingRestorePositionMs!!,
         )
-        _currentPosition.value = pendingRestorePositionMs!!}
+        _currentPosition.value = pendingRestorePositionMs!!
+    }
 
     private fun setupPlayerListener() {
         controller?.addListener(object : Player.Listener {
@@ -193,7 +194,8 @@ class MusicControllerImpl @Inject constructor(
                             updatePlayerState()
                             return
                         }
-                        if (player.mediaItemCount == 0 && currentPlaylist.isNotEmpty()) {updatePlayerState()
+                        if (player.mediaItemCount == 0 && currentPlaylist.isNotEmpty()) {
+                            updatePlayerState()
                             return
                         }
                         if (userPlaylistActive && player.mediaItemCount == 1) {
@@ -393,12 +395,6 @@ class MusicControllerImpl @Inject constructor(
             ?: _playerState.value.duration.takeIf {
                 currentMusic?.id == _playerState.value.currentMusic?.id && it > 0L
             } ?: 0L
-        // 单曲模式下 index 不一致属预期，仅在 timeline 不可信时记录
-        if (userPlaylistActive && !canUseExoTimeline && !isApplyingPlaylist()) {
-            val now = System.currentTimeMillis()
-            if (now - lastMismatchLogMs > 2000L) {
-                lastMismatchLogMs = now}
-        }
         _playerState.value = PlayerState(
             currentMusic = currentMusic,
             playlist = currentPlaylist,
@@ -414,6 +410,21 @@ class MusicControllerImpl @Inject constructor(
                 player.shuffleModeEnabled
             },
             playbackSpeed = player.playbackParameters.speed,
+            isFavorite = currentMusic?.isFavorite ?: false,
+        )
+    }
+
+    override fun updateCurrentMusicFavorite(isFavorite: Boolean) {
+        val anchorId = userAnchorMusicId ?: _playerState.value.currentMusic?.id ?: return
+        currentPlaylist = currentPlaylist.map { music ->
+            if (music.id == anchorId) music.copy(isFavorite = isFavorite) else music
+        }
+        val state = _playerState.value
+        val updatedMusic = state.currentMusic?.takeIf { it.id == anchorId }?.copy(isFavorite = isFavorite)
+        _playerState.value = state.copy(
+            currentMusic = updatedMusic ?: state.currentMusic,
+            playlist = currentPlaylist,
+            isFavorite = if (state.currentMusic?.id == anchorId) isFavorite else state.isFavorite,
         )
     }
 
@@ -563,8 +574,7 @@ class MusicControllerImpl @Inject constructor(
         val currentIndex = resolveUiIndex(player.currentMediaItemIndex)
         val nextIndex = when (currentRepeatMode) {
             RepeatMode.SEQUENTIAL -> {
-                if (currentIndex >= currentPlaylist.lastIndex) {return
-                }
+                if (currentIndex >= currentPlaylist.lastIndex) return
                 currentIndex + 1
             }
             RepeatMode.ONE -> currentIndex
@@ -717,6 +727,12 @@ class MusicControllerImpl @Inject constructor(
         val anchorId = userAnchorMusicId ?: _playerState.value.currentMusic?.id ?: return
         val newIndex = musics.indexOfFirst { it.id == anchorId }
         if (newIndex < 0) return
+        // 分页快照短暂变短时不要用更少条目覆盖内存歌单（常见于搜索/歌单分页刷新）
+        if (musics.size < currentPlaylist.size &&
+            currentPlaylist.map { it.id }.containsAll(musics.map { it.id })
+        ) {
+            return
+        }
         currentPlaylist = musics
         expectedMediaItemIndex = newIndex
         _playerState.value = _playerState.value.copy(
@@ -727,8 +743,7 @@ class MusicControllerImpl @Inject constructor(
     }
 
     override fun setPlaylist(musics: List<Music>, startIndex: Int, key: String) {
-        if (musics.isEmpty()) {return
-        }
+        if (musics.isEmpty()) return
         userPlaylistActive = true
         pendingRestorePositionMs = null
         lastUserSetPlaylistTimeMs = System.currentTimeMillis()
@@ -762,18 +777,9 @@ class MusicControllerImpl @Inject constructor(
         val music = currentPlaylist[safeIndex]
         val item = music.toMediaItem()
         publishOptimisticPlayerState(currentPlaylist, safeIndex, startPositionMs)
-        if (item.localConfiguration?.uri == null) {
-            // #region agent log
-            // #endregion
-            return
-        }
-        // #region agent log
-
-        // #endregion
+        if (!item.hasPlayableUri()) return
         controller?.run {
             playWhenReady = false
-            stop()
-            clearMediaItems()
             setMediaItem(item, startPositionMs)
             prepare()
         }
@@ -821,6 +827,7 @@ class MusicControllerImpl @Inject constructor(
             position = positionMs,
             duration = fallbackDurationMs,
             repeatMode = currentRepeatMode,
+            isFavorite = music.isFavorite,
         )
     }
 
@@ -842,12 +849,50 @@ class MusicControllerImpl @Inject constructor(
     }
 
     override fun addToQueue(music: Music) {
-        val player = controller ?: return
-        val insertIndex = (player.currentMediaItemIndex + 1).coerceAtMost(currentPlaylist.size)
+        if (currentPlaylist.isEmpty()) {
+            userPlaylistActive = true
+            currentPlaylist = listOf(music)
+            userAnchorMusicId = music.id
+            publishOptimisticPlayerState(currentPlaylist, 0)
+            applyTrackToPlayer(0, 0L, autoPlay = false)
+            persistPlaybackState()
+            return
+        }
+        val uiIndex = resolveUiIndex(controller?.currentMediaItemIndex ?: 0)
+        val insertIndex = (uiIndex + 1).coerceAtMost(currentPlaylist.size)
         val newPlaylist = currentPlaylist.toMutableList()
         newPlaylist.add(insertIndex, music)
         currentPlaylist = newPlaylist
-        controller?.addMediaItem(insertIndex, music.toMediaItem())
+        _playerState.value = _playerState.value.copy(playlist = newPlaylist)
+        if (!userPlaylistActive) {
+            controller?.addMediaItem(insertIndex, music.toMediaItem())
+        }
+        updatePlayerState()
+        persistPlaybackState()
+    }
+
+    override fun addAllToQueue(musics: List<Music>) {
+        if (musics.isEmpty()) return
+        if (currentPlaylist.isEmpty()) {
+            userPlaylistActive = true
+            currentPlaylist = musics.toList()
+            userAnchorMusicId = musics.first().id
+            publishOptimisticPlayerState(currentPlaylist, 0)
+            applyTrackToPlayer(0, 0L, autoPlay = false)
+            persistPlaybackState()
+            return
+        }
+        val uiIndex = resolveUiIndex(controller?.currentMediaItemIndex ?: 0)
+        val insertIndex = (uiIndex + 1).coerceAtMost(currentPlaylist.size)
+        val newPlaylist = currentPlaylist.toMutableList()
+        newPlaylist.addAll(insertIndex, musics)
+        currentPlaylist = newPlaylist
+        _playerState.value = _playerState.value.copy(playlist = newPlaylist)
+        if (!userPlaylistActive) {
+            musics.forEachIndexed { index, music ->
+                controller?.addMediaItem(insertIndex + index, music.toMediaItem())
+            }
+        }
         updatePlayerState()
         persistPlaybackState()
     }
@@ -890,7 +935,8 @@ class MusicControllerImpl @Inject constructor(
                 navigateToPlaylistIndex(nextIndex, autoPlay = true)
             }
             RepeatMode.SEQUENTIAL -> {
-                if (currentIndex >= currentPlaylist.lastIndex) {player.pause()
+                if (currentIndex >= currentPlaylist.lastIndex) {
+                    player.pause()
                     player.playWhenReady = false
                     return
                 }
@@ -960,9 +1006,8 @@ class MusicControllerImpl @Inject constructor(
 
     private fun Music.toMediaItem(): MediaItem {
         // 队列 MediaItem 仅保留播放所需字段，避免歌词等大字段导致 Binder 事务失败
-        return MediaItem.Builder()
+        val builder = MediaItem.Builder()
             .setMediaId(id.toString())
-            .setUri(MediaUrlResolver.resolve(url))
             .setCustomCacheKey("cache_$id")
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -974,8 +1019,24 @@ class MusicControllerImpl @Inject constructor(
                     }
                     .build(),
             )
-            .build()
+        val resolvedUrl = MediaUrlResolver.resolve(url)
+        if (!resolvedUrl.isNullOrBlank()) {
+            val uri = resolvedUrl.toUri()
+            // MediaController 跨进程时会剥离 localConfiguration，需同时写入 requestMetadata.mediaUri
+            builder
+                .setUri(uri)
+                .setRequestMetadata(
+                    MediaItem.RequestMetadata.Builder()
+                        .setMediaUri(uri)
+                        .build(),
+                )
+        }
+        return builder.build()
     }
+
+    /** 客户端构建的 MediaItem 在跨进程后 localConfiguration 会被清空，以 requestMetadata 为准 */
+    private fun MediaItem.hasPlayableUri(): Boolean =
+        localConfiguration?.uri != null || requestMetadata.mediaUri != null
 
     private fun Player.toRepeatMode(): RepeatMode = when {
         shuffleModeEnabled -> RepeatMode.RANDOM

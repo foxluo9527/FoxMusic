@@ -29,6 +29,9 @@ interface PlaylistApiService {
     @DELETE("api/playlists/{id}")
     suspend fun deletePlaylist(@Path("id") id: Long): ApiResponse<Unit>
 
+    @POST("api/playlists/{id}/favorite")
+    suspend fun toggleFavorite(@Path("id") id: Long): ApiResponse<Unit>
+
     @GET("api/playlists/recommended")
     suspend fun getRecommendedPlaylists(
         @Query("page") page: Int = 1,

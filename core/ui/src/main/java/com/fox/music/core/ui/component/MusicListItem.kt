@@ -2,7 +2,8 @@ package com.fox.music.core.ui.component
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,8 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.music.Music
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MusicListItem(
     music: Music,
@@ -31,16 +33,37 @@ fun MusicListItem(
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onFavoriteClick: (() -> Unit)? = null,
+    onMoreClick: (() -> Unit)? = null,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
+    onSelectionToggle: (() -> Unit)? = null,
 ) {
     with(sharedTransitionScope) {
         Row(
             modifier = modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = {
+                        if (isSelectionMode) {
+                            onSelectionToggle?.invoke()
+                        } else {
+                            onClick()
+                        }
+                    },
+                    onLongClick = onLongClick,
+                )
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onSelectionToggle?.invoke() },
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
             CachedImage(
                 imageUrl = music.coverImage,
                 contentDescription = music.title,
@@ -58,25 +81,19 @@ fun MusicListItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = music.artists.joinToString(", ") {it.name},
+                    text = music.artists.joinToString(", ") { it.name },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (onFavoriteClick != null) {
-                IconButton(
-                    onClick = onFavoriteClick,
-                    modifier = Modifier.sharedElement(
-                        sharedTransitionScope.rememberSharedContentState("music-like-${music.id}"),
-                        animatedContentScope
-                    )
-                ) {
+
+            if (!isSelectionMode && onMoreClick != null) {
+                IconButton(onClick = onMoreClick) {
                     Icon(
-                        imageVector = if (music.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = if (music.isFavorite) "Remove from favorites" else "Add to favorites",
-                        tint = if (music.isFavorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "更多",
                     )
                 }
             }

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +75,8 @@ fun ArtistDetailScreen(
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onAlbumClick: (Album) -> Unit = {},
     onBack: () -> Unit = {},
+    onMusicMoreClick: (Music) -> Unit = {},
+    onArtistClick: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -175,6 +176,8 @@ fun ArtistDetailScreen(
                     animatedContentScope = animatedContentScope,
                     onMusicClick = viewModel::onMusicClick,
                     onAlbumClick = viewModel::onAlbumClick,
+                    onMusicMoreClick = onMusicMoreClick,
+                    onArtistClick = onArtistClick,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -193,6 +196,8 @@ private fun ArtistDetailContent(
     animatedContentScope: AnimatedContentScope,
     onMusicClick: (Music) -> Unit,
     onAlbumClick: (Album) -> Unit,
+    onMusicMoreClick: (Music) -> Unit,
+    onArtistClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -218,6 +223,7 @@ private fun ArtistDetailContent(
                     animatedContentScope = animatedContentScope,
                     modifier = Modifier.padding(horizontal = 8.dp),
                     onClick = { onMusicClick(music) },
+                    onMoreClick = { onMusicMoreClick(music) },
                 )
             }
         }

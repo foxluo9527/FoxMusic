@@ -59,7 +59,9 @@ fun HomeScreen(
     onSearchClick: () -> Unit = {},
     onPlaylistCategoryClick: () -> Unit = {},
     onAlbumCategoryClick: () -> Unit = {},
-    onRecommendClick:()-> Unit={}
+    onRecommendClick:()-> Unit={},
+    onMusicMoreClick: (Music) -> Unit = {},
+    onArtistClick: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val recommendedMusicPagingItems = state.recommendedMusic.collectAsLazyPagingItems()
@@ -163,12 +165,13 @@ fun HomeScreen(
                     span = {GridItemSpan(4)},
                     contentType = {"music_item"}
                 ) {index ->
-                    recommendedMusicPagingItems[index]?.let {music ->
+                    recommendedMusicPagingItems[index]?.let { music ->
                         MusicListItem(
                             music = music,
                             sharedTransitionScope = this@with,
                             animatedContentScope = animatedContentScope,
-                            onClick = {viewModel.onMusicClick(music)},
+                            onClick = { viewModel.onMusicClick(music) },
+                            onMoreClick = { onMusicMoreClick(music) },
                         )
                     }
                 }
@@ -199,7 +202,7 @@ fun HomeScreen(
                             album = album,
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
-                            onClick = {viewModel.sendIntent(HomeIntent.OnAlbumClick(album))},
+                            onClick = { viewModel.sendIntent(HomeIntent.OnAlbumClick(album)) },
                         )
                     }
                 }

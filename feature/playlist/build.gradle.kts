@@ -37,6 +37,9 @@ dependencies {
     
     // Coroutines
     implementation(libs.bundles.coroutines)
+
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.ucrop)
     
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

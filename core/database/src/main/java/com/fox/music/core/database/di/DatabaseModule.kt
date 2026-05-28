@@ -3,6 +3,7 @@ package com.fox.music.core.database.di
 import android.content.Context
 import androidx.room.Room
 import com.fox.music.core.database.FoxMusicDatabase
+import com.fox.music.core.database.dao.DownloadDao
 import com.fox.music.core.database.dao.MessageDao
 import com.fox.music.core.database.dao.MusicDao
 import com.fox.music.core.database.dao.PlaylistDao
@@ -47,4 +48,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSearchHistoryDao(database: FoxMusicDatabase): SearchHistoryDao = database.searchHistoryDao()
+
+    @Provides
+    fun provideDownloadDao(database: FoxMusicDatabase): DownloadDao = database.downloadDao()
 }

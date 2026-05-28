@@ -212,11 +212,9 @@ class DesktopLyricContainer @JvmOverloads constructor(
     }
 
     /**
-     * 切换收藏状态
+     * 切换收藏状态（由外部在 API 成功后通过 [setFavorite] 更新 UI）
      */
     private fun toggleFavorite() {
-        isFavorite = !isFavorite
-        updateFavoriteButton()
         listener?.onFavorite()
     }
 

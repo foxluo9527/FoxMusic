@@ -5,5 +5,11 @@ enum class DetailType {
     ALBUM,     // 专辑
     RANK,       // 排行榜
     RECOMMEND,  // 推荐歌单
-    NEW_MUSIC  // 最新音乐
+    NEW_MUSIC,  // 最新音乐
+    FAVORITE_MUSIC, // 我的收藏
+    ;
+
+    companion object {
+        const val FAVORITE_MUSIC_ID = Long.MAX_VALUE - 2L
+    }
 }

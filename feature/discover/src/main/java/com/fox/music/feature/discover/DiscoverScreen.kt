@@ -68,6 +68,7 @@ fun DiscoverScreen(
     onSearchClick: () -> Unit = {},
     onNewMusicMore:()->Unit={},
     onHotArtistMore: () -> Unit = {},
+    onMusicMoreClick: (Music) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -176,6 +177,7 @@ fun DiscoverScreen(
                             sharedTransitionScope = this@with,
                             animatedContentScope = animatedContentScope,
                             onClick = { viewModel.sendIntent(DiscoverIntent.OnMusicClick(music)) },
+                            onMoreClick = { onMusicMoreClick(music) },
                         )
                     }
                 }

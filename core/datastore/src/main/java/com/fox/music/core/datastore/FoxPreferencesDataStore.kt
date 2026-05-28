@@ -27,13 +27,14 @@ class FoxPreferencesDataStore @Inject constructor(
         val ACCESS_TOKEN = stringPreferencesKey("access_token")
         val USER_ID = stringPreferencesKey("user_id")
         val USERNAME = stringPreferencesKey("username")
-        val DARK_MODE = booleanPreferencesKey("dark_mode")
+        val APPEARANCE_MODE = stringPreferencesKey("appearance_mode")
         val AUTO_PLAY = booleanPreferencesKey("auto_play")
         val PLAY_QUALITY = stringPreferencesKey("play_quality")
         val DOWNLOAD_QUALITY = stringPreferencesKey("download_quality")
         val SHOW_LYRICS = booleanPreferencesKey("show_lyrics")
         val LANGUAGE = stringPreferencesKey("language")
         val DOWNLOAD_ON_WIFI_ONLY = booleanPreferencesKey("download_on_wifi_only")
+        val CACHE_MAX_BYTES = longPreferencesKey("cache_max_bytes")
         val REPEAT_MODE = stringPreferencesKey("repeat_mode")
         val PLAYBACK_SNAPSHOT = stringPreferencesKey("playback_snapshot")
         val PLAYBACK_CURRENT_INDEX = intPreferencesKey("playback_current_index")
@@ -50,13 +51,23 @@ class FoxPreferencesDataStore @Inject constructor(
     val username: Flow<String?> = context.dataStore.data.map { it[PreferencesKeys.USERNAME] }
 
     // Settings flows
-    val darkMode: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.DARK_MODE] ?: false }
+    val appearanceMode: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.APPEARANCE_MODE]
+            ?: when (prefs[booleanPreferencesKey("dark_mode")]) {
+                true -> "dark"
+                false -> "light"
+                null -> "follow_system"
+            }
+    }
     val autoPlay: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.AUTO_PLAY] ?: true }
     val playQuality: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.PLAY_QUALITY] ?: "high" }
     val downloadQuality: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.DOWNLOAD_QUALITY] ?: "high" }
     val showLyrics: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.SHOW_LYRICS] ?: true }
     val language: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LANGUAGE] ?: "en" }
     val downloadOnWifiOnly: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.DOWNLOAD_ON_WIFI_ONLY] ?: true }
+    val cacheMaxBytes: Flow<Long> = context.dataStore.data.map {
+        it[PreferencesKeys.CACHE_MAX_BYTES] ?: DEFAULT_CACHE_MAX_BYTES
+    }
 
     // Token operations
     suspend fun saveTokens(accessToken: String, refreshToken: String? = null) {
@@ -91,8 +102,8 @@ class FoxPreferencesDataStore @Inject constructor(
     }
 
     // Settings operations
-    suspend fun updateDarkMode(enabled: Boolean) {
-        context.dataStore.edit { it[PreferencesKeys.DARK_MODE] = enabled }
+    suspend fun updateAppearanceMode(mode: String) {
+        context.dataStore.edit { it[PreferencesKeys.APPEARANCE_MODE] = mode }
     }
 
     suspend fun updateAutoPlay(enabled: Boolean) {
@@ -117,6 +128,14 @@ class FoxPreferencesDataStore @Inject constructor(
 
     suspend fun updateDownloadOnWifiOnly(enabled: Boolean) {
         context.dataStore.edit { it[PreferencesKeys.DOWNLOAD_ON_WIFI_ONLY] = enabled }
+    }
+
+    suspend fun updateCacheMaxBytes(maxBytes: Long) {
+        context.dataStore.edit { it[PreferencesKeys.CACHE_MAX_BYTES] = maxBytes }
+    }
+
+    suspend fun getCacheMaxBytes(): Long {
+        return context.dataStore.data.first()[PreferencesKeys.CACHE_MAX_BYTES] ?: DEFAULT_CACHE_MAX_BYTES
     }
 
     // Playback state
@@ -177,5 +196,6 @@ class FoxPreferencesDataStore @Inject constructor(
 
     companion object {
         private const val RepeatModeDefault = "ALL"
+        const val DEFAULT_CACHE_MAX_BYTES = 2L * 1024 * 1024 * 1024
     }
 }
