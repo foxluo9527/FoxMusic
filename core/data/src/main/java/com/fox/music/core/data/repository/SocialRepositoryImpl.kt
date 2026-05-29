@@ -53,16 +53,20 @@ class SocialRepositoryImpl @Inject constructor(
             } else throw Exception(response.message)
         }
 
-    override suspend fun sendFriendRequest(userId: Long, message: String?): Result<Unit> =
-        suspendRunCatching {
-            val response = socialApi.sendFriendRequest(
-                com.fox.music.core.network.model.FriendRequestBody(
-                    friendId = userId,
-                    message = message ?: ""
-                )
+    override suspend fun sendFriendRequest(
+        userId: Long,
+        message: String,
+        mark: String?,
+    ): Result<Unit> = suspendRunCatching {
+        val response = socialApi.sendFriendRequest(
+            com.fox.music.core.network.model.FriendRequestBody(
+                friendId = userId,
+                message = message,
+                mark = mark?.takeIf { it.isNotBlank() },
             )
-            if (response.isSuccess) Unit else throw Exception(response.message)
-        }
+        )
+        if (response.isSuccess) Unit else throw Exception(response.message)
+    }
 
     override suspend fun acceptFriendRequest(requestId: Long): Result<Unit> = suspendRunCatching {
         val response = socialApi.acceptFriendRequest(
@@ -181,9 +185,10 @@ class SocialRepositoryImpl @Inject constructor(
 
     override suspend fun getNotifications(
         page: Int,
-        limit: Int
+        limit: Int,
+        type: String?,
     ): Result<PagedData<Notification>> = suspendRunCatching {
-        val response = socialApi.getNotifications(page, limit)
+        val response = socialApi.getNotifications(page, limit, type)
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPagedData { it.toNotification() }

@@ -97,7 +97,8 @@ interface SocialApiService {
     @GET("api/notifications")
     suspend fun getNotifications(
         @Query("page") page: Int = 1,
-        @Query("limit") limit: Int = 20
+        @Query("limit") limit: Int = 20,
+        @Query("type") type: String? = null,
     ): ApiResponse<PagedResponse<NotificationDto>>
 
     @GET("api/notifications/unread")

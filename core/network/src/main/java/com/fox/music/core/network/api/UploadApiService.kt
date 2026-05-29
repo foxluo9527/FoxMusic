@@ -12,4 +12,16 @@ interface UploadApiService {
     @Multipart
     @POST("api/upload/image")
     suspend fun uploadImage(@Part file: MultipartBody.Part): ApiResponse<UploadFileDto>
+
+    @Multipart
+    @POST("api/upload/audio")
+    suspend fun uploadAudio(@Part file: MultipartBody.Part): ApiResponse<UploadFileDto>
+
+    @Multipart
+    @POST("api/upload/video")
+    suspend fun uploadVideo(@Part file: MultipartBody.Part): ApiResponse<UploadFileDto>
+
+    @Multipart
+    @POST("api/upload/file")
+    suspend fun uploadFile(@Part file: MultipartBody.Part): ApiResponse<UploadFileDto>
 }

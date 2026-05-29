@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -52,8 +53,25 @@ import com.fox.music.core.ui.component.MiniPlayer
 import com.fox.music.core.ui.component.UpdateDialog
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
-import com.fox.music.feature.chat.CHAT_ROUTE
-import com.fox.music.feature.chat.ChatScreen
+import com.fox.music.feature.chat.ADD_FRIEND_ROUTE
+import com.fox.music.feature.chat.CHAT_DETAIL_ROUTE
+import com.fox.music.feature.chat.FRIENDS_ROUTE
+import com.fox.music.feature.chat.MESSAGES_ROUTE
+import com.fox.music.feature.chat.NOTIFICATION_CATEGORY_ROUTE
+import com.fox.music.feature.chat.SEARCH_USER_ROUTE
+import com.fox.music.feature.chat.USER_PROFILE_ROUTE
+import com.fox.music.feature.chat.addFriendRoute
+import com.fox.music.feature.chat.chatDetailRoute
+import com.fox.music.feature.chat.notificationCategoryRoute
+import com.fox.music.feature.chat.searchUserRoute
+import com.fox.music.feature.chat.ui.screen.AddFriendRequestScreen
+import com.fox.music.feature.chat.ui.screen.ChatDetailScreen
+import com.fox.music.feature.chat.ui.screen.FriendsScreen
+import com.fox.music.feature.chat.ui.screen.MessagesScreen
+import com.fox.music.feature.chat.ui.screen.NotificationCategoryScreen
+import com.fox.music.feature.chat.ui.screen.SearchUserScreen
+import com.fox.music.feature.chat.ui.screen.UserProfileScreen
+import com.fox.music.feature.chat.userProfileRoute
 import com.fox.music.feature.discover.ALL_ARTIST_LIST_ROUTE
 import com.fox.music.feature.discover.ARTIST_DETAIL_ROUTE
 import com.fox.music.feature.discover.ArtistDetailScreen
@@ -616,6 +634,9 @@ fun MainScreen(
                             onSettingsClick = {
                                 navController.navigate(SETTINGS_ROUTE)
                             },
+                            onMessageNotificationClick = {
+                                navController.navigate(MESSAGES_ROUTE)
+                            },
                             onDownloadManagerClick = {
                                 navController.navigate(DOWNLOAD_MANAGER_ROUTE)
                             },
@@ -727,8 +748,158 @@ fun MainScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable(CHAT_ROUTE) {
-                    ChatScreen()
+                composable(MESSAGES_ROUTE) {
+                    MessagesScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onNavigateToFriends = { navController.navigate(FRIENDS_ROUTE) },
+                        onNavigateToCommentNotifications = {
+                            navController.navigate(notificationCategoryRoute("comment"))
+                        },
+                        onNavigateToLikeNotifications = {
+                            navController.navigate(notificationCategoryRoute("like"))
+                        },
+                        onNavigateToSystemAnnouncements = {
+                            navController.navigate(notificationCategoryRoute("system"))
+                        },
+                        onNavigateToChat = { userId ->
+                            navController.navigate(chatDetailRoute(userId))
+                        },
+                    )
+                }
+                composable(FRIENDS_ROUTE) {
+                    FriendsScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onNavigateToSearch = { navController.navigate(searchUserRoute()) },
+                        onNavigateToUserProfile = { userId, nickname, avatar, signature, isFriend, isRequested ->
+                            navController.navigate(
+                                userProfileRoute(
+                                    userId = userId,
+                                    nickname = nickname,
+                                    avatar = avatar,
+                                    signature = signature,
+                                    isFriend = isFriend,
+                                    isRequested = isRequested,
+                                ),
+                            )
+                        },
+                    )
+                }
+                composable(SEARCH_USER_ROUTE) {
+                    SearchUserScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onNavigateToUserProfile = { userId, nickname, avatar, signature, isFriend, isRequested ->
+                            navController.navigate(
+                                userProfileRoute(
+                                    userId = userId,
+                                    nickname = nickname,
+                                    avatar = avatar,
+                                    signature = signature,
+                                    isFriend = isFriend,
+                                    isRequested = isRequested,
+                                ),
+                            )
+                        },
+                    )
+                }
+                composable(
+                    route = USER_PROFILE_ROUTE,
+                    arguments = listOf(
+                        navArgument("userId") { type = NavType.LongType },
+                        navArgument("nickname") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("avatar") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("signature") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("isFriend") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        },
+                        navArgument("isRequested") {
+                            type = NavType.BoolType
+                            defaultValue = false
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val friendRequestSent by backStackEntry.savedStateHandle
+                        .getStateFlow("friendRequestSent", false)
+                        .collectAsStateWithLifecycle()
+                    UserProfileScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        friendRequestSent = friendRequestSent,
+                        onFriendRequestSentHandled = {
+                            backStackEntry.savedStateHandle["friendRequestSent"] = false
+                        },
+                        onBack = { navController.popBackStack() },
+                        onNavigateToChat = { userId ->
+                            navController.navigate(chatDetailRoute(userId))
+                        },
+                        onNavigateToAddFriend = { userId, nickname ->
+                            navController.navigate(addFriendRoute(userId, nickname))
+                        },
+                    )
+                }
+                composable(
+                    route = ADD_FRIEND_ROUTE,
+                    arguments = listOf(
+                        navArgument("userId") { type = NavType.LongType },
+                        navArgument("nickname") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                ) {
+                    AddFriendRequestScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onRequestSent = {
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("friendRequestSent", true)
+                            navController.popBackStack()
+                        },
+                    )
+                }
+                composable(
+                    route = NOTIFICATION_CATEGORY_ROUTE,
+                    arguments = listOf(navArgument("type") { type = NavType.StringType }),
+                ) {
+                    NotificationCategoryScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = CHAT_DETAIL_ROUTE,
+                    arguments = listOf(navArgument("userId") { type = NavType.LongType }),
+                ) {
+                    ChatDetailScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                    )
                 }
             }
         }

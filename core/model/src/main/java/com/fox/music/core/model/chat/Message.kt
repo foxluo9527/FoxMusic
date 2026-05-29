@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Message(
     val id: Long,
+    val localId: String? = null,
     @SerialName("sender_id")
     val senderId: Long,
     @SerialName("receiver_id")
@@ -19,7 +20,11 @@ data class Message(
     @SerialName("created_at")
     val createdAt: String? = null,
     @SerialName("read_at")
-    val readAt: String? = null
+    val readAt: String? = null,
+    val errorMessage: String? = null,
+    val localMediaUri: String? = null,
+    val localMediaFileName: String? = null,
+    val audioDurationMs: Long? = null,
 )
 
 @Serializable

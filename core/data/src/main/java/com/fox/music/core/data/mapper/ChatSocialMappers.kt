@@ -107,6 +107,7 @@ fun NotificationDto.toNotification(): Notification = Notification(
 
 fun MessageDto.toMessage(): Message = Message(
     id = id,
+    localId = "server_$id",
     senderId = senderId,
     receiverId = receiverId,
     content = content,

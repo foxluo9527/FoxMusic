@@ -30,6 +30,10 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
 
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.ucrop)
+    implementation(libs.xxpermissions)
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)

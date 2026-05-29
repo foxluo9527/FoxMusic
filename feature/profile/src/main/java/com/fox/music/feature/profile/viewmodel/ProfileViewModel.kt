@@ -7,6 +7,7 @@ import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
+import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.usecase.DeletePlaylistUseCase
 import com.fox.music.core.domain.usecase.GetFavoritesUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistDetailUseCase
@@ -31,6 +32,7 @@ data class ProfileState(
     val favoriteAlbumTotal: Int = 0,
     val favoriteArtists: List<Artist> = emptyList(),
     val favoriteArtistTotal: Int = 0,
+    val unreadNotificationCount: Int = 0,
     val isLoading: Boolean = false,
     val isCreatingPlaylist: Boolean = false,
     val isImporting: Boolean = false,
@@ -67,6 +69,7 @@ class ProfileViewModel @Inject constructor(
     private val getPlaylistListUseCase: GetPlaylistListUseCase,
     private val getFavoritesUseCase: GetFavoritesUseCase,
     private val playlistRepository: PlaylistRepository,
+    private val socialRepository: SocialRepository,
     private val importRepository: ImportRepository,
     private val getPlaylistDetailUseCase: GetPlaylistDetailUseCase,
     private val deletePlaylistUseCase: DeletePlaylistUseCase,
@@ -172,6 +175,11 @@ class ProfileViewModel @Inject constructor(
                             favoriteArtistTotal = data.total,
                         )
                     }
+                }
+
+            socialRepository.getUnreadNotificationCount()
+                .onSuccess { count ->
+                    updateState { copy(unreadNotificationCount = count) }
                 }
 
             updateState { copy(isLoading = false) }

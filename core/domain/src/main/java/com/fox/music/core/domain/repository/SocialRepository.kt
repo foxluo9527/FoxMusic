@@ -18,7 +18,7 @@ interface SocialRepository {
 
     suspend fun searchUsers(keyword: String): Result<List<SearchedUser>>
 
-    suspend fun sendFriendRequest(userId: Long, message: String? = null): Result<Unit>
+    suspend fun sendFriendRequest(userId: Long, message: String, mark: String? = null): Result<Unit>
 
     suspend fun acceptFriendRequest(requestId: Long): Result<Unit>
 
@@ -51,7 +51,11 @@ interface SocialRepository {
         limit: Int = 20
     ): Result<PagedData<Favorite>>
 
-    suspend fun getNotifications(page: Int = 1, limit: Int = 20): Result<PagedData<Notification>>
+    suspend fun getNotifications(
+        page: Int = 1,
+        limit: Int = 20,
+        type: String? = null,
+    ): Result<PagedData<Notification>>
 
     suspend fun getUnreadNotificationCount(): Result<Int>
 

@@ -2,26 +2,27 @@ package com.fox.music
 
 import android.app.Application
 import androidx.annotation.OptIn
+import androidx.hilt.work.HiltWorkerFactory
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.util.UnstableApi
+import androidx.work.Configuration
 import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.crash.BuglyInitializer
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import dagger.hilt.android.HiltAndroidApp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
-class FoxMusicApplication : Application() {
+class FoxMusicApplication : Application(), Configuration.Provider {
 
     @Inject
     lateinit var musicController: MusicController
+
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
 
     @OptIn(UnstableApi::class)
     override fun onCreate() {
@@ -41,4 +42,9 @@ class FoxMusicApplication : Application() {
             }
         })
     }
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
 }

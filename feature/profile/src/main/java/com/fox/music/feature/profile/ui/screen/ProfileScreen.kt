@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -105,6 +106,7 @@ fun ProfileScreen(
     onCreatePlaylistClick: () -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onMessageNotificationClick: () -> Unit = {},
     onDownloadManagerClick: () -> Unit = {},
     onPlayAllPlaylist: (Long, List<Music>) -> Unit = { _, _ -> },
     onEditPlaylistClick: (Long) -> Unit = {},
@@ -165,6 +167,10 @@ fun ProfileScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                ProfilePageTopTitle(
+                    unreadCount = state.unreadNotificationCount,
+                    onMessageNotificationClick = onMessageNotificationClick,
+                )
                 ProfileHeaderCard(
                     nickname = user.nickname ?: user.username,
                     signature = user.signature,
@@ -365,6 +371,62 @@ fun ProfileScreen(
 }
 
 @Composable
+private fun ProfilePageTopTitle(
+    unreadCount: Int,
+    onMessageNotificationClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = "个人主页",
+            color = ProfileTitleColor,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Box {
+            IconButton(
+                onClick = onMessageNotificationClick,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(ProfileAccentLight),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "消息",
+                    tint = ProfileAccentColor,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            if (unreadCount > 0) {
+                val badgeSize = if (unreadCount > 9) 18.dp else 16.dp
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(badgeSize)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE53935)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProfileHeaderCard(
     nickname: String,
     signature: String?,
@@ -374,7 +436,7 @@ private fun ProfileHeaderCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp),
+            .padding(top = 4.dp),
         shape = ProfileCardShape,
         colors = CardDefaults.cardColors(containerColor = ProfileCardBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
