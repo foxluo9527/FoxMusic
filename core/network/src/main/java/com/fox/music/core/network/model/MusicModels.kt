@@ -1,17 +1,23 @@
 package com.fox.music.core.network.model
 
 import com.fox.music.core.model.ZeroOneBooleanSerializer
+import com.fox.music.core.model.StringOrLongIdSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class MusicDto(
-    val id: Long,
+    @Serializable(with = StringOrLongIdSerializer::class)
+    val id: String,
     val title: String,
     val description: String? = null,
-    val url: String,
+    val url: String? = null,
+    @SerialName("audio_url")
+    val audioUrl: String? = null,
     @SerialName("cover_image")
     val coverImage: String? = null,
+    @SerialName("cover_url")
+    val coverUrl: String? = null,
     val duration: Long = 0,
     @SerialName("track_number")
     val trackNumber: Int? = null,
@@ -27,7 +33,9 @@ data class MusicDto(
     @SerialName("play_count")
     val playCount: Int = 0,
     @SerialName("like_count")
-    val likeCount: Int = 0,
+    val likeCount: Int? = null,
+    @SerialName("favorite_count")
+    val favoriteCountCompat: Int? = null,
     @SerialName("comment_count")
     val commentCount: Int = 0,
     @SerialName("collection_count")
@@ -48,9 +56,14 @@ data class MusicDto(
     val createdAt: String? = null,
     @SerialName("updated_at")
     val updatedAt: String? = null,
-    val isFavorite: Boolean = false,
+    val isFavorite: Boolean? = null,
+    @SerialName("is_favorite")
+    val isFavoriteCompat: Boolean? = null,
     @SerialName("favorited_at")
     val favoritedAt: String? = null,
+    val source: String? = null,
+    @SerialName("source_id")
+    val sourceId: String? = null,
     val tags: List<TagDto> = emptyList(),
     val artists: List<ArtistDto> = emptyList(),
     val album: AlbumDto? = null

@@ -88,6 +88,12 @@ class MusicActionsViewModel @Inject constructor(
 
     fun showAddToPlaylistForCurrentMusic() {
         val music = _uiState.value.actionMusic ?: return
+        if (music.isThirdParty) {
+            viewModelScope.launch {
+                _effect.emit(MusicActionsEffect.ShowToast("第三方歌曲暂不支持添加到平台歌单"))
+            }
+            return
+        }
         _uiState.update { it.copy(showActionSheet = false) }
         showAddToPlaylist(listOf(music.id))
     }
@@ -173,6 +179,13 @@ class MusicActionsViewModel @Inject constructor(
     }
 
     fun onArtistClick(artistId: Long) {
+        val music = _uiState.value.actionMusic
+        if (music?.isThirdParty == true) {
+            viewModelScope.launch {
+                _effect.emit(MusicActionsEffect.ShowToast("第三方歌曲暂不支持跳转艺人详情"))
+            }
+            return
+        }
         dismissActionSheet()
         viewModelScope.launch {
             _effect.emit(MusicActionsEffect.NavigateToArtist(artistId))

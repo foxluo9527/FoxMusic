@@ -32,9 +32,16 @@ enum class SearchResultTab {
     ALBUM,
 }
 
+enum class SearchMusicPlatform(val apiValue: String?, val label: String) {
+    FOX(null, "平台曲库"),
+    QQ("qq", "QQ 音乐"),
+    NETEASE("netease", "网易云")
+}
+
 data class SearchState(
     val query: String = "",
     val selectedTab: SearchResultTab = SearchResultTab.MUSIC,
+    val selectedMusicPlatform: SearchMusicPlatform = SearchMusicPlatform.FOX,
     val musicResults: Flow<PagingData<Music>> = flowOf(PagingData.empty()),
     val artistResults: Flow<PagingData<Artist>> = flowOf(PagingData.empty()),
     val albumResults: Flow<PagingData<Album>> = flowOf(PagingData.empty()),
@@ -54,6 +61,7 @@ sealed interface SearchIntent : UiIntent {
     data class SelectHistory(val keyword: String) : SearchIntent
     data class SelectHotKeyword(val keyword: String) : SearchIntent
     data class SelectTab(val tab: SearchResultTab) : SearchIntent
+    data class SelectMusicPlatform(val platform: SearchMusicPlatform) : SearchIntent
     data object ToggleHistoryExpanded : SearchIntent
     data object ClearHistory : SearchIntent
     data object RefreshHotKeywords : SearchIntent
@@ -110,6 +118,12 @@ class SearchViewModel @Inject constructor(
                 performSearch(keyword = intent.keyword)
             }
             is SearchIntent.SelectTab -> updateState { copy(selectedTab = intent.tab) }
+            is SearchIntent.SelectMusicPlatform -> {
+                updateState { copy(selectedMusicPlatform = intent.platform) }
+                if (currentState.hasSearched && currentState.query.isNotBlank()) {
+                    performSearch(currentState.query, intent.platform)
+                }
+            }
             SearchIntent.ToggleHistoryExpanded -> {
                 updateState { copy(isHistoryExpanded = !isHistoryExpanded) }
             }
@@ -135,9 +149,13 @@ class SearchViewModel @Inject constructor(
         sendEffect(SearchEffect.NavigateToAlbum(album))
     }
 
-    private fun performSearch(keyword: String? = null) {
+    private fun performSearch(
+        keyword: String? = null,
+        platform: SearchMusicPlatform? = null
+    ) {
         val q = keyword?.trim() ?: currentState.query.trim()
         if (q.isEmpty()) return
+        val selectedPlatform = platform ?: currentState.selectedMusicPlatform
 
         viewModelScope.launch {
             updateState { copy(hasSearched = true, selectedTab = SearchResultTab.MUSIC) }
@@ -145,7 +163,10 @@ class SearchViewModel @Inject constructor(
 
             updateState {
                 copy(
-                    musicResults = getSearchMusicPagingUseCase(q).cachedIn(viewModelScope),
+                    musicResults = getSearchMusicPagingUseCase(
+                        keyword = q,
+                        platform = selectedPlatform.apiValue
+                    ).cachedIn(viewModelScope),
                     artistResults = getSearchArtistPagingUseCase(q).cachedIn(viewModelScope),
                     albumResults = getSearchAlbumPagingUseCase(q).cachedIn(viewModelScope),
                 )

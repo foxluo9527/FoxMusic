@@ -14,6 +14,14 @@ interface MusicApiService {
         @Query("sort") sort: String? = null
     ): ApiResponse<PagedResponse<MusicDto>>
 
+    @GET("api/music/third-party/search")
+    suspend fun searchThirdPartyMusic(
+        @Query("platform") platform: String,
+        @Query("keyword") keyword: String,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): ApiResponse<PagedResponse<MusicDto>>
+
     @GET("api/music/{id}")
     suspend fun getMusicDetail(@Path("id") id: Long): ApiResponse<MusicDto>
 

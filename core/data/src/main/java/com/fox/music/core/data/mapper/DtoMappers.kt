@@ -43,10 +43,10 @@ fun UserDto.toUser(): User = User(
 )
 
 fun ArtistDto.toArtist(): Artist = Artist(
-    id = id,
+    id = id ?: fallbackArtistId(),
     name = name,
     alias = alias,
-    avatar = avatar,
+    avatar = avatar ?: avatarUrl,
     coverImage = coverImage,
     description = description,
     region = region,
@@ -63,6 +63,16 @@ fun ArtistDto.toArtist(): Artist = Artist(
     isFavorite = isFavorite,
     tags = tags.map { it.toTag() }
 )
+
+private fun ArtistDto.fallbackArtistId(): Long {
+    val seed = buildString {
+        append(name)
+        append("|")
+        append(avatar ?: avatarUrl ?: "")
+    }
+    val hashed = seed.hashCode().toLong()
+    return if (hashed >= 0L) -(hashed + 1L) else hashed
+}
 
 fun AlbumDto.toAlbum(): Album = Album(
     id = id,
@@ -90,11 +100,14 @@ fun AlbumDto.toAlbum(): Album = Album(
 )
 
 fun MusicDto.toMusic(): Music = Music(
-    id = id,
+    id = id.toLocalMusicId(),
+    sourceId = sourceId?.takeIf { it.isNotBlank() } ?: id,
+    sourcePlatform = source?.takeIf { it.isNotBlank() } ?: id.thirdPartyPlatform(),
+    isThirdParty = isThirdParty(),
     title = title,
     description = description,
-    url = url,
-    coverImage = coverImage,
+    url = audioUrl?.takeIf { it.isNotBlank() } ?: url.orEmpty(),
+    coverImage = coverUrl?.takeIf { it.isNotBlank() } ?: coverImage,
     duration = duration,
     trackNumber = trackNumber,
     discNumber = discNumber,
@@ -104,7 +117,7 @@ fun MusicDto.toMusic(): Music = Music(
     lyricsTrans = lyricsTrans,
     lyricsUrl = lyricsUrl,
     playCount = playCount,
-    likeCount = likeCount,
+    likeCount = likeCount ?: favoriteCountCompat ?: 0,
     commentCount = commentCount,
     collectionCount = collectionCount,
     avgPlayProgress = avgPlayProgress,
@@ -114,11 +127,29 @@ fun MusicDto.toMusic(): Music = Music(
     createdBy = createdBy,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    isFavorite = isFavorite,
+    isFavorite = isFavorite ?: isFavoriteCompat ?: false,
     tags = tags.map { it.toTag() },
     artists = artists.map { it.toArtist() },
     album = album?.toAlbum()
 )
+
+private fun MusicDto.isThirdParty(): Boolean =
+    source?.isNotBlank() == true || id.thirdPartyPlatform() != null
+
+private fun String.thirdPartyPlatform(): String? {
+    val prefix = substringBefore('_', missingDelimiterValue = "").lowercase()
+    return when (prefix) {
+        "qq", "netease" -> prefix
+        else -> null
+    }
+}
+
+private fun String.toLocalMusicId(): Long {
+    toLongOrNull()?.let { return it }
+    // 第三方 sourceId 映射为稳定的本地负值，避免与平台主键冲突
+    val hashed = hashCode().toLong()
+    return if (hashed >= 0L) -(hashed + 1L) else hashed
+}
 
 fun CommentDto.toComment(): Comment = Comment(
     id = id,

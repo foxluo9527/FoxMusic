@@ -368,16 +368,37 @@ private fun CollectionDetailContent(
         items(
             count = pagingItems.itemCount,
             key = { index ->
-                val musicId = pagingItems[index]?.id
-                if (musicId != null) "${musicId}_$index" else index
+                val musicId = pagingItems.peek(index)?.id
+                musicId?.let { "music_$it" } ?: "placeholder_$index"
             }
         ) {index ->
-            pagingItems[index]?.let { music ->
+            val music = pagingItems[index]
+            if (music == null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CachedImage(
+                        imageUrl = null,
+                        contentDescription = "加载中",
+                        modifier = Modifier.size(56.dp),
+                        shape = MaterialTheme.shapes.small,
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "加载中...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
                 MusicListItem(
                     music = music,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
-                    modifier = Modifier.padding(horizontal = if (!state.isSelectionMode) 8.dp else 0.dp),
+                    modifier = Modifier.padding(horizontal = if (!state.isSelectionMode) 16.dp else 8.dp),
                     onClick = { onMusicClick(music) },
                     onMoreClick = { onMusicMoreClick(music) },
                     isSelectionMode = state.isSelectionMode,

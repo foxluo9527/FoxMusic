@@ -9,6 +9,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Music(
     val id: Long,
+    val sourceId: String = id.toString(),
+    val sourcePlatform: String? = null,
+    val isThirdParty: Boolean = false,
     val title: String,
     val description: String? = null,
     val url: String,

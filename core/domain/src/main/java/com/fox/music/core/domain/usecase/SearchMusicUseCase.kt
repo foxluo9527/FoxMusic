@@ -12,6 +12,12 @@ class SearchMusicUseCase @Inject constructor(
     suspend operator fun invoke(
         keyword: String,
         page: Int = 1,
-        limit: Int = 20
-    ): Result<PagedData<Music>> = searchRepository.searchMusic(keyword, page, limit)
+        limit: Int = 20,
+        platform: String? = null
+    ): Result<PagedData<Music>> = searchRepository.searchMusic(
+        keyword = keyword,
+        page = page,
+        limit = limit,
+        platform = platform
+    )
 }

@@ -31,9 +31,19 @@ class SearchRepositoryImpl @Inject constructor(
     override suspend fun searchMusic(
         keyword: String,
         page: Int,
-        limit: Int
+        limit: Int,
+        platform: String?
     ): Result<PagedData<Music>> = suspendRunCatching {
-        val response = musicApi.getMusicList(page, limit, keyword, null, null)
+        val response = if (platform.isNullOrBlank()) {
+            musicApi.getMusicList(page, limit, keyword, null, null)
+        } else {
+            musicApi.searchThirdPartyMusic(
+                platform = platform,
+                keyword = keyword,
+                page = page,
+                limit = limit
+            )
+        }
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPagedData { it.toMusic() }

@@ -6,10 +6,12 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ArtistDto(
-    val id: Long,
+    val id: Long? = null,
     val name: String,
     val alias: String? = null,
     val avatar: String? = null,
+    @SerialName("avatar_url")
+    val avatarUrl: String? = null,
     @SerialName("cover_image")
     val coverImage: String? = null,
     val description: String? = null,

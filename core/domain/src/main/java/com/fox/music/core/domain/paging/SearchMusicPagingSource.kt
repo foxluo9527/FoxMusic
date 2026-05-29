@@ -8,13 +8,19 @@ import com.fox.music.core.model.music.Music
 class SearchMusicPagingSource(
     private val repo: SearchRepository,
     private val keyword: String,
+    private val platform: String?,
 ) : PagingSource<Int, Music>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Music> {
         return try {
             val page = params.key ?: 1
 
-            val result = repo.searchMusic(keyword = keyword, page = page, limit = params.loadSize)
+            val result = repo.searchMusic(
+                keyword = keyword,
+                page = page,
+                limit = params.loadSize,
+                platform = platform
+            )
             val pagedData = result.getOrNull()
             result.exceptionOrNull()?.let { throw it }
 

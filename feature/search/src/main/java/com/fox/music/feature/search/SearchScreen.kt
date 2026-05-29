@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -166,6 +167,14 @@ fun SearchScreen(
                 }
             }
 
+            if (state.hasSearched && state.selectedTab == SearchResultTab.MUSIC) {
+                MusicPlatformSelector(
+                    selected = state.selectedMusicPlatform,
+                    onSelect = { viewModel.sendIntent(SearchIntent.SelectMusicPlatform(it)) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
                     !state.hasSearched -> SearchSuggestionsContent(
@@ -201,6 +210,26 @@ fun SearchScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MusicPlatformSelector(
+    selected: SearchMusicPlatform,
+    onSelect: (SearchMusicPlatform) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SearchMusicPlatform.entries.forEach { platform ->
+            FilterChip(
+                selected = selected == platform,
+                onClick = { onSelect(platform) },
+                label = { Text(platform.label) },
+            )
         }
     }
 }

@@ -12,7 +12,7 @@ import javax.inject.Inject
 class GetSearchMusicPagingUseCase @Inject constructor(
     private val searchRepository: SearchRepository
 ) {
-    operator fun invoke(keyword: String): Flow<PagingData<Music>> {
+    operator fun invoke(keyword: String, platform: String? = null): Flow<PagingData<Music>> {
         return Pager(
             config = PagingConfig(
                 pageSize = 20,
@@ -22,7 +22,8 @@ class GetSearchMusicPagingUseCase @Inject constructor(
             pagingSourceFactory = {
                 SearchMusicPagingSource(
                     repo = searchRepository,
-                    keyword = keyword
+                    keyword = keyword,
+                    platform = platform
                 )
             }
         ).flow

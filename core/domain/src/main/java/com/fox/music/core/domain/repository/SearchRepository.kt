@@ -9,7 +9,12 @@ import kotlinx.coroutines.flow.Flow
 
 interface SearchRepository {
 
-    suspend fun searchMusic(keyword: String, page: Int = 1, limit: Int = 20): Result<PagedData<Music>>
+    suspend fun searchMusic(
+        keyword: String,
+        page: Int = 1,
+        limit: Int = 20,
+        platform: String? = null
+    ): Result<PagedData<Music>>
 
     suspend fun getHotKeywords(type: String? = null, limit: Int = 10): Result<List<HotKeyword>>
 

@@ -5,9 +5,9 @@ object AppConstants {
     const val INITIAL_PAGE = 1
 
     object Network {
-        const val CONNECT_TIMEOUT = 30L
-        const val READ_TIMEOUT = 30L
-        const val WRITE_TIMEOUT = 30L
+        const val CONNECT_TIMEOUT = 60L
+        const val READ_TIMEOUT = 60L
+        const val WRITE_TIMEOUT = 60L
         const val MEDIA_BASE_URL = "http://39.106.30.151:9000"
     }
 

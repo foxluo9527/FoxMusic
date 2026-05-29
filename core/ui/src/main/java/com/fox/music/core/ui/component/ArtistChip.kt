@@ -23,12 +23,17 @@ import com.fox.music.core.ui.theme.FoxMusicTheme
 fun ArtistChip(
     artist: Artist,
     onClick: () -> Unit,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.clickable(enabled = enabled, onClick = onClick),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.secondaryContainer,
+        color = if (enabled) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
     ) {
         Row(
             modifier = Modifier.padding(end = 12.dp),

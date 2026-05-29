@@ -80,9 +80,12 @@ fun MusicActionBottomSheet(
                             items(music.artists, key = { it.id }) { artist ->
                                 ArtistChip(
                                     artist = artist,
+                                    enabled = !music.isThirdParty,
                                     onClick = {
-                                        onDismiss()
-                                        onArtistClick(artist.id)
+                                        if (!music.isThirdParty) {
+                                            onDismiss()
+                                            onArtistClick(artist.id)
+                                        }
                                     },
                                 )
                             }
@@ -101,13 +104,15 @@ fun MusicActionBottomSheet(
                     onDismiss()
                 },
             )
-            ActionRow(
-                icon = Icons.Default.PlaylistAdd,
-                label = "添加到歌单",
-                onClick = {
-                    onAddToPlaylist()
-                },
-            )
+            if (!music.isThirdParty) {
+                ActionRow(
+                    icon = Icons.Default.PlaylistAdd,
+                    label = "添加到歌单",
+                    onClick = {
+                        onAddToPlaylist()
+                    },
+                )
+            }
             if (showDownload) {
                 ActionRow(
                     icon = Icons.Default.CloudDownload,
