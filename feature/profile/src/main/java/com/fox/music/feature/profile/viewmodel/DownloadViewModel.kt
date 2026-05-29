@@ -113,7 +113,11 @@ class DownloadViewModel @Inject constructor(
 
     fun statusLabel(task: DownloadTask): String = when (task.status) {
         DownloadStatus.PENDING -> "等待中"
-        DownloadStatus.DOWNLOADING -> "下载中 ${task.progress}%"
+        DownloadStatus.DOWNLOADING -> when {
+            task.totalBytes > 0L -> "下载中 ${task.progress}%"
+            task.downloadedBytes > 0L -> "下载中 ${formatBytes(task.downloadedBytes)}"
+            else -> "下载中"
+        }
         DownloadStatus.COMPLETED -> "已完成"
         DownloadStatus.FAILED -> "下载失败"
         DownloadStatus.PAUSED -> "已暂停"

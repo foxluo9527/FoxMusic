@@ -20,7 +20,7 @@ data class ApiResponse<T>(
     val success: Boolean? = null,
     val data: T? = null
 ) {
-    val isSuccess: Boolean get() = success ?: (code == 200)
+    val isSuccess: Boolean get() = success ?: (code == 200 || code == 0)
 }
 
 @Serializable

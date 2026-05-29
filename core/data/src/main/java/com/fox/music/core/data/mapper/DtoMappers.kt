@@ -2,6 +2,7 @@ package com.fox.music.core.data.mapper
 
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.app.AppUpdateInfo
 import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
@@ -12,6 +13,7 @@ import com.fox.music.core.model.music.ArtistDetail
 import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.network.model.AlbumDto
 import com.fox.music.core.network.model.AlbumDetailDto
+import com.fox.music.core.network.model.AppUpdateDto
 import com.fox.music.core.network.model.ArtistDetailDto
 import com.fox.music.core.network.model.ArtistDto
 import com.fox.music.core.network.model.CommentDto
@@ -232,4 +234,18 @@ fun AlbumDetailDto.toAlbumDetail(): AlbumDetail = AlbumDetail(
         artists = artists.map { it.toArtist() }
     ),
     tracks = tracks.toPagedData { it.toMusic() }
+)
+
+fun AppUpdateDto.toAppUpdateInfo(): AppUpdateInfo = AppUpdateInfo(
+    hasUpdate = hasUpdate,
+    latestVersionCode = latestVersionCode,
+    latestVersionName = latestVersionName.orEmpty(),
+    minSupportedVersionCode = minSupportedVersionCode,
+    forceUpdate = forceUpdate,
+    apkUrl = apk?.url.orEmpty(),
+    apkSize = apk?.size ?: 0,
+    apkSha256 = apk?.sha256,
+    changelog = changelog,
+    upgradeTitle = upgradeTitle,
+    upgradeContent = upgradeContent,
 )

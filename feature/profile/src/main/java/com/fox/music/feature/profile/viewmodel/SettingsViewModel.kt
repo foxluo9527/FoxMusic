@@ -5,10 +5,14 @@ import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
+import com.fox.music.core.domain.repository.AppUpdateRepository
 import com.fox.music.core.domain.repository.PlaybackCacheRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
+import com.fox.music.core.domain.usecase.CheckAppUpdateUseCase
 import com.fox.music.core.domain.usecase.GetProfileUseCase
 import com.fox.music.core.domain.usecase.LogoutUseCase
+import com.fox.music.core.model.app.ApkDownloadState
+import com.fox.music.core.model.app.AppUpdateInfo
 import com.fox.music.core.model.music.RepeatMode
 import com.fox.music.core.model.music.SleepTimerState
 import com.fox.music.core.model.user.DarkMode
@@ -19,9 +23,14 @@ import com.fox.music.core.model.user.isAdmin
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.player.timer.SleepTimerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
+import android.os.Build
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 data class SettingsState(
@@ -35,6 +44,16 @@ data class SettingsState(
     val showClearCacheDialog: Boolean = false,
     val sleepTimer: SleepTimerState = SleepTimerState(),
     val choiceDialog: ChoiceDialog? = null,
+    val versionName: String = "",
+    val isCheckingUpdate: Boolean = false,
+    val showUpdateDialog: Boolean = false,
+    val updateInfo: AppUpdateInfo? = null,
+    val forceUpdate: Boolean = false,
+    val isDownloadingApk: Boolean = false,
+    val downloadProgress: Int = 0,
+    val downloadIndeterminate: Boolean = false,
+    val downloadStatusText: String? = null,
+    val updateError: String? = null,
 ) : UiState
 
 data class ChoiceDialog(
@@ -70,6 +89,10 @@ sealed interface SettingsIntent : UiIntent {
     data object ShowSleepTimerPicker : SettingsIntent
     data object ShowDownloadQualityPicker : SettingsIntent
     data object OnDownloadManagerClick : SettingsIntent
+    data object OnCheckUpdateClick : SettingsIntent
+    data object DismissUpdateDialog : SettingsIntent
+    data object ConfirmUpdate : SettingsIntent
+    data object RetryUpdateDownload : SettingsIntent
     data object CancelSleepTimer : SettingsIntent
     data class OnChoiceSelected(val type: ChoiceType, val index: Int) : SettingsIntent
     data object DismissChoiceDialog : SettingsIntent
@@ -81,11 +104,15 @@ sealed interface SettingsEffect : UiEffect {
     data object NavigateToDownloadManager : SettingsEffect
     data object NavigateToLogin : SettingsEffect
     data class ShowMessage(val message: String) : SettingsEffect
+    data class LaunchInstall(val file: File) : SettingsEffect
 }
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val getProfileUseCase: GetProfileUseCase,
+    private val checkAppUpdateUseCase: CheckAppUpdateUseCase,
+    private val appUpdateRepository: AppUpdateRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val playbackCacheRepository: PlaybackCacheRepository,
     private val logoutUseCase: LogoutUseCase,
@@ -103,7 +130,10 @@ class SettingsViewModel @Inject constructor(
 
     private val sleepTimerOptionsMinutes = listOf(0L, 15L, 30L, 45L, 60L, 90L, 120L)
 
+    private var downloadJob: Job? = null
+
     init {
+        updateState { copy(versionName = appVersionName()) }
         userPreferencesRepository.userPreferences
             .onEach { prefs ->
                 updateState { copy(preferences = prefs) }
@@ -153,10 +183,139 @@ class SettingsViewModel @Inject constructor(
             SettingsIntent.ShowSleepTimerPicker -> showSleepTimerPicker()
             SettingsIntent.ShowDownloadQualityPicker -> showDownloadQualityPicker()
             SettingsIntent.OnDownloadManagerClick -> sendEffect(SettingsEffect.NavigateToDownloadManager)
+            SettingsIntent.OnCheckUpdateClick -> checkForUpdate()
+            SettingsIntent.DismissUpdateDialog -> {
+                if (!currentState.forceUpdate) {
+                    updateState { copy(showUpdateDialog = false, updateError = null) }
+                }
+            }
+            SettingsIntent.ConfirmUpdate -> confirmUpdate()
+            SettingsIntent.RetryUpdateDownload -> confirmUpdate()
             SettingsIntent.CancelSleepTimer -> cancelSleepTimer()
             is SettingsIntent.OnChoiceSelected -> onChoiceSelected(intent.type, intent.index)
             SettingsIntent.DismissChoiceDialog -> updateState { copy(choiceDialog = null) }
         }
+    }
+
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            updateState { copy(isCheckingUpdate = true, updateError = null) }
+            checkAppUpdateUseCase(
+                versionCode = appVersionCode(),
+                channel = updateChannel(),
+            ).onSuccess { info ->
+                updateState { copy(isCheckingUpdate = false) }
+                if (info.hasUpdate) {
+                    updateState {
+                        copy(
+                            showUpdateDialog = true,
+                            updateInfo = info,
+                            forceUpdate = info.shouldForceUpdate(appVersionCode()),
+                        )
+                    }
+                } else {
+                    sendEffect(SettingsEffect.ShowMessage("已是最新版本"))
+                }
+            }.onError { _, msg ->
+                updateState { copy(isCheckingUpdate = false) }
+                sendEffect(SettingsEffect.ShowMessage(msg ?: "检查更新失败"))
+            }
+        }
+    }
+
+    private fun confirmUpdate() {
+        val info = currentState.updateInfo ?: return
+        if (info.apkUrl.isBlank()) {
+            updateState { copy(updateError = "下载地址无效") }
+            return
+        }
+        appUpdateRepository.getCachedApkFile(info.latestVersionCode)?.let { cached ->
+            updateState { copy(showUpdateDialog = false, updateError = null) }
+            sendEffect(SettingsEffect.LaunchInstall(cached))
+            return
+        }
+        startDownload(info)
+    }
+
+    private fun startDownload(info: AppUpdateInfo) {
+        downloadJob?.cancel()
+        downloadJob = viewModelScope.launch {
+            updateState {
+                copy(
+                    isDownloadingApk = true,
+                    downloadProgress = 0,
+                    downloadIndeterminate = info.apkSize <= 0L,
+                    downloadStatusText = "准备下载...",
+                    updateError = null,
+                )
+            }
+            appUpdateRepository.downloadApk(
+                url = info.apkUrl,
+                versionCode = info.latestVersionCode,
+                expectedSha256 = info.apkSha256,
+                expectedSize = info.apkSize,
+            ).collect { state ->
+                when (state) {
+                    is ApkDownloadState.Downloading -> {
+                        val hasTotal = state.totalBytes > 0L
+                        updateState {
+                            copy(
+                                downloadProgress = if (hasTotal) state.progress else 0,
+                                downloadIndeterminate = !hasTotal,
+                                downloadStatusText = if (hasTotal) {
+                                    "下载中 ${state.progress}%"
+                                } else {
+                                    "已下载 ${formatDownloadedSize(state.downloadedBytes)}"
+                                },
+                            )
+                        }
+                    }
+                    is ApkDownloadState.Completed -> {
+                        updateState {
+                            copy(
+                                isDownloadingApk = false,
+                                downloadProgress = 100,
+                                downloadIndeterminate = false,
+                                downloadStatusText = null,
+                                showUpdateDialog = false,
+                            )
+                        }
+                        sendEffect(SettingsEffect.LaunchInstall(state.file))
+                    }
+                    is ApkDownloadState.Failed -> {
+                        updateState {
+                            copy(
+                                isDownloadingApk = false,
+                                updateError = state.message,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun formatDownloadedSize(bytes: Long): String {
+        if (bytes < 1024 * 1024) return "${bytes / 1024} KB"
+        return String.format("%.1f MB", bytes.toDouble() / (1024 * 1024))
+    }
+
+    private fun appVersionCode(): Int {
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode.toInt()
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode
+        }
+    }
+
+    private fun appVersionName(): String {
+        return context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+    }
+
+    private fun updateChannel(): String {
+        return if (context.packageName.endsWith(".debug")) "debug" else "official"
     }
 
     private fun load() {

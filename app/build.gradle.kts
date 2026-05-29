@@ -14,15 +14,16 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
-android {    namespace = "com.fox.music"
+android {
+    namespace = "com.fox.music"
     compileSdk = 36
 
     defaultConfig {
         applicationId = "com.fox.music"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 101
+        versionName = "1.0.1"
 
         buildConfigField("String", "BUGLY_APP_ID", "\"79570062b4\"")
         buildConfigField("String", "BUGLY_APP_KEY", "\"9d6fcb14-8250-4eb8-b053-17b21d0a3aa8\"")

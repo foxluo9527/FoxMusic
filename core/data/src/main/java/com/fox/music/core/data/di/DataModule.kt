@@ -1,6 +1,7 @@
 package com.fox.music.core.data.di
 
 import com.fox.music.core.data.download.MusicDownloadManager
+import com.fox.music.core.data.repository.AppUpdateRepositoryImpl
 import com.fox.music.core.data.repository.AlbumRepositoryImpl
 import com.fox.music.core.data.repository.ArtistRepositoryImpl
 import com.fox.music.core.data.repository.AuthRepositoryImpl
@@ -14,6 +15,7 @@ import com.fox.music.core.data.repository.SearchRepositoryImpl
 import com.fox.music.core.data.repository.SocialRepositoryImpl
 import com.fox.music.core.data.repository.UploadRepositoryImpl
 import com.fox.music.core.data.repository.UserPreferencesRepositoryImpl
+import com.fox.music.core.domain.repository.AppUpdateRepository
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.AuthRepository
@@ -91,6 +93,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindReportRepository(impl: ReportRepositoryImpl): ReportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAppUpdateRepository(impl: AppUpdateRepositoryImpl): AppUpdateRepository
 
     @Binds
     @Singleton

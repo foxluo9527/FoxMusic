@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,8 +29,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -45,6 +49,7 @@ import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
 import com.fox.music.core.ui.component.MiniPlayer
+import com.fox.music.core.ui.component.UpdateDialog
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
 import com.fox.music.feature.chat.CHAT_ROUTE
@@ -84,6 +89,8 @@ import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.SettingsScreen
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
+import com.fox.music.update.ApkInstallHelper
+import com.fox.music.update.ApkInstallResult
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -95,7 +102,10 @@ fun MainScreen(
 ) {
     val musicController = viewModel.musicController
     val authState by viewModel.authState.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
     val playerState by musicController.playerState.collectAsState(PlayerState())
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val showBottomBar = remember(
         playerState.currentMusic
     ) { playerState.currentMusic != null }
@@ -121,6 +131,44 @@ fun MainScreen(
                 launchSingleTop = true
             }
             viewModel.onRequireReLoginHandled()
+        }
+    }
+
+    LaunchedEffect(updateState.installFile) {
+        val apkFile = updateState.installFile ?: return@LaunchedEffect
+        val result = ApkInstallHelper.tryInstall(context, apkFile)
+        viewModel.onInstallAttemptFinished(
+            launched = result is ApkInstallResult.Launched,
+            file = apkFile,
+        )
+    }
+
+    DisposableEffect(lifecycleOwner, updateState.pendingInstallApk) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val pending = viewModel.updateState.value.pendingInstallApk ?: return@LifecycleEventObserver
+                if (!ApkInstallHelper.canInstallPackages(context)) return@LifecycleEventObserver
+                val result = ApkInstallHelper.tryInstall(context, pending)
+                viewModel.onInstallAttemptFinished(
+                    launched = result is ApkInstallResult.Launched,
+                    file = pending,
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(updateState.pendingInstallApk) {
+        if (updateState.pendingInstallApk != null) {
+            ToastUtils.showShort("请允许安装权限后返回应用继续安装")
+        }
+    }
+
+    LaunchedEffect(updateState.noUpdateMessage) {
+        updateState.noUpdateMessage?.let { message ->
+            ToastUtils.showShort(message)
+            viewModel.onNoUpdateMessageHandled()
         }
     }
 
@@ -606,6 +654,7 @@ fun MainScreen(
                         onEditProfile = { navController.navigate(EDIT_PROFILE_ROUTE) },
                         onManageLibrary = { navController.navigate(MANAGE_ROUTER) },
                         onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
+                        onInstallApk = viewModel::requestInstall,
                         onLogout = {
                             navController.navigate(LOGIN_ROUTE) {
                                 popUpTo(HOME_ROUTE) { inclusive = false }
@@ -726,6 +775,22 @@ fun MainScreen(
                     Text("取消")
                 }
             }
+        )
+    }
+
+    val updateInfo = updateState.updateInfo
+    if (updateState.showDialog && updateInfo != null) {
+        UpdateDialog(
+            updateInfo = updateInfo,
+            forceUpdate = updateState.forceUpdate,
+            isDownloading = updateState.isDownloading,
+            downloadProgress = updateState.downloadProgress,
+            downloadIndeterminate = updateState.downloadIndeterminate,
+            downloadStatusText = updateState.downloadStatusText,
+            error = updateState.error,
+            onDismiss = viewModel::onDismissUpdate,
+            onConfirmUpdate = viewModel::onConfirmUpdate,
+            onRetry = viewModel::retryDownload,
         )
     }
 }

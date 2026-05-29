@@ -3,6 +3,7 @@ package com.fox.music.core.data.download
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import com.fox.music.core.common.constants.AppConstants
 import com.fox.music.core.common.util.MediaUrlResolver
 import com.fox.music.core.data.mapper.toDownloadTask
 import com.fox.music.core.database.dao.DownloadDao
@@ -23,11 +24,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,9 +38,14 @@ import javax.inject.Singleton
 class MusicDownloadManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val downloadDao: DownloadDao,
-    private val okHttpClient: OkHttpClient,
     private val userPreferencesRepository: UserPreferencesRepository,
 ) : DownloadRepository {
+
+    private val downloadClient = OkHttpClient.Builder()
+        .connectTimeout(AppConstants.Network.CONNECT_TIMEOUT, TimeUnit.SECONDS)
+        .readTimeout(AppConstants.Network.READ_TIMEOUT, TimeUnit.SECONDS)
+        .writeTimeout(AppConstants.Network.WRITE_TIMEOUT, TimeUnit.SECONDS)
+        .build()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queueMutex = Mutex()
@@ -192,7 +200,7 @@ class MusicDownloadManager @Inject constructor(
             if (downloadedBytes > 0) {
                 requestBuilder.header("Range", "bytes=$downloadedBytes-")
             }
-            val response = okHttpClient.newCall(requestBuilder.build()).execute()
+            val response = downloadClient.newCall(requestBuilder.build()).execute()
             if (!response.isSuccessful && response.code != 206) {
                 throw IllegalStateException("下载失败: HTTP ${response.code}")
             }
@@ -207,12 +215,21 @@ class MusicDownloadManager @Inject constructor(
 
             var lastProgressEmitMs = 0L
             var lastReportedProgress = -1
+            var lastEmittedDownloadedBytes = downloadedBytes
+
+            downloadDao.updateProgress(
+                musicId = entity.musicId,
+                progress = calculateProgress(downloadedBytes, totalBytes),
+                downloadedBytes = downloadedBytes,
+                totalBytes = totalBytes,
+            )
 
             body.byteStream().use { input ->
                 RandomAccessFile(file, "rw").use { output ->
                     output.seek(downloadedBytes)
                     val buffer = ByteArray(32 * 1024)
                     var read: Int
+                    var chunksSinceEmit = 0
                     while (input.read(buffer).also { read = it } != -1) {
                         if (cancelledIds.contains(entity.musicId)) {
                             downloadDao.updateStatus(entity.musicId, DownloadStatus.PAUSED.name)
@@ -220,15 +237,25 @@ class MusicDownloadManager @Inject constructor(
                         }
                         output.write(buffer, 0, read)
                         downloadedBytes += read
+                        chunksSinceEmit++
 
                         val progress = calculateProgress(downloadedBytes, totalBytes)
                         val now = System.currentTimeMillis()
-                        val shouldEmit = progress != lastReportedProgress &&
-                            (
-                                now - lastProgressEmitMs >= PROGRESS_EMIT_INTERVAL_MS ||
-                                    progress - lastReportedProgress >= 1 ||
-                                    progress >= 99
-                                )
+                        val shouldEmit = when {
+                            totalBytes > 0L -> {
+                                progress != lastReportedProgress &&
+                                    (
+                                        now - lastProgressEmitMs >= PROGRESS_EMIT_INTERVAL_MS ||
+                                            progress - lastReportedProgress >= 1 ||
+                                            progress >= 99
+                                        )
+                            }
+                            else -> {
+                                downloadedBytes - lastEmittedDownloadedBytes >= UNKNOWN_TOTAL_EMIT_BYTES ||
+                                    chunksSinceEmit >= 16 ||
+                                    now - lastProgressEmitMs >= PROGRESS_EMIT_INTERVAL_MS
+                            }
+                        }
                         if (shouldEmit) {
                             downloadDao.updateProgress(
                                 musicId = entity.musicId,
@@ -238,6 +265,9 @@ class MusicDownloadManager @Inject constructor(
                             )
                             lastProgressEmitMs = now
                             lastReportedProgress = progress
+                            lastEmittedDownloadedBytes = downloadedBytes
+                            chunksSinceEmit = 0
+                            yield()
                         }
                     }
                 }
@@ -317,5 +347,6 @@ class MusicDownloadManager @Inject constructor(
     companion object {
         private const val MAX_CONCURRENT = 2
         private const val PROGRESS_EMIT_INTERVAL_MS = 250L
+        private const val UNKNOWN_TOTAL_EMIT_BYTES = 256 * 1024L
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.UpdateDialog
 import com.fox.music.feature.profile.ui.component.SettingsDivider
 import com.fox.music.feature.profile.ui.component.SettingsGroup
 import com.fox.music.feature.profile.ui.component.SettingsNavigationItem
@@ -39,6 +40,7 @@ import com.fox.music.feature.profile.viewmodel.SettingsEffect
 import com.fox.music.feature.profile.viewmodel.SettingsIntent
 import com.fox.music.core.model.user.isAdmin
 import com.fox.music.feature.profile.viewmodel.SettingsViewModel
+import java.io.File
 
 const val SETTINGS_ROUTE = "settings"
 
@@ -53,6 +55,7 @@ fun SettingsScreen(
     onEditProfile: () -> Unit = {},
     onManageLibrary: () -> Unit = {},
     onDownloadManager: () -> Unit = {},
+    onInstallApk: (File) -> Unit = {},
     onLogout: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -72,8 +75,25 @@ fun SettingsScreen(
                 is SettingsEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
+                is SettingsEffect.LaunchInstall -> onInstallApk(effect.file)
             }
         }
+    }
+
+    val updateInfo = state.updateInfo
+    if (state.showUpdateDialog && updateInfo != null) {
+        UpdateDialog(
+            updateInfo = updateInfo,
+            forceUpdate = state.forceUpdate,
+            isDownloading = state.isDownloadingApk,
+            downloadProgress = state.downloadProgress,
+            downloadIndeterminate = state.downloadIndeterminate,
+            downloadStatusText = state.downloadStatusText,
+            error = state.updateError,
+            onDismiss = { viewModel.sendIntent(SettingsIntent.DismissUpdateDialog) },
+            onConfirmUpdate = { viewModel.sendIntent(SettingsIntent.ConfirmUpdate) },
+            onRetry = { viewModel.sendIntent(SettingsIntent.RetryUpdateDownload) },
+        )
     }
 
     if (state.showLogoutDialog) {
@@ -263,6 +283,16 @@ fun SettingsScreen(
                             title = "下载管理",
                             subtitle = "查看与管理已下载歌曲",
                             onClick = { viewModel.sendIntent(SettingsIntent.OnDownloadManagerClick) },
+                        )
+                        SettingsDivider()
+                        SettingsNavigationItem(
+                            title = "检查更新",
+                            subtitle = if (state.isCheckingUpdate) {
+                                "检查中..."
+                            } else {
+                                "当前版本 ${state.versionName}"
+                            },
+                            onClick = { viewModel.sendIntent(SettingsIntent.OnCheckUpdateClick) },
                         )
                         SettingsDivider()
                         SettingsNavigationItem(
