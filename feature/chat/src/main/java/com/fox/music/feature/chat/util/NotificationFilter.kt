@@ -5,16 +5,28 @@ import com.fox.music.core.model.chat.NotificationType
 
 object NotificationFilter {
 
+    /** 通知分类页可展示的类型（排除私信/聊天消息通知） */
+    private val CATEGORY_DISPLAY_TYPES = setOf(
+        NotificationType.SYSTEM,
+        NotificationType.COMMENT,
+        NotificationType.LIKE,
+        NotificationType.MUSIC,
+        NotificationType.FOLLOW,
+        NotificationType.FRIEND_REQUEST,
+    )
+
+    fun displayableNotifications(notifications: List<Notification>): List<Notification> =
+        notifications.filter { it.type in CATEGORY_DISPLAY_TYPES }
+
     fun commentNotifications(notifications: List<Notification>): List<Notification> =
-        notifications.filter { it.type == NotificationType.COMMENT }
+        displayableNotifications(notifications).filter { it.type == NotificationType.COMMENT }
 
     fun systemNotifications(notifications: List<Notification>): List<Notification> =
-        notifications.filter { it.type == NotificationType.SYSTEM }
+        displayableNotifications(notifications).filter { it.type == NotificationType.SYSTEM }
 
     fun likeNotifications(notifications: List<Notification>): List<Notification> =
-        notifications.filter {
-            it.type == NotificationType.LIKE ||
-                it.type == NotificationType.MUSIC
+        displayableNotifications(notifications).filter {
+            it.type == NotificationType.LIKE || it.type == NotificationType.MUSIC
         }
 
     fun previewText(notifications: List<Notification>): String? {

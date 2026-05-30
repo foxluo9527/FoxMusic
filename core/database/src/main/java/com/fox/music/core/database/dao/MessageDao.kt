@@ -44,7 +44,10 @@ interface MessageDao {
             serverId = COALESCE(:serverId, serverId),
             content = COALESCE(:content, content),
             errorMessage = :errorMessage,
-            localMediaUri = :localMediaUri
+            localMediaUri = COALESCE(:localMediaUri, localMediaUri),
+            remoteMediaUrl = COALESCE(:remoteMediaUrl, remoteMediaUrl),
+            uploadedAt = COALESCE(:uploadedAt, uploadedAt),
+            fileType = COALESCE(:fileType, fileType)
         WHERE localId = :localId
         """,
     )
@@ -55,7 +58,22 @@ interface MessageDao {
         content: String? = null,
         errorMessage: String? = null,
         localMediaUri: String? = null,
+        remoteMediaUrl: String? = null,
+        uploadedAt: Long? = null,
+        fileType: String? = null,
     )
+
+    @Query("UPDATE messages SET taskUuid = :taskUuid WHERE localId = :localId")
+    suspend fun updateTaskUuid(localId: String, taskUuid: String)
+
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE status IN ('sending', 'failed') AND serverId IS NULL
+        ORDER BY cachedAt ASC
+        """,
+    )
+    suspend fun getPendingOutgoingMessages(): List<MessageEntity>
 
     @Query("UPDATE messages SET isRead = 1 WHERE conversationId = :conversationId")
     suspend fun markConversationAsRead(conversationId: Long)

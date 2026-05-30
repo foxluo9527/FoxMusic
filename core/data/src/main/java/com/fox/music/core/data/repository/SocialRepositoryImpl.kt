@@ -16,6 +16,7 @@ import com.fox.music.core.model.music.Favorite
 import com.fox.music.core.model.chat.Friend
 import com.fox.music.core.model.chat.FriendRequest
 import com.fox.music.core.model.chat.Notification
+import com.fox.music.core.model.chat.NotificationType
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.chat.SearchedUser
@@ -192,15 +193,20 @@ class SocialRepositoryImpl @Inject constructor(
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPagedData { it.toNotification() }
+                .let { paged ->
+                    paged.copy(
+                        list = paged.list.filter { it.type != NotificationType.MESSAGE },
+                    )
+                }
         } else throw Exception(response.message)
     }
 
     override suspend fun getUnreadNotificationCount(): Result<Int> = suspendRunCatching {
-        val response = socialApi.getUnreadCount()
-        val data = response.data
-        if (response.isSuccess && data != null) {
-            data.count
-        } else throw Exception(response.message)
+        when (val notifications = getNotifications(page = 1, limit = 100)) {
+            is Result.Success -> notifications.data.list.count { !it.isRead }
+            is Result.Error -> throw notifications.exception
+            is Result.Loading -> 0
+        }
     }
 
     override suspend fun markNotificationRead(notificationIds: List<Long>): Result<Unit> =

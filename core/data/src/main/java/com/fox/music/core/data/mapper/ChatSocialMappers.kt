@@ -87,15 +87,7 @@ fun FavoriteDto.toFavorite(): Favorite = Favorite(
 
 fun NotificationDto.toNotification(): Notification = Notification(
     id = id,
-    type = when (type.lowercase()) {
-        "system" -> NotificationType.SYSTEM
-        "friend_request" -> NotificationType.FRIEND_REQUEST
-        "comment" -> NotificationType.COMMENT
-        "like" -> NotificationType.LIKE
-        "follow" -> NotificationType.FOLLOW
-        "music" -> NotificationType.MUSIC
-        else -> NotificationType.SYSTEM
-    },
+    type = resolveNotificationType(type, targetType),
     title = title,
     content = content,
     isRead = isRead,
@@ -105,21 +97,43 @@ fun NotificationDto.toNotification(): Notification = Notification(
     targetType = targetType
 )
 
+private fun resolveNotificationType(type: String, targetType: String?): NotificationType {
+    when (type.lowercase()) {
+        "system" -> return NotificationType.SYSTEM
+        "friend_request" -> return NotificationType.FRIEND_REQUEST
+        "comment" -> return NotificationType.COMMENT
+        "like" -> return NotificationType.LIKE
+        "follow" -> return NotificationType.FOLLOW
+        "music" -> return NotificationType.MUSIC
+        "message", "chat", "private_message" -> return NotificationType.MESSAGE
+    }
+    if (targetType?.lowercase() in CHAT_TARGET_TYPES) {
+        return NotificationType.MESSAGE
+    }
+    return NotificationType.SYSTEM
+}
+
+private val CHAT_TARGET_TYPES = setOf("message", "chat", "private_message")
+
 fun MessageDto.toMessage(): Message = Message(
     id = id,
     localId = "server_$id",
     senderId = senderId,
     receiverId = receiverId,
     content = content,
-    type = when (type.lowercase()) {
+    type = when {
+        !voiceUrl.isNullOrBlank() -> MessageType.AUDIO
+        type.equals("voice", ignoreCase = true) -> MessageType.AUDIO
+        else -> when (type.lowercase()) {
         "text" -> MessageType.TEXT
         "image" -> MessageType.IMAGE
         "audio" -> MessageType.AUDIO
         "file" -> MessageType.FILE
         "music" -> MessageType.MUSIC
         else -> MessageType.TEXT
+        }
     },
-    status = when (status.lowercase()) {
+    status = when (resolveStatus().lowercase()) {
         "sending" -> MessageStatus.SENDING
         "sent" -> MessageStatus.SENT
         "delivered" -> MessageStatus.DELIVERED
@@ -127,9 +141,13 @@ fun MessageDto.toMessage(): Message = Message(
         "failed" -> MessageStatus.FAILED
         else -> MessageStatus.SENT
     },
-    isRecalled = isRecalled,
-    createdAt = createdAt,
-    readAt = readAt
+    isRecalled = resolveIsRecalled(),
+    createdAt = resolveSentAt(),
+    readAt = if (isRead) resolveSentAt() else readAt,
+    localMediaFileName = fileName,
+    remoteMediaUrl = voiceUrl ?: fileUrl,
+    fileType = fileType,
+    audioDurationMs = voiceDuration?.times(1000L),
 )
 
 fun ConversationDto.toChatConversation(): ChatConversation = ChatConversation(

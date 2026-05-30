@@ -32,5 +32,8 @@ enum class NotificationType {
     @SerialName("follow")
     FOLLOW,
     @SerialName("music")
-    MUSIC
+    MUSIC,
+    /** 私信/聊天消息通知，仅用于本地会话列表，不在通知分类页展示 */
+    @SerialName("message")
+    MESSAGE,
 }

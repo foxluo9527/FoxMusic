@@ -11,6 +11,7 @@ import androidx.work.Configuration
 import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.crash.BuglyInitializer
+import com.fox.music.core.data.recovery.ChatMessageRecovery
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -24,11 +25,15 @@ class FoxMusicApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
 
+    @Inject
+    lateinit var chatMessageRecovery: ChatMessageRecovery
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
         BuglyInitializer.init(this)
         LyricSyncManager.getInstance().init(this)
+        chatMessageRecovery.recoverPendingMessages()
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 super.onStart(owner)

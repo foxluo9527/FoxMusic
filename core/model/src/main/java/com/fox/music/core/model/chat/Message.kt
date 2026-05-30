@@ -24,6 +24,9 @@ data class Message(
     val errorMessage: String? = null,
     val localMediaUri: String? = null,
     val localMediaFileName: String? = null,
+    val remoteMediaUrl: String? = null,
+    val fileType: String? = null,
+    val uploadedAt: Long? = null,
     val audioDurationMs: Long? = null,
 )
 

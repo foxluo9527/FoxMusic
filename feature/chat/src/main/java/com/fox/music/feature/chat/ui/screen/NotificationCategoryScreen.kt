@@ -105,15 +105,17 @@ fun NotificationCategoryScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = if (state.category == NotificationCategory.SYSTEM) {
-                        "暂无系统公告"
-                    } else {
-                        "没有新通知"
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                when {
+                    state.error != null -> state.error
+                    state.category == NotificationCategory.SYSTEM -> "暂无系统公告"
+                    else -> "没有新通知"
+                }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             return@Scaffold
         }

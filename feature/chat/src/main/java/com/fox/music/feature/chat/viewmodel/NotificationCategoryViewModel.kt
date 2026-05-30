@@ -75,10 +75,10 @@ class NotificationCategoryViewModel @Inject constructor(
             }
             when (val result = socialRepository.getNotifications(page = 1, limit = 50, type = type)) {
                 is Result.Success -> {
-                    val filtered = filterByCategory(result.data.list, currentState.category)
+                    val notifications = filterByCategory(result.data.list, currentState.category)
                     updateState {
                         copy(
-                            notifications = filtered,
+                            notifications = notifications,
                             isLoading = false,
                             error = null,
                         )

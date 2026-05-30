@@ -8,14 +8,20 @@ interface ChatApiService {
     @POST("api/messages")
     suspend fun sendMessage(@Body request: SendMessageRequest): ApiResponse<MessageDto>
 
+    @POST("api/messages/")
+    suspend fun sendMessage(@Body body: Map<String, String>): ApiResponse<MessageDto>
+
     @POST("api/messages/{id}/recall")
     suspend fun recallMessage(@Path("id") id: Long): ApiResponse<Unit>
 
     @POST("api/messages/read")
     suspend fun markAsRead(@Body request: MarkChatReadRequest): ApiResponse<Unit>
 
-    @GET("api/messages/unread")
-    suspend fun getUnreadMessages(): ApiResponse<List<MessageDto>>
+    /** @param peerUserId 对方用户 ID；传 0 获取全部未读 */
+    @GET("api/messages/unread/{peerUserId}")
+    suspend fun getUnreadMessages(
+        @Path("peerUserId") peerUserId: Long,
+    ): ApiResponse<List<MessageDto>>
 
     @GET("api/messages/conversations")
     suspend fun getConversations(): ApiResponse<List<ConversationDto>>

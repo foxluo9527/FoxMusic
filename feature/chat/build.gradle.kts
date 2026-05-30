@@ -33,9 +33,13 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.ucrop)
     implementation(libs.xxpermissions)
+    implementation(libs.coil.video)
+    implementation(libs.androidx.media3.transformer)
+    implementation(libs.ffmpeg.kit.min.gpl)
 
     // Hilt
     implementation(libs.hilt.android)
+    implementation(libs.androidx.compose.foundation.layout)
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
     

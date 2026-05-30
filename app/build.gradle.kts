@@ -16,20 +16,20 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.fox.music"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.fox.music"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 101
-        versionName = "1.0.1"
+        targetSdk = 37
+        versionCode = 102
+        versionName = "1.0.2"
 
         buildConfigField("String", "BUGLY_APP_ID", "\"79570062b4\"")
         buildConfigField("String", "BUGLY_APP_KEY", "\"9d6fcb14-8250-4eb8-b053-17b21d0a3aa8\"")
 
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
         }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -132,7 +132,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.hilt.work)
     ksp(libs.hilt.compiler.work)
-    
+
     // Coroutines
     implementation(libs.bundles.coroutines)
 

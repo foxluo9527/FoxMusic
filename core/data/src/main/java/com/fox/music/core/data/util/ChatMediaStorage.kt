@@ -16,7 +16,8 @@ class ChatMediaStorage @Inject constructor(
     fun persistUri(uri: Uri, extension: String = "bin"): Uri {
         if (uri.scheme == "file") return uri
         val dir = File(context.filesDir, "chat_media").apply { mkdirs() }
-        val target = File(dir, "${UUID.randomUUID()}.$extension")
+        val safeExtension = extension.trim('.').ifBlank { "bin" }
+        val target = File(dir, "${UUID.randomUUID()}.$safeExtension")
         context.contentResolver.openInputStream(uri)?.use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
         } ?: throw IllegalArgumentException("无法读取媒体文件")
@@ -25,8 +26,18 @@ class ChatMediaStorage @Inject constructor(
 
     fun extensionForType(type: String): String = when (type.lowercase()) {
         "image" -> "jpg"
-        "audio" -> "m4a"
-        "file" -> "dat"
+        "audio", "voice" -> "m4a"
+        "video" -> "mp4"
+        "file" -> "bin"
         else -> "bin"
+    }
+
+    fun extensionForFile(fileName: String?, type: String): String {
+        fileName
+            ?.substringAfterLast('.', "")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !it.contains('/') }
+            ?.let { return it }
+        return extensionForType(type)
     }
 }

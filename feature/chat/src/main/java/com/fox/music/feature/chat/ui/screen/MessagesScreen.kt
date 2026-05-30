@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -105,10 +106,15 @@ fun MessagesScreen(
             return@Scaffold
         }
 
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = { viewModel.sendIntent(MessagesIntent.Refresh) },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+        ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
         ) {
             item {
                 MessageCategoryItem(
@@ -185,6 +191,7 @@ fun MessagesScreen(
                     )
                 }
             }
+        }
         }
     }
 }

@@ -52,7 +52,7 @@ data class LoginResponse(
 @Serializable
 data class UserDto(
     val id: Long,
-    val username: String,
+    val username: String = "",
     val email: String? = null,
     val nickname: String? = null,
     val avatar: String? = null,

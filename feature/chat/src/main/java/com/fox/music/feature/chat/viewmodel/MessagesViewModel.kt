@@ -27,6 +27,7 @@ data class MessagesState(
     val systemUnreadCount: Int = 0,
     val conversations: List<ChatConversation> = emptyList(),
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: String? = null,
 ) : UiState
 
@@ -61,8 +62,8 @@ class MessagesViewModel @Inject constructor(
 
     override fun handleIntent(intent: MessagesIntent) {
         when (intent) {
-            MessagesIntent.Load,
-            MessagesIntent.Refresh -> loadMessages()
+            MessagesIntent.Load -> loadMessages(refreshing = false)
+            MessagesIntent.Refresh -> loadMessages(refreshing = true)
         }
     }
 
@@ -90,17 +91,29 @@ class MessagesViewModel @Inject constructor(
         sendEffect(MessagesEffect.NavigateBack)
     }
 
-    private fun loadMessages() {
+    private fun loadMessages(refreshing: Boolean) {
         viewModelScope.launch {
-            updateState { copy(isLoading = true, error = null) }
+            updateState {
+                if (refreshing) {
+                    copy(isRefreshing = true, error = null)
+                } else {
+                    copy(isLoading = true, error = null)
+                }
+            }
 
             val friendRequestsDeferred = async { socialRepository.getFriendRequests() }
             val notificationsDeferred = async { socialRepository.getNotifications(page = 1, limit = 50) }
             val conversationsDeferred = async { chatRepository.syncConversations() }
+            val unreadMessagesDeferred = if (refreshing) {
+                async { chatRepository.syncUnreadMessages(peerUserId = 0) }
+            } else {
+                null
+            }
 
             val friendRequestsResult = friendRequestsDeferred.await()
             val notificationsResult = notificationsDeferred.await()
             val conversationsResult = conversationsDeferred.await()
+            val unreadMessagesResult = unreadMessagesDeferred?.await()
 
             var errorMessage: String? = null
 
@@ -129,6 +142,9 @@ class MessagesViewModel @Inject constructor(
             if (conversationsResult is Result.Error && errorMessage == null) {
                 errorMessage = conversationsResult.message
             }
+            if (unreadMessagesResult != null && unreadMessagesResult is Result.Error && errorMessage == null) {
+                errorMessage = unreadMessagesResult.message
+            }
 
             updateState {
                 copy(
@@ -140,6 +156,7 @@ class MessagesViewModel @Inject constructor(
                     systemPreview = NotificationFilter.previewText(systemNotifications),
                     systemUnreadCount = NotificationFilter.unreadCount(systemNotifications),
                     isLoading = false,
+                    isRefreshing = false,
                     error = errorMessage,
                 )
             }

@@ -16,6 +16,7 @@ import com.fox.music.core.network.api.SearchApiService
 import com.fox.music.core.network.api.SocialApiService
 import com.fox.music.core.network.api.UploadApiService
 import com.fox.music.core.network.interceptor.AuthInterceptor
+import com.fox.music.core.network.interceptor.SafeHttpLoggingInterceptor
 import com.fox.music.core.network.interceptor.TokenAuthenticator
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
@@ -25,7 +26,6 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -46,18 +46,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideLoggingInterceptor(): HttpLoggingInterceptor = HttpLoggingInterceptor().apply {
-        level = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BODY
-        } else {
-            HttpLoggingInterceptor.Level.NONE
-        }
-    }
+    fun provideLoggingInterceptor(): SafeHttpLoggingInterceptor = SafeHttpLoggingInterceptor()
 
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        loggingInterceptor: HttpLoggingInterceptor,
+        loggingInterceptor: SafeHttpLoggingInterceptor,
         authInterceptor: AuthInterceptor,
         tokenAuthenticator: TokenAuthenticator
     ): OkHttpClient = OkHttpClient.Builder()

@@ -28,8 +28,10 @@ data class PagedResponse<T>(
     val list: List<T> = emptyList(),
     val total: Int = 0,
     val current: Int = 1,
+    @SerialName("page_size")
     val pageSize: Int = 20,
-    val totalPages: Int = 0
+    @SerialName("total_pages")
+    val totalPages: Int = 0,
 )
 
 @Serializable

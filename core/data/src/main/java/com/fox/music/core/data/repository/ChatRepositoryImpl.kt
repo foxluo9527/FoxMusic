@@ -22,6 +22,7 @@ import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.ChatApiService
+import com.fox.music.core.network.model.MessageDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -35,8 +36,8 @@ class ChatRepositoryImpl @Inject constructor(
     private val messageDao: MessageDao,
     private val conversationDao: ConversationDao,
     private val chatMessageSender: ChatMessageSender,
-    private val chatMediaStorage: ChatMediaStorage,
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val chatMediaStorage: ChatMediaStorage,
 ) : ChatRepository {
 
     override fun observeMessages(peerUserId: Long): Flow<List<Message>> =
@@ -74,6 +75,14 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun syncUnreadMessages(peerUserId: Long): Result<Unit> = suspendRunCatching {
+        val response = chatApi.getUnreadMessages(peerUserId)
+        val data = response.data
+        if (!response.isSuccess || data == null) throw Exception(response.message)
+        persistUnreadMessages(data)
+    }
+
+    @Deprecated("History API is not available")
     override suspend fun syncChatHistory(userId: Long, page: Int, limit: Int): Result<Unit> =
         suspendRunCatching {
             val response = chatApi.getChatHistory(userId, page, limit)
@@ -97,19 +106,18 @@ class ChatRepositoryImpl @Inject constructor(
         mediaUri: Uri?,
         fileName: String?,
         audioDurationMs: Long?,
+        imageSendOriginal: Boolean,
         peerNickname: String?,
         peerAvatar: String?,
     ): Result<String> = suspendRunCatching {
-        val persistedUri = mediaUri?.let {
-            chatMediaStorage.persistUri(it, chatMediaStorage.extensionForType(type))
-        }
         enqueueOutgoingMessageInternal(
             receiverId = receiverId,
             type = type,
             content = content,
-            localMediaUri = persistedUri?.toString(),
+            localMediaUri = mediaUri?.toString(),
             localMediaFileName = fileName,
             audioDurationMs = audioDurationMs,
+            imageSendOriginal = imageSendOriginal,
             peerNickname = peerNickname,
             peerAvatar = peerAvatar,
         )
@@ -129,7 +137,9 @@ class ChatRepositoryImpl @Inject constructor(
             at = System.currentTimeMillis(),
             localId = localId,
         )
-        chatMessageSender.enqueueSend(localId)
+        val workId = java.util.UUID.randomUUID()
+        messageDao.updateTaskUuid(localId, workId.toString())
+        chatMessageSender.enqueueSend(localId, workId)
     }
 
     override suspend fun recallMessage(messageId: Long): Result<Unit> = suspendRunCatching {
@@ -146,8 +156,9 @@ class ChatRepositoryImpl @Inject constructor(
         if (!response.isSuccess) throw Exception(response.message)
     }
 
+    @Deprecated("Use syncUnreadMessages")
     override suspend fun getUnreadMessages(): Result<List<Message>> = suspendRunCatching {
-        val response = chatApi.getUnreadMessages()
+        val response = chatApi.getUnreadMessages(peerUserId = 0)
         val data = response.data
         if (response.isSuccess && data != null) {
             data.map { it.toMessage() }
@@ -195,12 +206,13 @@ class ChatRepositoryImpl @Inject constructor(
         localMediaUri: String? = null,
         localMediaFileName: String? = null,
         audioDurationMs: Long? = null,
+        imageSendOriginal: Boolean = false,
         peerNickname: String? = null,
         peerAvatar: String? = null,
     ): Result<String> = suspendRunCatching {
         enqueueOutgoingMessageInternal(
             receiverId, type, content, localMediaUri, localMediaFileName,
-            audioDurationMs, peerNickname, peerAvatar,
+            audioDurationMs, imageSendOriginal, peerNickname, peerAvatar,
         )
     }
 
@@ -211,6 +223,7 @@ class ChatRepositoryImpl @Inject constructor(
         localMediaUri: String? = null,
         localMediaFileName: String? = null,
         audioDurationMs: Long? = null,
+        imageSendOriginal: Boolean = false,
         peerNickname: String? = null,
         peerAvatar: String? = null,
     ): String {
@@ -222,6 +235,7 @@ class ChatRepositoryImpl @Inject constructor(
             content.ifBlank { localMediaFileName.orEmpty() },
             type,
         )
+        val persistedMediaUri = persistOutgoingMediaUri(localMediaUri, localMediaFileName, type)
         val entity = MessageEntity(
             localId = localId,
             conversationId = receiverId,
@@ -230,13 +244,17 @@ class ChatRepositoryImpl @Inject constructor(
             content = content,
             type = type,
             status = "sending",
-            localMediaUri = localMediaUri,
+            localMediaUri = persistedMediaUri,
             localMediaFileName = localMediaFileName,
+            fileType = resolveOutgoingFileType(type, localMediaFileName),
+            imageSendOriginal = imageSendOriginal,
             audioDurationMs = audioDurationMs,
             sentAt = now.toString(),
             cachedAt = now,
         )
         messageDao.insertMessage(entity)
+        val workId = java.util.UUID.randomUUID()
+        messageDao.updateTaskUuid(localId, workId.toString())
         val existingConversation = conversationDao.getConversation(receiverId)
         conversationDao.upsertConversation(
             ConversationEntity(
@@ -252,7 +270,72 @@ class ChatRepositoryImpl @Inject constructor(
                 updatedAt = now,
             ),
         )
-        chatMessageSender.enqueueSend(localId)
+        chatMessageSender.enqueueSend(localId, workId)
         return localId
+    }
+
+    private suspend fun persistUnreadMessages(data: List<MessageDto>) {
+        if (data.isEmpty()) return
+        val currentUserId = userPreferencesRepository.userPreferences.first().userId
+            ?: throw IllegalStateException("用户未登录")
+
+        val entities = data.map { dto ->
+            val peerId = if (dto.senderId == currentUserId) dto.receiverId else dto.senderId
+            dto.toMessageEntity(conversationId = peerId)
+        }
+        messageDao.insertMessages(entities)
+
+        data.groupBy { dto ->
+            if (dto.senderId == currentUserId) dto.receiverId else dto.senderId
+        }.forEach { (peerId, dtos) ->
+            val peerEntities = entities.filter { it.conversationId == peerId }
+            val latest = peerEntities.maxByOrNull { it.cachedAt } ?: return@forEach
+            val local = conversationDao.getConversation(peerId)
+            val incomingUnread = peerEntities.count { it.senderId != currentUserId && !it.isRead }
+            val peerSenderDto = dtos.lastOrNull { it.senderId == peerId }
+            conversationDao.upsertConversation(
+                ConversationEntity(
+                    peerUserId = peerId,
+                    peerNickname = local?.peerNickname ?: peerSenderDto?.senderNickname,
+                    peerAvatar = local?.peerAvatar ?: peerSenderDto?.senderAvatar,
+                    peerMark = local?.peerMark ?: peerSenderDto?.senderRemark,
+                    lastMessageLocalId = latest.localId,
+                    lastMessagePreview = previewForMessage(latest.content, latest.type),
+                    lastMessageStatus = latest.status,
+                    lastMessageAt = latest.cachedAt,
+                    unreadCount = (local?.unreadCount ?: 0) + incomingUnread,
+                    updatedAt = latest.cachedAt,
+                ),
+            )
+        }
+    }
+
+    private fun persistOutgoingMediaUri(
+        localMediaUri: String?,
+        localMediaFileName: String?,
+        type: String,
+    ): String? {
+        if (localMediaUri.isNullOrBlank()) return null
+        val uri = Uri.parse(localMediaUri)
+        if (uri.scheme == "file") return localMediaUri
+        val extension = chatMediaStorage.extensionForFile(localMediaFileName, type)
+        return chatMediaStorage.persistUri(uri, extension).toString()
+    }
+
+    private fun resolveOutgoingFileType(type: String, fileName: String?): String? = when (type.lowercase()) {
+        "image" -> "image"
+        "video" -> "video"
+        "audio", "voice" -> "audio"
+        "file" -> {
+            val name = fileName.orEmpty().lowercase()
+            when {
+                name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") ||
+                    name.endsWith(".gif") || name.endsWith(".webp") || name.endsWith(".bmp") -> "image"
+                name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".avi") ||
+                    name.endsWith(".mkv") || name.endsWith(".webm") -> "video"
+                else -> "file"
+            }
+        }
+        else -> null
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.fox.music.core.common.util.MediaUrlResolver
 import coil.compose.SubcomposeAsyncImage
 
 @Composable
@@ -45,10 +46,9 @@ fun CachedImage(
     )
 }
 
-private fun processUrl(url: String?): String? {
-    return url?.let {
-        if (it.startsWith("http")) it else "http://39.106.30.151:9000$it"
-    }
+private fun processUrl(url: String?): Any? {
+    if (url.isNullOrBlank()) return null
+    return MediaUrlResolver.resolve(url) ?: url
 }
 
 @Composable

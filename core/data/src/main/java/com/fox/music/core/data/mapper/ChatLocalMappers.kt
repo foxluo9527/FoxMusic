@@ -24,23 +24,45 @@ fun MessageEntity.toDomainMessage(): Message = Message(
     errorMessage = errorMessage,
     localMediaUri = localMediaUri,
     localMediaFileName = localMediaFileName,
+    remoteMediaUrl = remoteMediaUrl,
+    fileType = fileType,
+    uploadedAt = uploadedAt,
     audioDurationMs = audioDurationMs,
 )
 
-fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity = MessageEntity(
-    localId = "server_$id",
-    serverId = id,
-    conversationId = conversationId,
-    senderId = senderId,
-    receiverId = receiverId,
-    content = content,
-    type = type,
-    status = status,
-    isRecalled = isRecalled,
-    isRead = status == "read",
-    sentAt = createdAt,
-    cachedAt = parseTimestamp(createdAt),
-)
+fun MessageDto.resolveStatus(): String =
+    status?.takeIf { it.isNotBlank() } ?: if (isRead) "read" else "sent"
+
+fun MessageDto.resolveSentAt(): String? = sentAt ?: createdAt
+
+fun MessageDto.resolveIsRecalled(): Boolean = isRecalled || isDeleted
+
+fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity {
+    val timestamp = resolveSentAt()
+    val resolvedType = when {
+        !voiceUrl.isNullOrBlank() -> "voice"
+        type.equals("voice", ignoreCase = true) -> "voice"
+        else -> type
+    }
+    return MessageEntity(
+        localId = "server_$id",
+        serverId = id,
+        conversationId = conversationId,
+        senderId = senderId,
+        receiverId = receiverId,
+        content = content,
+        type = resolvedType,
+        status = resolveStatus(),
+        localMediaFileName = fileName,
+        remoteMediaUrl = voiceUrl ?: fileUrl,
+        fileType = fileType,
+        audioDurationMs = voiceDuration?.times(1000L),
+        isRecalled = resolveIsRecalled(),
+        isRead = isRead || resolveStatus() == "read",
+        sentAt = timestamp,
+        cachedAt = parseTimestamp(timestamp),
+    )
+}
 
 fun ConversationEntity.toChatConversation(): ChatConversation {
     val lastMessage = if (lastMessageLocalId != null) {
@@ -80,8 +102,8 @@ fun ConversationDto.toConversationEntity(): ConversationEntity {
         peerMark = null,
         lastMessageLocalId = last?.let { "server_${it.id}" },
         lastMessagePreview = last?.let { previewForMessage(it.content, it.type) } ?: "",
-        lastMessageStatus = last?.status,
-        lastMessageAt = parseTimestamp(last?.createdAt),
+        lastMessageStatus = last?.resolveStatus(),
+        lastMessageAt = parseTimestamp(last?.resolveSentAt()),
         unreadCount = unreadCount,
         updatedAt = parseTimestamp(updatedAt ?: last?.createdAt),
     )
@@ -89,8 +111,13 @@ fun ConversationDto.toConversationEntity(): ConversationEntity {
 
 fun previewForMessage(content: String, type: String): String = when (type.lowercase()) {
     "image" -> "[图片]"
-    "audio" -> "[语音]"
-    "file" -> if (isVideoUrl(content)) "[视频]" else "[文件]"
+    "audio", "voice" -> "[语音]"
+    "video" -> "[视频]"
+    "file" -> when {
+        isVideoUrl(content) -> "[视频]"
+        isImageFileName(content) -> "[图片]"
+        else -> "[文件]"
+    }
     "music" -> "[音乐]"
     else -> content.take(50)
 }
@@ -98,7 +125,11 @@ fun previewForMessage(content: String, type: String): String = when (type.lowerc
 fun previewForMessage(message: Message): String = when (message.type) {
     MessageType.IMAGE -> "[图片]"
     MessageType.AUDIO -> "[语音]"
-    MessageType.FILE -> if (isVideoUrl(message.content)) "[视频]" else "[文件]"
+    MessageType.FILE -> when {
+        isVideoUrl(message.content) || message.fileType?.equals("video", ignoreCase = true) == true -> "[视频]"
+        isImageFileName(message.content) || message.fileType?.equals("image", ignoreCase = true) == true -> "[图片]"
+        else -> "[文件]"
+    }
     MessageType.MUSIC -> "[音乐]"
     MessageType.TEXT -> message.content.take(50)
 }
@@ -109,10 +140,20 @@ private fun isVideoUrl(url: String): Boolean {
         lower.endsWith(".avi") || lower.endsWith(".mkv") || lower.endsWith(".webm")
 }
 
+private fun isImageFileName(value: String): Boolean {
+    val name = if (value.startsWith("[file]", ignoreCase = true)) {
+        value.removePrefix("[file]")
+    } else {
+        value.substringAfterLast('/')
+    }.lowercase()
+    return name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") ||
+        name.endsWith(".gif") || name.endsWith(".webp") || name.endsWith(".bmp")
+}
+
 private fun String.toMessageType(): MessageType = when (lowercase()) {
     "image" -> MessageType.IMAGE
-    "audio" -> MessageType.AUDIO
-    "file" -> MessageType.FILE
+    "audio", "voice" -> MessageType.AUDIO
+    "video", "file" -> MessageType.FILE
     "music" -> MessageType.MUSIC
     else -> MessageType.TEXT
 }

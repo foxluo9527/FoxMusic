@@ -1,5 +1,6 @@
 package com.fox.music.core.network.model
 
+import com.fox.music.core.network.util.FlexibleBooleanSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -111,15 +112,18 @@ data class FavoriteDto(
 data class NotificationDto(
     val id: Long,
     val type: String,
-    val title: String,
-    val content: String,
+    val title: String = "",
+    val content: String = "",
+    @Serializable(with = FlexibleBooleanSerializer::class)
     @SerialName("is_read")
     val isRead: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
     val sender: UserDto? = null,
+    @SerialName("target_id")
     val targetId: Long? = null,
-    val targetType: String? = null
+    @SerialName("target_type")
+    val targetType: String? = null,
 )
 
 @Serializable

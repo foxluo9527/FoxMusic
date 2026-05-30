@@ -15,6 +15,10 @@ interface ChatRepository {
 
     suspend fun syncConversations(): Result<Unit>
 
+    /** @param peerUserId 对方用户 ID；传 0 同步全部未读（对话列表刷新） */
+    suspend fun syncUnreadMessages(peerUserId: Long = 0): Result<Unit>
+
+    @Deprecated("History API is not available; use syncUnreadMessages on conversation list refresh")
     suspend fun syncChatHistory(userId: Long, page: Int = 1, limit: Int = 50): Result<Unit>
 
     suspend fun sendTextMessage(receiverId: Long, content: String): Result<String>
@@ -26,6 +30,7 @@ interface ChatRepository {
         mediaUri: Uri? = null,
         fileName: String? = null,
         audioDurationMs: Long? = null,
+        imageSendOriginal: Boolean = false,
         peerNickname: String? = null,
         peerAvatar: String? = null,
     ): Result<String>
@@ -36,12 +41,13 @@ interface ChatRepository {
 
     suspend fun markAsRead(targetId: Long): Result<Unit>
 
+    @Deprecated("Use syncUnreadMessages", ReplaceWith("syncUnreadMessages()"))
     suspend fun getUnreadMessages(): Result<List<Message>>
 
-    @Deprecated("Use observeMessages + syncChatHistory", ReplaceWith("observeMessages(userId)"))
+    @Deprecated("Use observeMessages + syncUnreadMessages", ReplaceWith("observeMessages(userId)"))
     suspend fun getConversations(): Result<List<ChatConversation>>
 
-    @Deprecated("Use observeMessages + syncChatHistory", ReplaceWith("syncChatHistory(userId, page, limit)"))
+    @Deprecated("Use observeMessages", ReplaceWith("observeMessages(userId)"))
     suspend fun getChatHistory(userId: Long, page: Int = 1, limit: Int = 20): Result<PagedData<Message>>
 
     @Deprecated("Use sendTextMessage", ReplaceWith("sendTextMessage(receiverId, content)"))
