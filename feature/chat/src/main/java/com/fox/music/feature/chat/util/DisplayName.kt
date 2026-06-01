@@ -29,22 +29,43 @@ fun User.displayName(): String =
         ?: username.takeIf { it.isNotBlank() }
         ?: "用户"
 
+private val CHINESE_WEEKDAYS = arrayOf("", "周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
 fun formatMessageDate(dateStr: String?): String {
     if (dateStr.isNullOrBlank()) return ""
     val millis = parseMessageTimestampMillis(dateStr) ?: return dateStr
     val zoned = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
     val date = zoned.toLocalDate()
     val today = LocalDate.now(ZoneId.systemDefault())
+    val daysDiff = java.time.temporal.ChronoUnit.DAYS.between(date, today).toInt()
     val timeText = zoned.format(DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault()))
-    return when {
-        date == today -> timeText
-        date.year == today.year -> zoned.format(
-            DateTimeFormatter.ofPattern("M月d日 HH:mm", Locale.getDefault()),
-        )
+    return when (daysDiff) {
+        0 -> timeText
+        1 -> "昨天 $timeText"
+        in 2..6 -> "${CHINESE_WEEKDAYS[date.dayOfWeek.value]} $timeText"
         else -> zoned.format(
-            DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm", Locale.getDefault()),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.getDefault()),
         )
     }
+}
+
+fun parseTimestampMillis(dateStr: String?): Long? = dateStr?.let { parseMessageTimestampMillis(it) }
+
+/**
+ * Determine whether a message should display its timestamp.
+ *
+ * Rules:
+ * - The very first message always shows time.
+ * - If the current message's time differs from the previous message's time by ≥ 5 minutes, show time.
+ * - If the two messages fall on different calendar days, always show time.
+ */
+fun shouldShowMessageTime(currentMillis: Long, previousMillis: Long?): Boolean {
+    if (previousMillis == null) return true
+    val fiveMinutesMs = 5 * 60 * 1_000L
+    if (kotlin.math.abs(currentMillis - previousMillis) >= fiveMinutesMs) return true
+    val currentDate = Instant.ofEpochMilli(currentMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+    val previousDate = Instant.ofEpochMilli(previousMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+    return currentDate != previousDate
 }
 
 private fun parseMessageTimestampMillis(dateStr: String): Long? {

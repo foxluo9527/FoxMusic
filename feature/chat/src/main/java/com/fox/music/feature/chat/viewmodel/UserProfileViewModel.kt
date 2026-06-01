@@ -34,7 +34,7 @@ sealed interface UserProfileIntent : UiIntent {
 sealed interface UserProfileEffect : UiEffect {
     data class ShowMessage(val message: String) : UserProfileEffect
     data object NavigateBack : UserProfileEffect
-    data class NavigateToChat(val userId: Long) : UserProfileEffect
+    data class NavigateToChat(val userId: Long, val peerNickname: String?, val peerAvatar: String?) : UserProfileEffect
     data class NavigateToAddFriend(val userId: Long, val nickname: String?) : UserProfileEffect
 }
 
@@ -65,7 +65,13 @@ class UserProfileViewModel @Inject constructor(
     }
 
     fun onSendMessageClick() {
-        sendEffect(UserProfileEffect.NavigateToChat(currentState.userId))
+        sendEffect(
+            UserProfileEffect.NavigateToChat(
+                userId = currentState.userId,
+                peerNickname = currentState.nickname.takeIf { it.isNotBlank() },
+                peerAvatar = currentState.avatar,
+            ),
+        )
     }
 
     fun onAddFriendClick() {

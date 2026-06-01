@@ -11,6 +11,7 @@ data class UserPreferences(
     val downloadQuality: PlayQuality = PlayQuality.LOSSLESS,
     val downloadOnWifiOnly: Boolean = true,
     val showLyrics: Boolean = true,
+    val notificationSettings: NotificationPreferenceSettings = NotificationPreferenceSettings(),
     val language: String = "zh-CN",
     val cacheMaxBytes: Long = 2L * 1024 * 1024 * 1024,
 )

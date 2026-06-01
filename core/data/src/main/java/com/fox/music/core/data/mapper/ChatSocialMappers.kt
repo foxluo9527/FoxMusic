@@ -93,6 +93,7 @@ fun NotificationDto.toNotification(): Notification = Notification(
     isRead = isRead,
     createdAt = createdAt,
     sender = sender?.toUser(),
+    senderId = sender?.id ?: senderId,
     targetId = targetId,
     targetType = targetType
 )
@@ -104,6 +105,7 @@ private fun resolveNotificationType(type: String, targetType: String?): Notifica
         "comment" -> return NotificationType.COMMENT
         "like" -> return NotificationType.LIKE
         "follow" -> return NotificationType.FOLLOW
+        "mention" -> return NotificationType.MENTION
         "music" -> return NotificationType.MUSIC
         "message", "chat", "private_message" -> return NotificationType.MESSAGE
     }
@@ -155,5 +157,6 @@ fun ConversationDto.toChatConversation(): ChatConversation = ChatConversation(
     user = user.toUser(),
     lastMessage = lastMessage?.toMessage(),
     unreadCount = unreadCount,
-    updatedAt = updatedAt
+    updatedAt = updatedAt,
+    isPinned = false,
 )

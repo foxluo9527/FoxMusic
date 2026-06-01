@@ -2,7 +2,6 @@ package com.fox.music.feature.chat.ui.screen
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,28 +14,35 @@ import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.feature.chat.ui.component.ConversationItem
 import com.fox.music.feature.chat.ui.component.MessageCategoryItem
+import com.fox.music.feature.chat.util.displayName
 import com.fox.music.feature.chat.viewmodel.MessagesEffect
 import com.fox.music.feature.chat.viewmodel.MessagesIntent
 import com.fox.music.feature.chat.viewmodel.MessagesViewModel
@@ -52,9 +58,12 @@ fun MessagesScreen(
     onNavigateToLikeNotifications: () -> Unit = {},
     onNavigateToSystemAnnouncements: () -> Unit = {},
     onNavigateToChat: (Long) -> Unit = {},
+    onNavigateToSearch: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var selectedConversation by remember { mutableStateOf<ChatConversation?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.sendIntent(MessagesIntent.Load)
@@ -87,7 +96,7 @@ fun MessagesScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* 搜索功能待实现 */ }) {
+                    IconButton(onClick = onNavigateToSearch) {
                         Icon(Icons.Default.Search, contentDescription = "搜索")
                     }
                 },
@@ -184,14 +193,45 @@ fun MessagesScreen(
                     }
                 }
             } else {
-                items(state.conversations, key = { it.id }) { conversation ->
+                items(state.conversations.sortedByDescending { it.isPinned }, key = { it.id }) { conversation ->
                     ConversationItem(
                         conversation = conversation,
                         onClick = { viewModel.onConversationClick(conversation.user.id) },
+                        onDeleteClick = {
+                            selectedConversation = conversation
+                            showDeleteDialog = true
+                        },
+                        onPinClick = {
+                            viewModel.pinConversation(conversation.user.id)
+                        },
                     )
                 }
             }
         }
         }
+    }
+
+    if (showDeleteDialog && selectedConversation != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("删除会话") },
+            text = { Text("确定要删除与「${selectedConversation!!.user.displayName()}」的会话吗？聊天记录将保留。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteConversation(selectedConversation!!.user.id)
+                        showDeleteDialog = false
+                        selectedConversation = null
+                    }
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("取消")
+                }
+            },
+        )
     }
 }

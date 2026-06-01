@@ -1,9 +1,14 @@
 package com.fox.music.core.data.repository
 
+import android.content.Context
 import android.net.Uri
+import androidx.work.WorkManager
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
 import com.fox.music.core.data.mapper.previewForMessage
+import com.fox.music.core.data.mapper.toIncomingMessageEntity
+import com.fox.music.core.data.realtime.ActiveChatTracker
+import com.fox.music.core.data.realtime.NotificationPeerResolver
 import com.fox.music.core.data.mapper.toChatConversation
 import com.fox.music.core.data.mapper.toConversationEntity
 import com.fox.music.core.data.mapper.toDomainMessage
@@ -20,24 +25,30 @@ import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.core.model.chat.Message
+import com.fox.music.core.model.chat.Notification
+import com.fox.music.core.model.chat.SearchResultItem
+import com.fox.music.core.model.user.User
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.ChatApiService
 import com.fox.music.core.network.model.MessageDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ChatRepositoryImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val chatApi: ChatApiService,
     private val messageDao: MessageDao,
     private val conversationDao: ConversationDao,
     private val chatMessageSender: ChatMessageSender,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val chatMediaStorage: ChatMediaStorage,
+    private val activeChatTracker: ActiveChatTracker,
 ) : ChatRepository {
 
     override fun observeMessages(peerUserId: Long): Flow<List<Message>> =
@@ -67,12 +78,14 @@ class ChatRepositoryImpl @Inject constructor(
                             ?.takeIf { local.lastMessageStatus == "failed" || local.lastMessageStatus == "sending" }
                             ?: remote.lastMessagePreview,
                         lastMessageAt = maxOf(remote.lastMessageAt, local?.lastMessageAt ?: 0L),
+                        unreadCount = maxOf(remote.unreadCount, local?.unreadCount ?: 0),
                     ),
                 )
             } else {
                 conversationDao.upsertConversation(local)
             }
         }
+        conversationDao.deleteGhostConversations()
     }
 
     override suspend fun syncUnreadMessages(peerUserId: Long): Result<Unit> = suspendRunCatching {
@@ -92,11 +105,18 @@ class ChatRepositoryImpl @Inject constructor(
             messageDao.insertMessages(entities)
         }
 
-    override suspend fun sendTextMessage(receiverId: Long, content: String): Result<String> =
+    override suspend fun sendTextMessage(
+        receiverId: Long,
+        content: String,
+        peerNickname: String?,
+        peerAvatar: String?,
+    ): Result<String> =
         enqueueOutgoingMessage(
             receiverId = receiverId,
             type = "text",
             content = content,
+            peerNickname = peerNickname,
+            peerAvatar = peerAvatar,
         )
 
     override suspend fun sendMediaMessage(
@@ -147,6 +167,33 @@ class ChatRepositoryImpl @Inject constructor(
         if (response.isSuccess) Unit else throw Exception(response.message)
     }
 
+    override suspend fun recallAndUpdateLocal(messageId: Long, localId: String): Result<Unit> = suspendRunCatching {
+        val response = chatApi.recallMessage(messageId)
+        if (!response.isSuccess) throw Exception(response.message)
+        messageDao.updateMessageStatus(
+            localId = localId,
+            status = "sent",
+            content = "你撤回了一条消息",
+        )
+    }
+
+    override suspend fun deleteMessage(localId: String): Result<Unit> = suspendRunCatching {
+        messageDao.deleteMessageByLocalId(localId)
+    }
+
+    override suspend fun cancelSending(localId: String): Result<Unit> = suspendRunCatching {
+        val entity = messageDao.getMessageByLocalId(localId) ?: throw Exception("消息不存在")
+        if (entity.taskUuid != null) {
+            WorkManager.getInstance(context)
+                .cancelWorkById(java.util.UUID.fromString(entity.taskUuid))
+        }
+        messageDao.updateMessageStatus(
+            localId = localId,
+            status = "failed",
+            errorMessage = "已取消发送",
+        )
+    }
+
     override suspend fun markAsRead(targetId: Long): Result<Unit> = suspendRunCatching {
         messageDao.markConversationAsRead(targetId)
         conversationDao.clearUnread(targetId)
@@ -155,6 +202,131 @@ class ChatRepositoryImpl @Inject constructor(
         )
         if (!response.isSuccess) throw Exception(response.message)
     }
+
+    override suspend fun deleteConversation(targetId: Long): Result<Unit> = suspendRunCatching {
+        conversationDao.deleteConversation(targetId)
+    }
+
+    override suspend fun pinConversation(targetId: Long, isPinned: Boolean): Result<Unit> = suspendRunCatching {
+        conversationDao.updatePinStatus(targetId, isPinned)
+    }
+
+    override suspend fun ingestIncomingMessage(message: Message): Result<Unit> = suspendRunCatching {
+        if (messageDao.getMessageByServerId(message.id) != null) return@suspendRunCatching
+
+        val currentUserId = userPreferencesRepository.userPreferences.first().userId
+            ?: throw IllegalStateException("用户未登录")
+        val peerId = if (message.senderId == currentUserId) message.receiverId else message.senderId
+        val entity = message.toIncomingMessageEntity(conversationId = peerId)
+        messageDao.insertMessage(entity)
+
+        val local = conversationDao.getConversation(peerId)
+        val isIncoming = message.senderId != currentUserId
+        val isActiveChat = activeChatTracker.currentPeerUserId.value == peerId
+
+        conversationDao.upsertConversation(
+            ConversationEntity(
+                peerUserId = peerId,
+                peerNickname = local?.peerNickname,
+                peerAvatar = local?.peerAvatar,
+                peerMark = local?.peerMark,
+                lastMessageLocalId = entity.localId,
+                lastMessagePreview = previewForMessage(entity.content, entity.type),
+                lastMessageStatus = entity.status,
+                lastMessageAt = entity.cachedAt,
+                unreadCount = if (isIncoming && !isActiveChat) {
+                    messageDao.countIncomingUnread(peerId, currentUserId)
+                } else {
+                    local?.unreadCount ?: 0
+                },
+                updatedAt = entity.cachedAt,
+            ),
+        )
+
+        if (isIncoming && isActiveChat) {
+            messageDao.markConversationAsRead(peerId)
+            conversationDao.clearUnread(peerId)
+        } else if (isIncoming) {
+            conversationDao.deleteGhostConversations()
+        }
+    }
+
+    override suspend fun landMessageNotification(notification: Notification): Result<Unit> =
+        suspendRunCatching {
+            val messageId = NotificationPeerResolver.resolveMessageId(notification)
+            if (messageId != null && messageDao.getMessageByServerId(messageId) != null) {
+                return@suspendRunCatching
+            }
+
+            val peerId = NotificationPeerResolver.resolvePeerUserId(notification)
+            if (peerId <= 0L) {
+                syncUnreadMessages(0)
+                return@suspendRunCatching
+            }
+
+            val local = conversationDao.getConversation(peerId)
+            val isActiveChat = activeChatTracker.currentPeerUserId.value == peerId
+            val now = System.currentTimeMillis()
+            val preview = NotificationPeerResolver.previewFromContent(notification.content)
+            val nickname = notification.sender?.nickname
+                ?: notification.sender?.username
+                ?: NotificationPeerResolver.nicknameFromContent(notification.content)
+                ?: local?.peerNickname
+            val previewLocalId = messageId?.let { "server_$it" }
+                ?: local?.lastMessageLocalId
+                ?: "notify_${notification.id}"
+
+            conversationDao.upsertConversation(
+                ConversationEntity(
+                    peerUserId = peerId,
+                    peerNickname = nickname,
+                    peerAvatar = local?.peerAvatar ?: notification.sender?.avatar,
+                    peerMark = local?.peerMark,
+                    lastMessageLocalId = previewLocalId,
+                    lastMessagePreview = preview,
+                    lastMessageStatus = "sent",
+                    lastMessageAt = now,
+                    unreadCount = if (isIncomingUnread(isActiveChat)) {
+                        (local?.unreadCount ?: 0) + 1
+                    } else {
+                        local?.unreadCount ?: 0
+                    },
+                    updatedAt = now,
+                ),
+            )
+            conversationDao.deleteGhostConversations()
+        }
+
+    override suspend fun hasIngestedMessage(serverId: Long): Boolean =
+        messageDao.getMessageByServerId(serverId) != null
+
+    override fun searchMessages(query: String): Flow<List<SearchResultItem>> =
+        messageDao.searchMessages(query).map { entities ->
+            entities.groupBy { it.conversationId }.map { (conversationId, messages) ->
+                val latestMessage = messages.first()
+                val conversation = conversationDao.getConversation(conversationId)
+                SearchResultItem(
+                    user = User(
+                        id = conversationId,
+                        username = "",
+                        nickname = conversation?.peerNickname ?: "",
+                        avatar = conversation?.peerAvatar,
+                    ),
+                    lastMessage = latestMessage.toDomainMessage(),
+                    matchCount = messages.size,
+                )
+            }
+        }
+
+    override fun searchMessagesByUser(peerUserId: Long, query: String): Flow<List<Message>> =
+        messageDao.searchMessagesByUser(peerUserId, query).map { entities ->
+            entities.map { it.toDomainMessage() }
+        }
+
+    override suspend fun countMessagesByUser(peerUserId: Long, query: String): Int =
+        messageDao.countMessagesByUser(peerUserId, query)
+
+    private fun isIncomingUnread(isActiveChat: Boolean): Boolean = !isActiveChat
 
     @Deprecated("Use syncUnreadMessages")
     override suspend fun getUnreadMessages(): Result<List<Message>> = suspendRunCatching {
@@ -279,20 +451,23 @@ class ChatRepositoryImpl @Inject constructor(
         val currentUserId = userPreferencesRepository.userPreferences.first().userId
             ?: throw IllegalStateException("用户未登录")
 
-        val entities = data.map { dto ->
+        val newDtos = data.filter { dto -> messageDao.getMessageByServerId(dto.id) == null }
+        if (newDtos.isEmpty()) return
+
+        val entities = newDtos.map { dto ->
             val peerId = if (dto.senderId == currentUserId) dto.receiverId else dto.senderId
             dto.toMessageEntity(conversationId = peerId)
         }
         messageDao.insertMessages(entities)
 
-        data.groupBy { dto ->
+        newDtos.groupBy { dto ->
             if (dto.senderId == currentUserId) dto.receiverId else dto.senderId
         }.forEach { (peerId, dtos) ->
             val peerEntities = entities.filter { it.conversationId == peerId }
             val latest = peerEntities.maxByOrNull { it.cachedAt } ?: return@forEach
             val local = conversationDao.getConversation(peerId)
-            val incomingUnread = peerEntities.count { it.senderId != currentUserId && !it.isRead }
             val peerSenderDto = dtos.lastOrNull { it.senderId == peerId }
+            val unreadFromDb = messageDao.countIncomingUnread(peerId, currentUserId)
             conversationDao.upsertConversation(
                 ConversationEntity(
                     peerUserId = peerId,
@@ -303,11 +478,12 @@ class ChatRepositoryImpl @Inject constructor(
                     lastMessagePreview = previewForMessage(latest.content, latest.type),
                     lastMessageStatus = latest.status,
                     lastMessageAt = latest.cachedAt,
-                    unreadCount = (local?.unreadCount ?: 0) + incomingUnread,
+                    unreadCount = unreadFromDb,
                     updatedAt = latest.cachedAt,
                 ),
             )
         }
+        conversationDao.deleteGhostConversations()
     }
 
     private fun persistOutgoingMediaUri(

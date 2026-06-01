@@ -2,7 +2,9 @@ package com.fox.music.core.domain.repository
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.model.user.DarkMode
+import com.fox.music.core.model.user.NotificationPreferenceSettings
 import com.fox.music.core.model.user.PlayQuality
+import com.fox.music.core.model.chat.NotificationType
 import com.fox.music.core.model.user.UserPreferences
 import kotlinx.coroutines.flow.Flow
 
@@ -19,6 +21,8 @@ interface UserPreferencesRepository {
     suspend fun updateDownloadQuality(quality: PlayQuality): Result<Unit>
 
     suspend fun updateShowLyrics(enabled: Boolean): Result<Unit>
+
+    suspend fun updateNotificationEnabled(type: NotificationType, enabled: Boolean): Result<Unit>
 
     suspend fun updateLanguage(language: String): Result<Unit>
 

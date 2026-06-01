@@ -29,6 +29,7 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+import com.fox.music.core.network.di.WebSocketClient
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -61,6 +62,17 @@ object NetworkModule {
         .addInterceptor(authInterceptor)
         .addInterceptor(loggingInterceptor)
         .authenticator(tokenAuthenticator)
+        .build()
+
+    /** WebSocket 专用：无 read/write 超时，避免后台长连接被 OkHttp 主动断开 */
+    @Provides
+    @Singleton
+    @WebSocketClient
+    fun provideWebSocketOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(AppConstants.Network.CONNECT_TIMEOUT, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .writeTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(25, TimeUnit.SECONDS)
         .build()
 
     @Provides

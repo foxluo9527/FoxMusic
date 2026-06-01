@@ -70,7 +70,7 @@ fun UserProfileScreen(
     friendRequestSent: Boolean = false,
     onFriendRequestSentHandled: () -> Unit = {},
     onBack: () -> Unit = {},
-    onNavigateToChat: (Long) -> Unit = {},
+    onNavigateToChat: (Long, String?, String?) -> Unit = { _, _, _ -> },
     onNavigateToAddFriend: (Long, String?) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -94,7 +94,7 @@ fun UserProfileScreen(
                 is UserProfileEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
-                is UserProfileEffect.NavigateToChat -> onNavigateToChat(effect.userId)
+                is UserProfileEffect.NavigateToChat -> onNavigateToChat(effect.userId, effect.peerNickname, effect.peerAvatar)
                 is UserProfileEffect.NavigateToAddFriend -> {
                     onNavigateToAddFriend(effect.userId, effect.nickname)
                 }

@@ -8,6 +8,9 @@ import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
+import com.fox.music.core.common.EventViewModel
+import com.fox.music.core.data.realtime.ActiveChatTracker
+import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.GetProfileUseCase
@@ -34,6 +37,9 @@ data class ChatDetailState(
     val isVoiceInputMode: Boolean = false,
     val isRecordingVoice: Boolean = false,
     val recordingDurationSec: Int = 0,
+    val isSelectionMode: Boolean = false,
+    val selectedMessageIds: Set<String> = emptySet(),
+    val chatBackgroundPath: String? = null,
     val error: String? = null,
 ) : UiState {
     val isSending: Boolean
@@ -54,6 +60,13 @@ sealed interface ChatDetailIntent : UiIntent {
     data class SendFile(val uri: Uri, val fileName: String?) : ChatDetailIntent
     data class SendVoice(val uri: Uri, val durationMs: Long) : ChatDetailIntent
     data class RetryMessage(val localId: String) : ChatDetailIntent
+    data class DeleteMessage(val localId: String) : ChatDetailIntent
+    data class RecallMessage(val messageId: Long, val localId: String) : ChatDetailIntent
+    data class CancelSending(val localId: String) : ChatDetailIntent
+    data class EnterSelectionMode(val localId: String) : ChatDetailIntent
+    data class ToggleMessageSelection(val localId: String) : ChatDetailIntent
+    data object ExitSelectionMode : ChatDetailIntent
+    data object DeleteSelectedMessages : ChatDetailIntent
     data object ToggleEmojiPanel : ChatDetailIntent
     data object ToggleAttachmentSheet : ChatDetailIntent
     data object ToggleVoiceInputMode : ChatDetailIntent
@@ -75,13 +88,26 @@ class ChatDetailViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val getProfileUseCase: GetProfileUseCase,
+    private val activeChatTracker: ActiveChatTracker,
+    private val preferencesDataStore: FoxPreferencesDataStore,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<ChatDetailState, ChatDetailIntent, ChatDetailEffect>(
-    ChatDetailState(userId = savedStateHandle.get<Long>("userId") ?: 0L),
+    ChatDetailState(
+        userId = savedStateHandle.get<Long>("userId") ?: 0L,
+        peerNickname = savedStateHandle.get<String>("peerNickname")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { android.net.Uri.decode(it) },
+        peerAvatar = savedStateHandle.get<String>("peerAvatar")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { android.net.Uri.decode(it) },
+    ),
 ) {
 
     init {
         val userId = currentState.userId
+        if (userId > 0L) {
+            activeChatTracker.setActivePeer(userId)
+        }
         viewModelScope.launch {
             val currentUserId = userPreferencesRepository.userPreferences.first().userId ?: 0L
             updateState { copy(currentUserId = currentUserId) }
@@ -101,15 +127,27 @@ class ChatDetailViewModel @Inject constructor(
             chatRepository.observeConversations()
                 .onEach { conversations ->
                     val peer = conversations.find { it.user.id == userId }?.user
-                    updateState {
-                        copy(
-                            peerAvatar = peer?.avatar,
-                            peerNickname = peer?.nickname ?: peer?.username,
-                        )
+                    if (peer != null) {
+                        updateState {
+                            copy(
+                                peerAvatar = peer.avatar,
+                                peerNickname = peer.nickname ?: peer.username,
+                            )
+                        }
                     }
                 }
                 .launchIn(viewModelScope)
+            preferencesDataStore.observeChatBackground(userId)
+                .onEach { path ->
+                    updateState { copy(chatBackgroundPath = path) }
+                }
+                .launchIn(viewModelScope)
         }
+    }
+
+    override fun onCleared() {
+        activeChatTracker.setActivePeer(null)
+        super.onCleared()
     }
 
     override fun handleIntent(intent: ChatDetailIntent) {
@@ -141,6 +179,27 @@ class ChatDetailViewModel @Inject constructor(
                 fileName = "voice_${System.currentTimeMillis()}.m4a",
             )
             is ChatDetailIntent.RetryMessage -> retry(intent.localId)
+            is ChatDetailIntent.DeleteMessage -> deleteMessage(intent.localId)
+            is ChatDetailIntent.RecallMessage -> recallMessage(intent.messageId, intent.localId)
+            is ChatDetailIntent.CancelSending -> cancelSending(intent.localId)
+            is ChatDetailIntent.EnterSelectionMode -> updateState {
+                copy(
+                    isSelectionMode = true,
+                    selectedMessageIds = setOf(intent.localId),
+                )
+            }
+            is ChatDetailIntent.ToggleMessageSelection -> updateState {
+                val newSelected = if (intent.localId in selectedMessageIds) {
+                    selectedMessageIds - intent.localId
+                } else {
+                    selectedMessageIds + intent.localId
+                }
+                copy(selectedMessageIds = newSelected)
+            }
+            ChatDetailIntent.ExitSelectionMode -> updateState {
+                copy(isSelectionMode = false, selectedMessageIds = emptySet())
+            }
+            ChatDetailIntent.DeleteSelectedMessages -> deleteSelectedMessages()
             ChatDetailIntent.ToggleEmojiPanel -> updateState {
                 copy(
                     showEmojiPanel = !showEmojiPanel,
@@ -188,7 +247,11 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     fun onBackClick() {
-        sendEffect(ChatDetailEffect.NavigateBack)
+        if (currentState.isSelectionMode) {
+            updateState { copy(isSelectionMode = false, selectedMessageIds = emptySet()) }
+        } else {
+            sendEffect(ChatDetailEffect.NavigateBack)
+        }
     }
 
     private fun loadChat() {
@@ -217,7 +280,14 @@ class ChatDetailViewModel @Inject constructor(
         val content = currentState.inputText.trim()
         if (content.isBlank()) return
         viewModelScope.launch {
-            when (val result = chatRepository.sendTextMessage(currentState.userId, content)) {
+            when (
+                val result = chatRepository.sendTextMessage(
+                    receiverId = currentState.userId,
+                    content = content,
+                    peerNickname = currentState.peerNickname,
+                    peerAvatar = currentState.peerAvatar,
+                )
+            ) {
                 is Result.Success -> updateState { copy(inputText = "", showEmojiPanel = false) }
                 is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "发送失败"))
                 is Result.Loading -> Unit
@@ -228,7 +298,12 @@ class ChatDetailViewModel @Inject constructor(
     private fun sendEmoji(emoji: String) {
         if (currentState.inputText.isBlank()) {
             viewModelScope.launch {
-                chatRepository.sendTextMessage(currentState.userId, emoji)
+                chatRepository.sendTextMessage(
+                    receiverId = currentState.userId,
+                    content = emoji,
+                    peerNickname = currentState.peerNickname,
+                    peerAvatar = currentState.peerAvatar,
+                )
             }
         } else {
             updateState { copy(inputText = inputText + emoji) }
@@ -252,6 +327,8 @@ class ChatDetailViewModel @Inject constructor(
                     fileName = fileName,
                     audioDurationMs = audioDurationMs,
                     imageSendOriginal = imageSendOriginal,
+                    peerNickname = currentState.peerNickname,
+                    peerAvatar = currentState.peerAvatar,
                 )
             ) {
                 is Result.Success -> Unit
@@ -266,6 +343,94 @@ class ChatDetailViewModel @Inject constructor(
             when (val result = chatRepository.retryMessage(localId)) {
                 is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "重试失败"))
                 else -> Unit
+            }
+        }
+    }
+
+    private fun deleteMessage(localId: String) {
+        viewModelScope.launch {
+            when (val result = chatRepository.deleteMessage(localId)) {
+                is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "删除失败"))
+                else -> Unit
+            }
+        }
+    }
+
+    private fun recallMessage(messageId: Long, localId: String) {
+        viewModelScope.launch {
+            when (val result = chatRepository.recallAndUpdateLocal(messageId, localId)) {
+                is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "撤回失败"))
+                else -> Unit
+            }
+        }
+    }
+
+    private fun cancelSending(localId: String) {
+        viewModelScope.launch {
+            when (val result = chatRepository.cancelSending(localId)) {
+                is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "取消失败"))
+                else -> Unit
+            }
+        }
+    }
+
+    private fun deleteSelectedMessages() {
+        val selectedIds = currentState.selectedMessageIds
+        if (selectedIds.isEmpty()) return
+        viewModelScope.launch {
+            var hasError = false
+            selectedIds.forEach { localId ->
+                when (val result = chatRepository.deleteMessage(localId)) {
+                    is Result.Error -> hasError = true
+                    else -> Unit
+                }
+            }
+            if (hasError) {
+                sendEffect(ChatDetailEffect.ShowMessage("部分消息删除失败"))
+            }
+            updateState { copy(isSelectionMode = false, selectedMessageIds = emptySet()) }
+        }
+    }
+
+    fun forwardMessage(targetUserId: Long, message: Message) {
+        viewModelScope.launch {
+            when (message.type) {
+                com.fox.music.core.model.chat.MessageType.TEXT -> {
+                    val result = chatRepository.sendTextMessage(
+                        receiverId = targetUserId,
+                        content = message.content,
+                    )
+                    when (result) {
+                        is Result.Success -> sendEffect(ChatDetailEffect.ShowMessage("转发成功"))
+                        is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "转发失败"))
+                        is Result.Loading -> Unit
+                    }
+                }
+                com.fox.music.core.model.chat.MessageType.IMAGE,
+                com.fox.music.core.model.chat.MessageType.FILE,
+                com.fox.music.core.model.chat.MessageType.MUSIC -> {
+                    val mediaUri = message.remoteMediaUrl?.let { Uri.parse(it) }
+                        ?: message.localMediaUri?.let { Uri.parse(it) }
+                    if (mediaUri != null) {
+                        val result = chatRepository.sendMediaMessage(
+                            receiverId = targetUserId,
+                            type = "file",
+                            content = message.content,
+                            mediaUri = mediaUri,
+                            fileName = message.localMediaFileName,
+                        )
+                        when (result) {
+                            is Result.Success -> sendEffect(ChatDetailEffect.ShowMessage("转发成功"))
+                            is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "转发失败"))
+                            is Result.Loading -> Unit
+                        }
+                    } else {
+                        sendEffect(ChatDetailEffect.ShowMessage("无法转发此消息"))
+                    }
+                }
+                com.fox.music.core.model.chat.MessageType.AUDIO -> {
+                    sendEffect(ChatDetailEffect.ShowMessage("语音消息不支持转发"))
+                }
             }
         }
     }

@@ -4,6 +4,8 @@ import android.net.Uri
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.core.model.chat.Message
+import com.fox.music.core.model.chat.Notification
+import com.fox.music.core.model.chat.SearchResultItem
 import com.fox.music.core.model.PagedData
 import kotlinx.coroutines.flow.Flow
 
@@ -21,7 +23,12 @@ interface ChatRepository {
     @Deprecated("History API is not available; use syncUnreadMessages on conversation list refresh")
     suspend fun syncChatHistory(userId: Long, page: Int = 1, limit: Int = 50): Result<Unit>
 
-    suspend fun sendTextMessage(receiverId: Long, content: String): Result<String>
+    suspend fun sendTextMessage(
+        receiverId: Long,
+        content: String,
+        peerNickname: String? = null,
+        peerAvatar: String? = null,
+    ): Result<String>
 
     suspend fun sendMediaMessage(
         receiverId: Long,
@@ -39,7 +46,33 @@ interface ChatRepository {
 
     suspend fun recallMessage(messageId: Long): Result<Unit>
 
+    /** 撤回消息并在本地更新内容 */
+    suspend fun recallAndUpdateLocal(messageId: Long, localId: String): Result<Unit>
+
+    /** 删除本地消息记录 */
+    suspend fun deleteMessage(localId: String): Result<Unit>
+
+    /** 取消发送中的消息，状态变更为发送失败 */
+    suspend fun cancelSending(localId: String): Result<Unit>
+
     suspend fun markAsRead(targetId: Long): Result<Unit>
+
+    suspend fun deleteConversation(targetId: Long): Result<Unit>
+
+    suspend fun pinConversation(targetId: Long, isPinned: Boolean): Result<Unit>
+
+    suspend fun ingestIncomingMessage(message: Message): Result<Unit>
+
+    /** 聊天类推送落地：本地更新；无法解析对方 ID 时回退拉取未读消息 */
+    suspend fun landMessageNotification(notification: Notification): Result<Unit>
+
+    suspend fun hasIngestedMessage(serverId: Long): Boolean
+
+    fun searchMessages(query: String): Flow<List<SearchResultItem>>
+
+    fun searchMessagesByUser(peerUserId: Long, query: String): Flow<List<Message>>
+
+    suspend fun countMessagesByUser(peerUserId: Long, query: String): Int
 
     @Deprecated("Use syncUnreadMessages", ReplaceWith("syncUnreadMessages()"))
     suspend fun getUnreadMessages(): Result<List<Message>>

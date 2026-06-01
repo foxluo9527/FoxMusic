@@ -15,6 +15,7 @@ data class Notification(
     @SerialName("created_at")
     val createdAt: String? = null,
     val sender: User? = null,
+    val senderId: Long? = null,
     val targetId: Long? = null,
     val targetType: String? = null
 )
@@ -31,6 +32,8 @@ enum class NotificationType {
     LIKE,
     @SerialName("follow")
     FOLLOW,
+    @SerialName("mention")
+    MENTION,
     @SerialName("music")
     MUSIC,
     /** 私信/聊天消息通知，仅用于本地会话列表，不在通知分类页展示 */

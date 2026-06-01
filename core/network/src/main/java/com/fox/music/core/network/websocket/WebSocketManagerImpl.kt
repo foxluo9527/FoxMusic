@@ -1,10 +1,18 @@
 package com.fox.music.core.network.websocket
 
+import com.fox.music.core.network.BuildConfig
 import com.fox.music.core.network.model.MessageDto
+import com.fox.music.core.network.model.NotificationDto
+import com.fox.music.core.network.di.WebSocketClient
 import com.fox.music.core.network.token.TokenManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.*
 import timber.log.Timber
 import javax.inject.Inject
@@ -12,9 +20,9 @@ import javax.inject.Singleton
 
 @Singleton
 class WebSocketManagerImpl @Inject constructor(
-    private val okHttpClient: OkHttpClient,
+    @WebSocketClient private val okHttpClient: OkHttpClient,
     private val tokenManager: TokenManager,
-    private val json: Json
+    private val json: Json,
 ) : WebSocketManager {
 
     private var webSocket: WebSocket? = null
@@ -25,13 +33,39 @@ class WebSocketManagerImpl @Inject constructor(
 
     private val _incomingMessages = MutableSharedFlow<WebSocketMessage>(
         replay = 0,
-        extraBufferCapacity = 64
+        extraBufferCapacity = 64,
     )
     override val incomingMessages: SharedFlow<WebSocketMessage> = _incomingMessages.asSharedFlow()
 
     private var reconnectJob: Job? = null
     private var pingJob: Job? = null
-    private val wsUrl = "ws://39.106.30.151:9000/ws"
+    private var reconnectAttempts = 0
+    private var intentionalDisconnect = false
+    private val connectMutex = Mutex()
+
+    private val wsUrl: String = BuildConfig.BASE_URL
+        .replace("https://", "wss://")
+        .replace("http://", "ws://")
+        .trimEnd('/')
+        .plus("/ws")
+
+    companion object {
+        private const val MAX_RECONNECT_ATTEMPTS = 15
+        private const val RECONNECT_INTERVAL_MS = 2_000L
+        private const val PING_INTERVAL_MS = 25_000L
+
+        private val NOTIFICATION_TYPES = setOf(
+            "comment",
+            "like",
+            "follow",
+            "mention",
+            "chat",
+            "system",
+            "friend_request",
+            "music",
+            "message",
+        )
+    }
 
     override suspend fun connect() {
         if (_connectionState.value == ConnectionState.CONNECTED ||
@@ -39,28 +73,71 @@ class WebSocketManagerImpl @Inject constructor(
         ) {
             return
         }
+        doConnect()
+    }
 
-        val token = tokenManager.accessToken.first()
-        if (token.isNullOrBlank()) {
-            Timber.w("Cannot connect WebSocket: No token available")
+    override suspend fun ensureConnected() {
+        if (_connectionState.value == ConnectionState.CONNECTED ||
+            _connectionState.value == ConnectionState.CONNECTING
+        ) {
             return
         }
+        intentionalDisconnect = false
+        reconnectAttempts = 0
+        doConnect()
+    }
 
-        _connectionState.value = ConnectionState.CONNECTING
+    private suspend fun doConnect() {
+        connectMutex.withLock {
+            if (_connectionState.value == ConnectionState.CONNECTED ||
+                _connectionState.value == ConnectionState.CONNECTING
+            ) {
+                return
+            }
 
-        val request = Request.Builder()
-            .url("$wsUrl?token=$token")
-            .build()
+            val rawToken = tokenManager.accessToken.first()
+            val token = rawToken
+                ?.removePrefix("Bearer ")
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+            if (token == null) {
+                Timber.w("Cannot connect WebSocket: No token available")
+                return
+            }
 
-        webSocket = okHttpClient.newWebSocket(request, createWebSocketListener())
+            intentionalDisconnect = false
+            reconnectAttempts = 0
+            webSocket?.cancel()
+            webSocket = null
+            _connectionState.value = ConnectionState.CONNECTING
+
+            val request = Request.Builder()
+                .url("$wsUrl?token=$token")
+                .build()
+
+            webSocket = okHttpClient.newWebSocket(request, createWebSocketListener())
+        }
+    }
+
+    override suspend fun reconnect() {
+        reconnectJob?.cancel()
+        reconnectAttempts = 0
+        intentionalDisconnect = false
+        webSocket?.cancel()
+        webSocket = null
+        pingJob?.cancel()
+        _connectionState.value = ConnectionState.DISCONNECTED
+        connect()
     }
 
     override suspend fun disconnect() {
-        _connectionState.value = ConnectionState.DISCONNECTING
+        intentionalDisconnect = true
         reconnectJob?.cancel()
         pingJob?.cancel()
+        _connectionState.value = ConnectionState.DISCONNECTING
         webSocket?.close(1000, "User disconnected")
         webSocket = null
+        reconnectAttempts = 0
         _connectionState.value = ConnectionState.DISCONNECTED
     }
 
@@ -77,6 +154,7 @@ class WebSocketManagerImpl @Inject constructor(
     private fun createWebSocketListener() = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             Timber.d("WebSocket connected")
+            reconnectAttempts = 0
             _connectionState.value = ConnectionState.CONNECTED
             startPingPong()
         }
@@ -97,13 +175,18 @@ class WebSocketManagerImpl @Inject constructor(
             Timber.d("WebSocket closed: $code $reason")
             _connectionState.value = ConnectionState.DISCONNECTED
             pingJob?.cancel()
+            if (!intentionalDisconnect && code != 1000) {
+                scheduleReconnect()
+            }
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             Timber.e(t, "WebSocket failure")
             _connectionState.value = ConnectionState.FAILED
             pingJob?.cancel()
-            scheduleReconnect()
+            if (!intentionalDisconnect) {
+                scheduleReconnect()
+            }
         }
     }
 
@@ -111,14 +194,7 @@ class WebSocketManagerImpl @Inject constructor(
         return try {
             when {
                 text == "pong" -> WebSocketMessage.Pong
-                text.contains("\"type\":\"chat\"") -> {
-                    val message = json.decodeFromString<MessageDto>(text)
-                    WebSocketMessage.ChatMessage(message)
-                }
-                text.contains("\"type\":\"notification\"") -> {
-                    WebSocketMessage.Notification("notification", text)
-                }
-                else -> null
+                else -> parseJsonMessage(text)
             }
         } catch (e: Exception) {
             Timber.e(e, "Failed to parse WebSocket message")
@@ -126,22 +202,80 @@ class WebSocketManagerImpl @Inject constructor(
         }
     }
 
+    private fun parseJsonMessage(text: String): WebSocketMessage? {
+        val root = json.parseToJsonElement(text).jsonObject
+        val typeField = root["type"]?.jsonPrimitive?.content?.lowercase()
+
+        return when {
+            typeField == "error" -> {
+                val msg = root["message"]?.jsonPrimitive?.content ?: "Server error"
+                WebSocketMessage.Error(msg)
+            }
+            typeField == "notification" -> parseNotificationEnvelope(text, root)
+            typeField in NOTIFICATION_TYPES -> {
+                WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(text))
+            }
+            else -> parseAsChatMessage(text, root)
+        }
+    }
+
+    /** 服务端补发格式：{"type":"notification","data":{...}} */
+    private fun parseNotificationEnvelope(text: String, root: JsonObject): WebSocketMessage? {
+        val dataElement = root["data"] ?: return decodeRootNotification(text)
+        val payload = dataElement.toString()
+        val inner = dataElement.jsonObject
+        val innerType = inner["type"]?.jsonPrimitive?.content?.lowercase()
+        return when {
+            inner.containsKey("sender_id") && inner.containsKey("receiver_id") -> {
+                WebSocketMessage.ChatMessage(json.decodeFromString<MessageDto>(payload))
+            }
+            innerType in NOTIFICATION_TYPES || inner.containsKey("title") -> {
+                WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(payload))
+            }
+            else -> decodeRootNotification(text)
+        }
+    }
+
+    private fun decodeRootNotification(text: String): WebSocketMessage? {
+        return try {
+            WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(text))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseAsChatMessage(text: String, root: JsonObject): WebSocketMessage? {
+        if (!root.containsKey("sender_id") || !root.containsKey("receiver_id")) {
+            return null
+        }
+        val message = json.decodeFromString<MessageDto>(text)
+        return WebSocketMessage.ChatMessage(message)
+    }
+
     private fun startPingPong() {
         pingJob?.cancel()
         pingJob = scope.launch {
             while (isActive && _connectionState.value == ConnectionState.CONNECTED) {
-                delay(30_000) // 30 seconds
+                delay(PING_INTERVAL_MS)
                 webSocket?.send("ping")
             }
         }
     }
 
     private fun scheduleReconnect() {
+        if (intentionalDisconnect) return
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            Timber.w("WebSocket reconnect attempts exhausted")
+            return
+        }
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
-            delay(5_000) // 5 seconds
-            if (_connectionState.value == ConnectionState.FAILED ||
-                _connectionState.value == ConnectionState.DISCONNECTED
+            reconnectAttempts++
+            val delayMs = if (reconnectAttempts <= 5) 0L else RECONNECT_INTERVAL_MS
+            if (delayMs > 0) delay(delayMs)
+            if (!intentionalDisconnect &&
+                (_connectionState.value == ConnectionState.FAILED ||
+                    _connectionState.value == ConnectionState.DISCONNECTED)
             ) {
                 connect()
             }

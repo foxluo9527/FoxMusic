@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fox.music.core.model.user.NotificationPreferenceSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -32,6 +33,14 @@ class FoxPreferencesDataStore @Inject constructor(
         val PLAY_QUALITY = stringPreferencesKey("play_quality")
         val DOWNLOAD_QUALITY = stringPreferencesKey("download_quality")
         val SHOW_LYRICS = booleanPreferencesKey("show_lyrics")
+        val NOTIFY_COMMENT = booleanPreferencesKey("notify_comment")
+        val NOTIFY_LIKE = booleanPreferencesKey("notify_like")
+        val NOTIFY_FOLLOW = booleanPreferencesKey("notify_follow")
+        val NOTIFY_MENTION = booleanPreferencesKey("notify_mention")
+        val NOTIFY_MESSAGE = booleanPreferencesKey("notify_message")
+        val NOTIFY_FRIEND_REQUEST = booleanPreferencesKey("notify_friend_request")
+        val NOTIFY_SYSTEM = booleanPreferencesKey("notify_system")
+        val NOTIFY_MUSIC = booleanPreferencesKey("notify_music")
         val LANGUAGE = stringPreferencesKey("language")
         val DOWNLOAD_ON_WIFI_ONLY = booleanPreferencesKey("download_on_wifi_only")
         val CACHE_MAX_BYTES = longPreferencesKey("cache_max_bytes")
@@ -63,6 +72,20 @@ class FoxPreferencesDataStore @Inject constructor(
     val playQuality: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.PLAY_QUALITY] ?: "high" }
     val downloadQuality: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.DOWNLOAD_QUALITY] ?: "high" }
     val showLyrics: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.SHOW_LYRICS] ?: true }
+    val notificationSettings: Flow<NotificationPreferenceSettings> = context.dataStore.data.map { prefs ->
+        NotificationPreferenceSettings(
+            commentEnabled = prefs[PreferencesKeys.NOTIFY_COMMENT] ?: true,
+            likeEnabled = prefs[PreferencesKeys.NOTIFY_LIKE] ?: true,
+            followEnabled = prefs[PreferencesKeys.NOTIFY_FOLLOW] ?: true,
+            mentionEnabled = prefs[PreferencesKeys.NOTIFY_MENTION] ?: true,
+            messageEnabled = prefs[PreferencesKeys.NOTIFY_MESSAGE]
+                ?: prefs[booleanPreferencesKey("in_app_notifications")]
+                ?: true,
+            friendRequestEnabled = prefs[PreferencesKeys.NOTIFY_FRIEND_REQUEST] ?: true,
+            systemEnabled = prefs[PreferencesKeys.NOTIFY_SYSTEM] ?: true,
+            musicEnabled = prefs[PreferencesKeys.NOTIFY_MUSIC] ?: true,
+        )
+    }
     val language: Flow<String> = context.dataStore.data.map { it[PreferencesKeys.LANGUAGE] ?: "en" }
     val downloadOnWifiOnly: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.DOWNLOAD_ON_WIFI_ONLY] ?: true }
     val cacheMaxBytes: Flow<Long> = context.dataStore.data.map {
@@ -120,6 +143,19 @@ class FoxPreferencesDataStore @Inject constructor(
 
     suspend fun updateShowLyrics(enabled: Boolean) {
         context.dataStore.edit { it[PreferencesKeys.SHOW_LYRICS] = enabled }
+    }
+
+    suspend fun updateNotificationSettings(settings: NotificationPreferenceSettings) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.NOTIFY_COMMENT] = settings.commentEnabled
+            prefs[PreferencesKeys.NOTIFY_LIKE] = settings.likeEnabled
+            prefs[PreferencesKeys.NOTIFY_FOLLOW] = settings.followEnabled
+            prefs[PreferencesKeys.NOTIFY_MENTION] = settings.mentionEnabled
+            prefs[PreferencesKeys.NOTIFY_MESSAGE] = settings.messageEnabled
+            prefs[PreferencesKeys.NOTIFY_FRIEND_REQUEST] = settings.friendRequestEnabled
+            prefs[PreferencesKeys.NOTIFY_SYSTEM] = settings.systemEnabled
+            prefs[PreferencesKeys.NOTIFY_MUSIC] = settings.musicEnabled
+        }
     }
 
     suspend fun updateLanguage(language: String) {
@@ -192,6 +228,50 @@ class FoxPreferencesDataStore @Inject constructor(
             prefs.remove(PreferencesKeys.PLAYBACK_POSITION_MS)
             prefs.remove(PreferencesKeys.PLAYBACK_PLAYING_KEY)
         }
+    }
+
+    // Chat settings - Mute
+    suspend fun isConversationMuted(peerUserId: Long): Boolean {
+        val key = booleanPreferencesKey("mute_$peerUserId")
+        return context.dataStore.data.first()[key] ?: false
+    }
+
+    suspend fun setConversationMuted(peerUserId: Long, muted: Boolean) {
+        val key = booleanPreferencesKey("mute_$peerUserId")
+        context.dataStore.edit { prefs ->
+            if (muted) {
+                prefs[key] = true
+            } else {
+                prefs.remove(key)
+            }
+        }
+    }
+
+    fun observeConversationMuted(peerUserId: Long): Flow<Boolean> {
+        val key = booleanPreferencesKey("mute_$peerUserId")
+        return context.dataStore.data.map { it[key] ?: false }
+    }
+
+    // Chat settings - Background
+    suspend fun getChatBackground(peerUserId: Long): String? {
+        val key = stringPreferencesKey("bg_$peerUserId")
+        return context.dataStore.data.first()[key]
+    }
+
+    suspend fun setChatBackground(peerUserId: Long, path: String?) {
+        val key = stringPreferencesKey("bg_$peerUserId")
+        context.dataStore.edit { prefs ->
+            if (path != null) {
+                prefs[key] = path
+            } else {
+                prefs.remove(key)
+            }
+        }
+    }
+
+    fun observeChatBackground(peerUserId: Long): Flow<String?> {
+        val key = stringPreferencesKey("bg_$peerUserId")
+        return context.dataStore.data.map { it[key] }
     }
 
     companion object {

@@ -1,10 +1,12 @@
 package com.fox.music.feature.profile.viewmodel
 
 import androidx.lifecycle.viewModelScope
+import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
+import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SocialRepository
@@ -19,6 +21,9 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.user.User
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -70,10 +75,23 @@ class ProfileViewModel @Inject constructor(
     private val getFavoritesUseCase: GetFavoritesUseCase,
     private val playlistRepository: PlaylistRepository,
     private val socialRepository: SocialRepository,
+    private val chatRepository: ChatRepository,
     private val importRepository: ImportRepository,
     private val getPlaylistDetailUseCase: GetPlaylistDetailUseCase,
     private val deletePlaylistUseCase: DeletePlaylistUseCase,
 ) : MviViewModel<ProfileState, ProfileIntent, ProfileEffect>(ProfileState()) {
+
+    private var cachedSocialUnread = 0
+
+    init {
+        EventViewModel.notificationsUpdated
+            .onEach { refreshSocialUnreadCount() }
+            .launchIn(viewModelScope)
+
+        chatRepository.observeConversations()
+            .onEach { publishTotalUnread(it) }
+            .launchIn(viewModelScope)
+    }
 
     override fun handleIntent(intent: ProfileIntent) {
         when (intent) {
@@ -177,13 +195,25 @@ class ProfileViewModel @Inject constructor(
                     }
                 }
 
-            socialRepository.getUnreadNotificationCount()
-                .onSuccess { count ->
-                    updateState { copy(unreadNotificationCount = count) }
-                }
+            refreshSocialUnreadCount()
 
             updateState { copy(isLoading = false) }
         }
+    }
+
+    private fun refreshSocialUnreadCount() {
+        viewModelScope.launch {
+            cachedSocialUnread = when (val result = socialRepository.getUnreadNotificationCount()) {
+                is com.fox.music.core.common.result.Result.Success -> result.data
+                else -> cachedSocialUnread
+            }
+            publishTotalUnread(chatRepository.observeConversations().first())
+        }
+    }
+
+    private fun publishTotalUnread(conversations: List<com.fox.music.core.model.chat.ChatConversation>) {
+        val chatUnread = conversations.sumOf { it.unreadCount }
+        updateState { copy(unreadNotificationCount = cachedSocialUnread + chatUnread) }
     }
 
     private fun createPlaylist(title: String) {

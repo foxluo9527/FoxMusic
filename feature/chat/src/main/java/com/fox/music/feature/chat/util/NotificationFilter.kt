@@ -12,6 +12,7 @@ object NotificationFilter {
         NotificationType.LIKE,
         NotificationType.MUSIC,
         NotificationType.FOLLOW,
+        NotificationType.MENTION,
         NotificationType.FRIEND_REQUEST,
     )
 

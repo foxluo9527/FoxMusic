@@ -10,6 +10,41 @@ import com.fox.music.core.model.user.User
 import com.fox.music.core.network.model.ConversationDto
 import com.fox.music.core.network.model.MessageDto
 
+fun Message.toIncomingMessageEntity(conversationId: Long): MessageEntity = MessageEntity(
+    localId = localId ?: "server_$id",
+    serverId = id,
+    conversationId = conversationId,
+    senderId = senderId,
+    receiverId = receiverId,
+    content = content,
+    type = type.toEntityType(),
+    status = status.toEntityStatus(),
+    localMediaFileName = localMediaFileName,
+    remoteMediaUrl = remoteMediaUrl,
+    fileType = fileType,
+    audioDurationMs = audioDurationMs,
+    isRecalled = isRecalled,
+    isRead = status == MessageStatus.READ || readAt != null,
+    sentAt = createdAt,
+    cachedAt = parseTimestamp(createdAt),
+)
+
+private fun MessageType.toEntityType(): String = when (this) {
+    MessageType.TEXT -> "text"
+    MessageType.IMAGE -> "image"
+    MessageType.AUDIO -> "voice"
+    MessageType.FILE -> "file"
+    MessageType.MUSIC -> "music"
+}
+
+private fun MessageStatus.toEntityStatus(): String = when (this) {
+    MessageStatus.SENDING -> "sending"
+    MessageStatus.SENT -> "sent"
+    MessageStatus.DELIVERED -> "delivered"
+    MessageStatus.READ -> "read"
+    MessageStatus.FAILED -> "failed"
+}
+
 fun MessageEntity.toDomainMessage(): Message = Message(
     id = serverId ?: localId.hashCode().toLong(),
     localId = localId,
@@ -65,10 +100,11 @@ fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity {
 }
 
 fun ConversationEntity.toChatConversation(): ChatConversation {
-    val lastMessage = if (lastMessageLocalId != null) {
+    val hasPreview = lastMessageLocalId != null || lastMessagePreview.isNotBlank()
+    val lastMessage = if (hasPreview) {
         Message(
-            id = lastMessageLocalId.hashCode().toLong(),
-            localId = lastMessageLocalId,
+            id = (lastMessageLocalId ?: "preview_$peerUserId").hashCode().toLong(),
+            localId = lastMessageLocalId ?: "preview_$peerUserId",
             senderId = 0L,
             receiverId = peerUserId,
             content = lastMessagePreview,
@@ -90,6 +126,7 @@ fun ConversationEntity.toChatConversation(): ChatConversation {
         lastMessage = lastMessage,
         unreadCount = unreadCount,
         updatedAt = updatedAt.toString(),
+        isPinned = isPinned,
     )
 }
 

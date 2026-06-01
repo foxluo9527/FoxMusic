@@ -1,6 +1,7 @@
 package com.fox.music.feature.chat.viewmodel
 
 import androidx.lifecycle.viewModelScope
+import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
@@ -58,6 +59,10 @@ class MessagesViewModel @Inject constructor(
                 updateState { copy(conversations = conversations, isLoading = false) }
             }
             .launchIn(viewModelScope)
+
+        EventViewModel.notificationsUpdated
+            .onEach { loadMessages(refreshing = true) }
+            .launchIn(viewModelScope)
     }
 
     override fun handleIntent(intent: MessagesIntent) {
@@ -91,6 +96,21 @@ class MessagesViewModel @Inject constructor(
         sendEffect(MessagesEffect.NavigateBack)
     }
 
+    fun deleteConversation(userId: Long) {
+        viewModelScope.launch {
+            chatRepository.deleteConversation(userId)
+        }
+    }
+
+    fun pinConversation(userId: Long) {
+        viewModelScope.launch {
+            val conversation = currentState.conversations.find { it.user.id == userId }
+            if (conversation != null) {
+                chatRepository.pinConversation(userId, !conversation.isPinned)
+            }
+        }
+    }
+
     private fun loadMessages(refreshing: Boolean) {
         viewModelScope.launch {
             updateState {
@@ -104,16 +124,12 @@ class MessagesViewModel @Inject constructor(
             val friendRequestsDeferred = async { socialRepository.getFriendRequests() }
             val notificationsDeferred = async { socialRepository.getNotifications(page = 1, limit = 50) }
             val conversationsDeferred = async { chatRepository.syncConversations() }
-            val unreadMessagesDeferred = if (refreshing) {
-                async { chatRepository.syncUnreadMessages(peerUserId = 0) }
-            } else {
-                null
-            }
+            val unreadMessagesDeferred = async { chatRepository.syncUnreadMessages(peerUserId = 0) }
 
             val friendRequestsResult = friendRequestsDeferred.await()
             val notificationsResult = notificationsDeferred.await()
             val conversationsResult = conversationsDeferred.await()
-            val unreadMessagesResult = unreadMessagesDeferred?.await()
+            val unreadMessagesResult = unreadMessagesDeferred.await()
 
             var errorMessage: String? = null
 
@@ -142,7 +158,7 @@ class MessagesViewModel @Inject constructor(
             if (conversationsResult is Result.Error && errorMessage == null) {
                 errorMessage = conversationsResult.message
             }
-            if (unreadMessagesResult != null && unreadMessagesResult is Result.Error && errorMessage == null) {
+            if (unreadMessagesResult is Result.Error && errorMessage == null) {
                 errorMessage = unreadMessagesResult.message
             }
 

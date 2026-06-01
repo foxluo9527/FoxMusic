@@ -2,7 +2,10 @@ package com.fox.music
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.domain.repository.AppUpdateRepository
+import com.fox.music.core.domain.repository.ChatRepository
+import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.CheckAppUpdateUseCase
 import com.fox.music.core.model.app.ApkDownloadState
@@ -28,6 +31,8 @@ class MainActivityViewModel @Inject constructor(
     val musicController: MusicController,
     private val tokenManager: TokenManager,
     userPreferencesRepository: UserPreferencesRepository,
+    private val chatRepository: ChatRepository,
+    private val socialRepository: SocialRepository,
     private val playlistRepository: com.fox.music.core.domain.repository.PlaylistRepository,
     private val importRepository: com.fox.music.core.domain.repository.ImportRepository,
     private val checkAppUpdateUseCase: CheckAppUpdateUseCase,
@@ -47,11 +52,45 @@ class MainActivityViewModel @Inject constructor(
     val updateState = _updateState.asStateFlow()
 
     private var downloadJob: Job? = null
+    private var cachedSocialUnread = 0
+
+    private val _chatUnreadCount = MutableStateFlow(0)
+    val chatUnreadCount = _chatUnreadCount.asStateFlow()
+
+    private val _totalUnreadCount = MutableStateFlow(0)
+    val totalUnreadCount = _totalUnreadCount.asStateFlow()
 
     init {
         observeAuthState()
         observeSessionExpired()
+        observeInboxUnread()
         checkForUpdate()
+    }
+
+    private fun observeInboxUnread() {
+        chatRepository.observeConversations()
+            .onEach { conversations ->
+                val chatUnread = conversations.sumOf { it.unreadCount }
+                _chatUnreadCount.value = chatUnread
+                _totalUnreadCount.value = cachedSocialUnread + chatUnread
+            }
+            .launchIn(viewModelScope)
+
+        EventViewModel.notificationsUpdated
+            .onEach { refreshSocialUnreadForBadge() }
+            .launchIn(viewModelScope)
+    }
+
+    private fun refreshSocialUnreadForBadge() {
+        viewModelScope.launch {
+            when (val result = socialRepository.getUnreadNotificationCount()) {
+                is com.fox.music.core.common.result.Result.Success -> {
+                    cachedSocialUnread = result.data
+                    _totalUnreadCount.value = cachedSocialUnread + _chatUnreadCount.value
+                }
+                else -> Unit
+            }
+        }
     }
 
     private fun observeAuthState() {

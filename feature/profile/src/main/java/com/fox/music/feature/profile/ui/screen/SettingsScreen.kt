@@ -39,6 +39,7 @@ import com.fox.music.feature.profile.viewmodel.ChoiceType
 import com.fox.music.feature.profile.viewmodel.SettingsEffect
 import com.fox.music.feature.profile.viewmodel.SettingsIntent
 import com.fox.music.core.model.user.isAdmin
+import com.fox.music.core.model.chat.NotificationType
 import com.fox.music.feature.profile.viewmodel.SettingsViewModel
 import java.io.File
 
@@ -259,6 +260,37 @@ fun SettingsScreen(
                                 title = "取消定时关闭",
                                 onClick = { viewModel.sendIntent(SettingsIntent.CancelSleepTimer) },
                             )
+                        }
+                    }
+                }
+
+                item {
+                    SettingsGroup(title = "通知") {
+                        val settings = state.preferences.notificationSettings
+                        val notificationTypes = listOf(
+                            NotificationType.MESSAGE,
+                            NotificationType.COMMENT,
+                            NotificationType.LIKE,
+                            NotificationType.FOLLOW,
+                            NotificationType.MENTION,
+                            NotificationType.FRIEND_REQUEST,
+                            NotificationType.SYSTEM,
+                            NotificationType.MUSIC,
+                        )
+                        notificationTypes.forEachIndexed { index, type ->
+                            SettingsSwitchItem(
+                                title = viewModel.notificationTypeLabel(type),
+                                subtitle = viewModel.notificationTypeSubtitle(type),
+                                checked = settings.isEnabled(type),
+                                onCheckedChange = {
+                                    viewModel.sendIntent(
+                                        SettingsIntent.UpdateNotificationSetting(type, it),
+                                    )
+                                },
+                            )
+                            if (index < notificationTypes.lastIndex) {
+                                SettingsDivider()
+                            }
                         }
                     }
                 }

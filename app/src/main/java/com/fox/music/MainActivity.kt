@@ -2,10 +2,14 @@ package com.fox.music
 
 import android.app.ComponentCaller
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -46,6 +50,8 @@ import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
 import com.fox.music.ui.MainScreen
+import com.fox.music.feature.chat.chatDetailRoute
+import com.fox.music.notification.FoxNotificationManager
 import com.fox.music.ui.theme.FoxMusicTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -55,11 +61,14 @@ class MainActivity : ComponentActivity() {
         mutableStateOf(HOME_ROUTE)
     }
 
+    private val requestNotificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { _ -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        intent.getStringExtra("start_route")?.ifEmpty { null }?.let {
-            startRoute.value = it
-        }
+        requestNotificationPermissionIfNeeded()
+        resolveStartRoute(intent)?.let { startRoute.value = it }
         enableEdgeToEdge()
         setContent {
             FoxMusicApp(startRoute)
@@ -68,14 +77,32 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent, caller: ComponentCaller) {
         super.onNewIntent(intent, caller)
-        intent.getStringExtra("start_route")?.ifEmpty { null }?.let {
-            startRoute.value = it
+        setIntent(intent)
+        resolveStartRoute(intent)?.let { startRoute.value = it }
+    }
+
+    private fun resolveStartRoute(intent: Intent?): String? {
+        intent?.getLongExtra(FoxNotificationManager.EXTRA_PEER_USER_ID, 0L)
+            ?.takeIf { it > 0 }
+            ?.let { return chatDetailRoute(it) }
+        intent?.getStringExtra(FoxNotificationManager.EXTRA_START_ROUTE)?.takeIf { it.isNotBlank() }?.let {
+            return it
+        }
+        return intent?.getStringExtra("start_route")?.takeIf { it.isNotBlank() }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            requestNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }
 
-private val NavActiveColor = Color(0xFF5B9BD5)
-private val NavInactiveColor = Color(0xFF999999)
 
 enum class AppDestinations(
     val route: String,
@@ -102,19 +129,16 @@ fun FoxMusicApp(startRoute: MutableState<String>) {
     val currentRoute = backStackEntry?.destination?.route
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showBottomNavBar by remember { mutableStateOf(true) }
-    LaunchedEffect(startRoute.value) {
-//        navController.navigate(startRoute.value)
-    }
     LaunchedEffect(currentRoute) {
         showBottomNavBar = AppDestinations.entries.map { it.route }.contains(currentRoute)
     }
     FoxMusicTheme(darkTheme = darkTheme) {
     NavigationSuiteScaffold(
         layoutType = if (!showBottomNavBar) NavigationSuiteType.None else NavigationSuiteType.NavigationBar,
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         navigationSuiteColors = NavigationSuiteDefaults.colors(
-            navigationBarContainerColor = Color.White,
-            navigationBarContentColor = NavInactiveColor,
+            navigationBarContainerColor = MaterialTheme.colorScheme.surface,
+            navigationBarContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
         navigationSuiteItems = {
             AppDestinations.entries.forEach { dest ->
@@ -127,13 +151,13 @@ fun FoxMusicApp(startRoute: MutableState<String>) {
                             modifier = Modifier
                                 .size(if (selected) 26.dp else 24.dp)
                                 .scale(if (selected) 1.08f else 1f),
-                            tint = if (selected) NavActiveColor else NavInactiveColor,
+                            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
                     label = {
                         Text(
                             text = dest.label,
-                            color = if (selected) NavActiveColor else NavInactiveColor,
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                             style = MaterialTheme.typography.labelSmall,
@@ -154,7 +178,12 @@ fun FoxMusicApp(startRoute: MutableState<String>) {
             }
         },
     ) {
-        MainScreen(Modifier.fillMaxSize(), navController, viewModel)
+        MainScreen(
+            modifier = Modifier.fillMaxSize(),
+            navController = navController,
+            viewModel = viewModel,
+            deepLinkRoute = startRoute.value,
+        )
     }
     }
 }

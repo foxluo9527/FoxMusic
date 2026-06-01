@@ -15,4 +15,5 @@ data class ConversationEntity(
     val lastMessageAt: Long = 0L,
     val unreadCount: Int = 0,
     val updatedAt: Long = System.currentTimeMillis(),
+    val isPinned: Boolean = false,
 )

@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ConversationDao {
 
-    @Query("SELECT * FROM conversations ORDER BY lastMessageAt DESC")
+    @Query("SELECT * FROM conversations ORDER BY isPinned DESC, lastMessageAt DESC")
     fun observeConversations(): Flow<List<ConversationEntity>>
 
     @Query("SELECT * FROM conversations WHERE peerUserId = :peerUserId LIMIT 1")
@@ -43,4 +43,18 @@ interface ConversationDao {
 
     @Query("DELETE FROM conversations")
     suspend fun deleteAllConversations()
+
+    @Query("DELETE FROM conversations WHERE peerUserId = :peerUserId")
+    suspend fun deleteConversation(peerUserId: Long)
+
+    @Query("UPDATE conversations SET isPinned = :isPinned WHERE peerUserId = :peerUserId")
+    suspend fun updatePinStatus(peerUserId: Long, isPinned: Boolean)
+
+    @Query(
+        """
+        DELETE FROM conversations
+        WHERE peerUserId NOT IN (SELECT DISTINCT conversationId FROM messages)
+        """,
+    )
+    suspend fun deleteGhostConversations()
 }

@@ -3,6 +3,8 @@ package com.fox.music.ui
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
@@ -55,22 +57,34 @@ import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
 import com.fox.music.feature.chat.ADD_FRIEND_ROUTE
 import com.fox.music.feature.chat.CHAT_DETAIL_ROUTE
+import com.fox.music.feature.chat.CHAT_SEARCH_ROUTE
+import com.fox.music.feature.chat.CHAT_SETTINGS_ROUTE
 import com.fox.music.feature.chat.FRIENDS_ROUTE
 import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.chat.NOTIFICATION_CATEGORY_ROUTE
 import com.fox.music.feature.chat.SEARCH_USER_ROUTE
+import com.fox.music.feature.chat.SELECT_FRIEND_ROUTE
+import com.fox.music.feature.chat.USER_CHAT_SEARCH_ROUTE
 import com.fox.music.feature.chat.USER_PROFILE_ROUTE
 import com.fox.music.feature.chat.addFriendRoute
 import com.fox.music.feature.chat.chatDetailRoute
+import com.fox.music.feature.chat.chatSearchRoute
+import com.fox.music.feature.chat.chatSettingsRoute
 import com.fox.music.feature.chat.notificationCategoryRoute
 import com.fox.music.feature.chat.searchUserRoute
+import com.fox.music.feature.chat.selectFriendRoute
 import com.fox.music.feature.chat.ui.screen.AddFriendRequestScreen
 import com.fox.music.feature.chat.ui.screen.ChatDetailScreen
+import com.fox.music.feature.chat.ui.screen.ChatSearchScreen
+import com.fox.music.feature.chat.ui.screen.ChatSettingsScreen
 import com.fox.music.feature.chat.ui.screen.FriendsScreen
 import com.fox.music.feature.chat.ui.screen.MessagesScreen
 import com.fox.music.feature.chat.ui.screen.NotificationCategoryScreen
 import com.fox.music.feature.chat.ui.screen.SearchUserScreen
+import com.fox.music.feature.chat.ui.screen.SelectFriendScreen
+import com.fox.music.feature.chat.ui.screen.UserChatSearchScreen
 import com.fox.music.feature.chat.ui.screen.UserProfileScreen
+import com.fox.music.feature.chat.userChatSearchRoute
 import com.fox.music.feature.chat.userProfileRoute
 import com.fox.music.feature.discover.ALL_ARTIST_LIST_ROUTE
 import com.fox.music.feature.discover.ARTIST_DETAIL_ROUTE
@@ -109,6 +123,7 @@ import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
 import com.fox.music.update.ApkInstallHelper
 import com.fox.music.update.ApkInstallResult
+import com.fox.music.ui.InAppNotificationHost
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -116,6 +131,7 @@ fun MainScreen(
     modifier: Modifier,
     navController: NavHostController,
     viewModel: MainActivityViewModel,
+    deepLinkRoute: String = HOME_ROUTE,
     musicActionsViewModel: MusicActionsViewModel = hiltViewModel(),
 ) {
     val musicController = viewModel.musicController
@@ -140,7 +156,15 @@ fun MainScreen(
 
     // 监听歌单状态变化
     val playlistState by viewModel.playlistState.collectAsState()
-    
+
+    LaunchedEffect(deepLinkRoute) {
+        if (deepLinkRoute.isNotBlank() && deepLinkRoute != HOME_ROUTE) {
+            navController.navigate(deepLinkRoute) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     LaunchedEffect(authState.requireReLogin) {
         if (authState.requireReLogin) {
             ToastUtils.showLong("登录已失效，请重新登录")
@@ -655,7 +679,27 @@ fun MainScreen(
                         )
                     }
                 }
-                composable(SETTINGS_ROUTE) {
+                composable(
+                    route = SETTINGS_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
                     val settingsContext = LocalContext.current
                     val lyricSyncManager = remember { LyricSyncManager.getInstance() }
                     val isDesktopLyricEnabled by lyricSyncManager.isDesktopLyricEnabled.collectAsState()
@@ -683,7 +727,27 @@ fun MainScreen(
                         },
                     )
                 }
-                composable(DOWNLOAD_MANAGER_ROUTE) {
+                composable(
+                    route = DOWNLOAD_MANAGER_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
                     MainScreenWithBottomBar(
                         showBottomBar,
                         this@SharedTransitionLayout
@@ -695,7 +759,27 @@ fun MainScreen(
                         )
                     }
                 }
-                composable(EDIT_PROFILE_ROUTE) {
+                composable(
+                    route = EDIT_PROFILE_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
                     EditProfileScreen(
                         modifier = Modifier
                             .fillMaxSize()
@@ -704,7 +788,27 @@ fun MainScreen(
                         onProfileSaved = { profileRefreshKey++ },
                     )
                 }
-                composable(MANAGE_ROUTER) {
+                composable(
+                    route = MANAGE_ROUTER,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
                     ManageScreen(Modifier.fillMaxSize().statusBarsPadding()){
                         navController.popBackStack()
                     }
@@ -748,7 +852,27 @@ fun MainScreen(
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable(MESSAGES_ROUTE) {
+                composable(
+                    route = MESSAGES_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
                     MessagesScreen(
                         modifier = Modifier
                             .fillMaxSize()
@@ -767,9 +891,32 @@ fun MainScreen(
                         onNavigateToChat = { userId ->
                             navController.navigate(chatDetailRoute(userId))
                         },
+                        onNavigateToSearch = {
+                            navController.navigate(chatSearchRoute())
+                        },
                     )
                 }
-                composable(FRIENDS_ROUTE) {
+                composable(
+                    route = FRIENDS_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
                     FriendsScreen(
                         modifier = Modifier
                             .fillMaxSize()
@@ -848,8 +995,8 @@ fun MainScreen(
                             backStackEntry.savedStateHandle["friendRequestSent"] = false
                         },
                         onBack = { navController.popBackStack() },
-                        onNavigateToChat = { userId ->
-                            navController.navigate(chatDetailRoute(userId))
+                        onNavigateToChat = { userId, peerNickname, peerAvatar ->
+                            navController.navigate(chatDetailRoute(userId, peerNickname, peerAvatar))
                         },
                         onNavigateToAddFriend = { userId, nickname ->
                             navController.navigate(addFriendRoute(userId, nickname))
@@ -882,6 +1029,24 @@ fun MainScreen(
                 composable(
                     route = NOTIFICATION_CATEGORY_ROUTE,
                     arguments = listOf(navArgument("type") { type = NavType.StringType }),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
                 ) {
                     NotificationCategoryScreen(
                         modifier = Modifier
@@ -892,13 +1057,227 @@ fun MainScreen(
                 }
                 composable(
                     route = CHAT_DETAIL_ROUTE,
-                    arguments = listOf(navArgument("userId") { type = NavType.LongType }),
+                    arguments = listOf(
+                        navArgument("userId") { type = NavType.LongType },
+                        navArgument("peerNickname") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("peerAvatar") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
                 ) {
                     ChatDetailScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .statusBarsPadding(),
                         onBack = { navController.popBackStack() },
+                        onNavigateToSettings = { userId, nickname, avatar ->
+                            navController.navigate(chatSettingsRoute(userId, nickname, avatar))
+                        },
+                        onNavigateToSelectFriend = {
+                            navController.navigate(selectFriendRoute())
+                        },
+                    )
+                }
+                composable(
+                    route = SELECT_FRIEND_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    SelectFriendScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onFriendSelected = { friend ->
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("selectedFriendId", friend.id)
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("selectedFriendNickname", friend.mark ?: friend.nickname ?: friend.username ?: "")
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("selectedFriendAvatar", friend.avatar ?: "")
+                            navController.popBackStack()
+                        },
+                    )
+                }
+                composable(
+                    route = CHAT_SETTINGS_ROUTE,
+                    arguments = listOf(
+                        navArgument("userId") { type = NavType.LongType },
+                        navArgument("peerNickname") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("peerAvatar") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    ChatSettingsScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onNavigateToUserProfile = { userId, nickname, avatar, signature, isFriend, isRequested ->
+                            navController.navigate(
+                                userProfileRoute(
+                                    userId = userId,
+                                    nickname = nickname,
+                                    avatar = avatar,
+                                    signature = signature,
+                                    isFriend = isFriend,
+                                    isRequested = isRequested,
+                                ),
+                            )
+                        },
+                        onNavigateToChatSearch = { userId, nickname, avatar ->
+                            navController.navigate(userChatSearchRoute(userId, nickname, avatar, ""))
+                        },
+                    )
+                }
+                composable(
+                    route = CHAT_SEARCH_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    ChatSearchScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onNavigateToUserSearch = { userId, nickname, avatar, query ->
+                            navController.navigate(userChatSearchRoute(userId, nickname, avatar, query))
+                        },
+                        onNavigateToChatDetail = { userId, messageId ->
+                            navController.navigate(chatDetailRoute(userId))
+                        },
+                        onNavigateToUserProfile = { userId ->
+                            navController.navigate(userProfileRoute(userId))
+                        },
+                    )
+                }
+                composable(
+                    route = USER_CHAT_SEARCH_ROUTE,
+                    arguments = listOf(
+                        navArgument("userId") { type = NavType.LongType },
+                        navArgument("nickname") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("avatar") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                        navArgument("query") {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    UserChatSearchScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                        onNavigateToChatDetail = { userId, messageId ->
+                            navController.navigate(chatDetailRoute(userId))
+                        },
+                        onNavigateToUserProfile = { userId ->
+                            navController.navigate(userProfileRoute(userId))
+                        },
                     )
                 }
             }
@@ -906,6 +1285,8 @@ fun MainScreen(
     }
 
     // CreatePlaylistBottomSheet 弹窗
+    InAppNotificationHost(navController = navController)
+
     MusicActionsHost(
         onArtistClick = ::onArtistClick,
         onCreatePlaylist = ::showCreatePlaylistBottomSheet,

@@ -65,5 +65,12 @@ data class ChatConversation(
     val lastMessage: Message? = null,
     val unreadCount: Int = 0,
     @SerialName("updated_at")
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    val isPinned: Boolean = false,
+)
+
+data class SearchResultItem(
+    val user: User,
+    val lastMessage: Message,
+    val matchCount: Int,
 )

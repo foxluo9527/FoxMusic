@@ -111,6 +111,8 @@ data class FavoriteDto(
 @Serializable
 data class NotificationDto(
     val id: Long,
+    @SerialName("user_id")
+    val userId: Long? = null,
     val type: String,
     val title: String = "",
     val content: String = "",
@@ -120,6 +122,8 @@ data class NotificationDto(
     @SerialName("created_at")
     val createdAt: String? = null,
     val sender: UserDto? = null,
+    @SerialName("sender_id")
+    val senderId: Long? = null,
     @SerialName("target_id")
     val targetId: Long? = null,
     @SerialName("target_type")

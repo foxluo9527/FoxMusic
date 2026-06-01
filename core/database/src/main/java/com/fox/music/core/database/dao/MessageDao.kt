@@ -66,6 +66,9 @@ interface MessageDao {
     @Query("UPDATE messages SET taskUuid = :taskUuid WHERE localId = :localId")
     suspend fun updateTaskUuid(localId: String, taskUuid: String)
 
+    @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId AND isRead = 0 AND senderId != :currentUserId")
+    suspend fun countIncomingUnread(conversationId: Long, currentUserId: Long): Int
+
     @Query(
         """
         SELECT * FROM messages
@@ -86,4 +89,38 @@ interface MessageDao {
 
     @Query("DELETE FROM messages")
     suspend fun deleteAllMessages()
+
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE content LIKE '%' || :query || '%'
+        AND type = 'text'
+        AND isRecalled = 0
+        ORDER BY cachedAt DESC
+        """,
+    )
+    fun searchMessages(query: String): Flow<List<MessageEntity>>
+
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :peerUserId
+        AND content LIKE '%' || :query || '%'
+        AND type = 'text'
+        AND isRecalled = 0
+        ORDER BY cachedAt DESC
+        """,
+    )
+    fun searchMessagesByUser(peerUserId: Long, query: String): Flow<List<MessageEntity>>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM messages
+        WHERE conversationId = :peerUserId
+        AND content LIKE '%' || :query || '%'
+        AND type = 'text'
+        AND isRecalled = 0
+        """,
+    )
+    suspend fun countMessagesByUser(peerUserId: Long, query: String): Int
 }

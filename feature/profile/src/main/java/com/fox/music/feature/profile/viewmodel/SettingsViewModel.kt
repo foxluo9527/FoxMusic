@@ -20,6 +20,7 @@ import com.fox.music.core.model.user.PlayQuality
 import com.fox.music.core.model.user.User
 import com.fox.music.core.model.user.UserPreferences
 import com.fox.music.core.model.user.isAdmin
+import com.fox.music.core.model.chat.NotificationType
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.player.timer.SleepTimerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -82,6 +83,7 @@ sealed interface SettingsIntent : UiIntent {
     data object DismissClearCacheDialog : SettingsIntent
     data class UpdateAutoPlay(val enabled: Boolean) : SettingsIntent
     data class UpdateShowLyrics(val enabled: Boolean) : SettingsIntent
+    data class UpdateNotificationSetting(val type: NotificationType, val enabled: Boolean) : SettingsIntent
     data class UpdateDownloadOnWifiOnly(val enabled: Boolean) : SettingsIntent
     data object ShowRepeatModePicker : SettingsIntent
     data object ShowDarkModePicker : SettingsIntent
@@ -176,6 +178,7 @@ class SettingsViewModel @Inject constructor(
             SettingsIntent.ConfirmClearCache -> clearCache()
             is SettingsIntent.UpdateAutoPlay -> updateAutoPlay(intent.enabled)
             is SettingsIntent.UpdateShowLyrics -> updateShowLyrics(intent.enabled)
+            is SettingsIntent.UpdateNotificationSetting -> updateNotificationSetting(intent.type, intent.enabled)
             is SettingsIntent.UpdateDownloadOnWifiOnly -> updateWifiOnly(intent.enabled)
             SettingsIntent.ShowRepeatModePicker -> showRepeatModePicker()
             SettingsIntent.ShowDarkModePicker -> showDarkModePicker()
@@ -381,6 +384,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private fun updateNotificationSetting(type: NotificationType, enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.updateNotificationEnabled(type, enabled)
+                .onError { _, msg -> sendEffect(SettingsEffect.ShowMessage(msg ?: "保存失败")) }
+        }
+    }
+
     private fun updateWifiOnly(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.updateDownloadOnWifiOnly(enabled)
@@ -562,5 +572,21 @@ class SettingsViewModel @Inject constructor(
         if (bytes < 1024 * 1024) return "${bytes / 1024} KB"
         if (bytes < 1024 * 1024 * 1024) return "${bytes / (1024 * 1024)} MB"
         return String.format("%.1f GB", bytes.toDouble() / (1024 * 1024 * 1024))
+    }
+
+    fun notificationTypeLabel(type: NotificationType): String = when (type) {
+        NotificationType.COMMENT -> "评论提醒"
+        NotificationType.LIKE -> "点赞提醒"
+        NotificationType.FOLLOW -> "关注提醒"
+        NotificationType.MENTION -> "提及提醒"
+        NotificationType.MESSAGE -> "聊天消息"
+        NotificationType.FRIEND_REQUEST -> "好友请求"
+        NotificationType.SYSTEM -> "系统通知"
+        NotificationType.MUSIC -> "音乐提醒"
+    }
+
+    fun notificationTypeSubtitle(type: NotificationType): String = when (type) {
+        NotificationType.MESSAGE -> "前台横幅与后台系统通知"
+        else -> "前台横幅与后台系统通知"
     }
 }

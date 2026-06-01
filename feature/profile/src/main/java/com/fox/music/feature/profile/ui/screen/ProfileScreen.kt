@@ -38,7 +38,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import android.widget.Toast
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -78,13 +80,6 @@ import kotlinx.coroutines.launch
 
 const val PROFILE_ROUTE = "profile"
 
-private val ProfileTitleColor = Color(0xFF1E1E1E)
-private val ProfileBodyColor = Color(0xFF555555)
-private val ProfileHintColor = Color(0xFF999999)
-private val ProfileAccentColor = Color(0xFF5B9BD5)
-private val ProfileAccentLight = Color(0xFFE8F4FD)
-private val ProfileCardBg = Color(0xFFFFFFFF)
-private val ProfileDividerColor = Color(0xFFEEEEEE)
 
 private val ProfileCardShape = RoundedCornerShape(20.dp)
 private val ProfileCoverShape = RoundedCornerShape(12.dp)
@@ -384,7 +379,7 @@ private fun ProfilePageTopTitle(
     ) {
         Text(
             text = "个人主页",
-            color = ProfileTitleColor,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -394,12 +389,12 @@ private fun ProfilePageTopTitle(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(ProfileAccentLight),
+                    .background(MaterialTheme.colorScheme.primaryContainer),
             ) {
                 Icon(
                     imageVector = Icons.Default.Notifications,
                     contentDescription = "消息",
-                    tint = ProfileAccentColor,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -410,15 +405,16 @@ private fun ProfilePageTopTitle(
                         .align(Alignment.TopEnd)
                         .size(badgeSize)
                         .clip(CircleShape)
-                        .background(Color(0xFFE53935)),
+                        .background(MaterialTheme.colorScheme.error),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = if (unreadCount > 99) "99+" else unreadCount.toString(),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onError,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        modifier = Modifier.offset(y = (-4).dp)
                     )
                 }
             }
@@ -438,7 +434,7 @@ private fun ProfileHeaderCard(
             .fillMaxWidth()
             .padding(top = 4.dp),
         shape = ProfileCardShape,
-        colors = CardDefaults.cardColors(containerColor = ProfileCardBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
@@ -458,7 +454,7 @@ private fun ProfileHeaderCard(
                     modifier = Modifier
                         .size(88.dp)
                         .shadow(4.dp, CircleShape, clip = false)
-                        .border(1.5.dp, ProfileAccentColor.copy(alpha = 0.35f), CircleShape)
+                        .border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape)
                         .clip(CircleShape),
                     shape = CircleShape,
                     placeholderIcon = Icons.Filled.Person,
@@ -468,7 +464,7 @@ private fun ProfileHeaderCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = nickname,
-                            color = ProfileTitleColor,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -478,7 +474,7 @@ private fun ProfileHeaderCard(
                         Icon(
                             imageVector = Icons.Default.Favorite,
                             contentDescription = null,
-                            tint = ProfileAccentColor,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
                                 .padding(start = 4.dp)
                                 .size(18.dp),
@@ -487,7 +483,7 @@ private fun ProfileHeaderCard(
                     signature?.let {
                         Text(
                             text = it,
-                            color = ProfileHintColor,
+                            color = MaterialTheme.colorScheme.outline,
                             fontSize = 13.sp,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -498,7 +494,7 @@ private fun ProfileHeaderCard(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = "设置",
-                    tint = ProfileHintColor,
+                    tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(24.dp),
                 )
             }
@@ -514,7 +510,7 @@ private fun VerticalStatDivider() {
         modifier = Modifier
             .height(28.dp)
             .width(0.5.dp)
-            .background(ProfileDividerColor),
+            .background(MaterialTheme.colorScheme.outlineVariant),
     )
 }
 
@@ -545,13 +541,13 @@ private fun ProfileStatItem(
     ) {
         Text(
             text = count.toString(),
-            color = ProfileTitleColor,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
             text = label,
-            color = ProfileHintColor,
+            color = MaterialTheme.colorScheme.outline,
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 2.dp),
         )
@@ -598,7 +594,7 @@ private fun ProfileTab(
     ) {
         Text(
             text = title,
-            color = if (selected) ProfileAccentColor else ProfileHintColor,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
             fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             onTextLayout = { result ->
@@ -611,7 +607,7 @@ private fun ProfileTab(
                 .height(3.dp)
                 .width(if (selected) indicatorWidth.coerceAtLeast(20.dp) else 0.dp)
                 .background(
-                    color = if (selected) ProfileAccentColor else Color.Transparent,
+                    color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
                     shape = RoundedCornerShape(2.dp),
                 ),
         )
@@ -644,7 +640,7 @@ private fun ProfilePlaylistListItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = ProfileTitleColor,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -652,7 +648,7 @@ private fun ProfilePlaylistListItem(
             )
             Text(
                 text = subtitle ?: "${trackCount}首歌曲",
-                color = ProfileHintColor,
+                color = MaterialTheme.colorScheme.outline,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp),
                 maxLines = 1,
@@ -667,7 +663,7 @@ private fun ProfilePlaylistListItem(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "更多",
-                    tint = ProfileBodyColor,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -685,13 +681,13 @@ private fun PlaylistCover(
             modifier = Modifier
                 .size(ProfileCoverSize)
                 .clip(ProfileCoverShape)
-                .background(ProfileAccentLight),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = placeholderIcon,
                 contentDescription = null,
-                tint = ProfileAccentColor.copy(alpha = 0.65f),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
                 modifier = Modifier.size(26.dp),
             )
         }
@@ -709,7 +705,7 @@ private fun PlaylistCover(
 @Composable
 private fun ProfileListDivider() {
     HorizontalDivider(
-        color = ProfileDividerColor,
+        color = MaterialTheme.colorScheme.outlineVariant,
         thickness = 0.5.dp,
     )
 }
@@ -724,7 +720,7 @@ private fun ProfileEmptyHint(message: String) {
     ) {
         Text(
             text = message,
-            color = ProfileHintColor,
+            color = MaterialTheme.colorScheme.outline,
             fontSize = 14.sp,
         )
     }

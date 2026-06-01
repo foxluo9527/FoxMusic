@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "bd237f95077a0fbd03a0ba1ef3e91229",
+    "identityHash": "7ffe9878b373f7a090036f87a40c949d",
     "entities": [
       {
         "tableName": "musics",
@@ -393,7 +393,7 @@
       },
       {
         "tableName": "conversations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUserId` INTEGER NOT NULL, `peerNickname` TEXT, `peerAvatar` TEXT, `peerMark` TEXT, `lastMessageLocalId` TEXT, `lastMessagePreview` TEXT NOT NULL, `lastMessageStatus` TEXT, `lastMessageAt` INTEGER NOT NULL, `unreadCount` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`peerUserId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUserId` INTEGER NOT NULL, `peerNickname` TEXT, `peerAvatar` TEXT, `peerMark` TEXT, `lastMessageLocalId` TEXT, `lastMessagePreview` TEXT NOT NULL, `lastMessageStatus` TEXT, `lastMessageAt` INTEGER NOT NULL, `unreadCount` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `isPinned` INTEGER NOT NULL, PRIMARY KEY(`peerUserId`))",
         "fields": [
           {
             "fieldPath": "peerUserId",
@@ -447,6 +447,12 @@
           {
             "fieldPath": "updatedAt",
             "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isPinned",
+            "columnName": "isPinned",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -567,7 +573,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd237f95077a0fbd03a0ba1ef3e91229')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7ffe9878b373f7a090036f87a40c949d')"
     ]
   }
 }

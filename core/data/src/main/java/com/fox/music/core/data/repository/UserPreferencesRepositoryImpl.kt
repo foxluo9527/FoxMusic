@@ -9,6 +9,7 @@ import com.fox.music.core.model.user.PlayQuality
 import com.fox.music.core.model.user.UserPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,6 +30,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             .combine(dataStore.downloadQuality) { list, v -> list + v }
             .combine(dataStore.downloadOnWifiOnly) { list, v -> list + v }
             .combine(dataStore.showLyrics) { list, v -> list + v }
+            .combine(dataStore.notificationSettings) { list, v -> list + v }
             .combine(dataStore.language) { list, v -> list + v }
             .combine(dataStore.cacheMaxBytes) { list, v -> list + v }
             .map { list ->
@@ -43,8 +45,9 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                 val downloadQuality = list[7] as String
                 val downloadOnWifiOnly = list[8] as Boolean
                 val showLyrics = list[9] as Boolean
-                val language = list[10] as String
-                val cacheMaxBytes = list[11] as Long
+                val notificationSettings = list[10] as com.fox.music.core.model.user.NotificationPreferenceSettings
+                val language = list[11] as String
+                val cacheMaxBytes = list[12] as Long
                 UserPreferences(
                     isLoggedIn = isLoggedIn,
                     token = token,
@@ -68,6 +71,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                     },
                     downloadOnWifiOnly = downloadOnWifiOnly,
                     showLyrics = showLyrics,
+                    notificationSettings = notificationSettings,
                     language = language,
                     cacheMaxBytes = cacheMaxBytes,
                 )
@@ -114,6 +118,15 @@ class UserPreferencesRepositoryImpl @Inject constructor(
 
     override suspend fun updateShowLyrics(enabled: Boolean): Result<Unit> = suspendRunCatching {
         dataStore.updateShowLyrics(enabled)
+        Unit
+    }
+
+    override suspend fun updateNotificationEnabled(
+        type: com.fox.music.core.model.chat.NotificationType,
+        enabled: Boolean,
+    ): Result<Unit> = suspendRunCatching {
+        val current = dataStore.notificationSettings.first()
+        dataStore.updateNotificationSettings(current.withEnabled(type, enabled))
         Unit
     }
 
