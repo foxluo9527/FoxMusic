@@ -8,6 +8,9 @@ interface ChatApiService {
     @POST("api/messages")
     suspend fun sendMessage(@Body request: SendMessageRequest): ApiResponse<MessageDto>
 
+    @POST("api/messages/share")
+    suspend fun sendShareMessage(@Body request: ShareMessageRequest): ApiResponse<MessageDto>
+
     @POST("api/messages/")
     suspend fun sendMessage(@Body body: Map<String, String>): ApiResponse<MessageDto>
 

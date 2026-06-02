@@ -141,7 +141,10 @@ private fun SelectFriendItem(
         )
         Column {
             Text(
-                text = friend.mark ?: friend.nickname ?: friend.username ?: "",
+                text = friend.mark?.takeIf { it.isNotBlank() }
+                    ?: friend.nickname?.takeIf { it.isNotBlank() }
+                    ?: friend.username?.takeIf { it.isNotBlank() }
+                    ?: "好友",
                 style = MaterialTheme.typography.bodyLarge,
             )
             friend.signature?.takeIf { it.isNotBlank() }?.let { signature ->

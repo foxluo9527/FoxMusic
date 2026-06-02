@@ -165,7 +165,7 @@ class ChatSettingsViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-            when (val result = chatRepository.deleteConversation(userId)) {
+            when (val result = chatRepository.clearChatHistory(userId)) {
                 is Result.Success -> {
                     _state.value = _state.value.copy(isLoading = false, navigateBack = true)
                 }

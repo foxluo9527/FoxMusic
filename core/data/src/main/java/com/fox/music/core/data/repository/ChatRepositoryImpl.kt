@@ -6,6 +6,7 @@ import androidx.work.WorkManager
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
 import com.fox.music.core.data.mapper.previewForMessage
+import com.fox.music.core.data.mapper.toDomain
 import com.fox.music.core.data.mapper.toIncomingMessageEntity
 import com.fox.music.core.data.realtime.ActiveChatTracker
 import com.fox.music.core.data.realtime.NotificationPeerResolver
@@ -31,6 +32,7 @@ import com.fox.music.core.model.user.User
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.ChatApiService
 import com.fox.music.core.network.model.MessageDto
+import com.fox.music.core.network.model.ShareMessageRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -143,6 +145,76 @@ class ChatRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun sendShareMessage(
+        receiverId: Long,
+        shareType: String,
+        shareId: Long,
+        content: String,
+        peerNickname: String?,
+        peerAvatar: String?,
+    ): Result<String> = suspendRunCatching {
+        val senderId = userPreferencesRepository.userPreferences.first().userId
+            ?: throw IllegalStateException("用户未登录")
+        val localId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+
+        // 先调用 API，成功后才入库（确保 share_data 可用）
+        val response = chatApi.sendShareMessage(
+            ShareMessageRequest(
+                receiverId = receiverId,
+                shareType = shareType,
+                shareId = shareId,
+                content = content,
+            ),
+        )
+        val data = response.data
+        if (!response.isSuccess || data == null) {
+            throw Exception(response.message.ifBlank { "发送失败" })
+        }
+
+        // 用服务端返回的数据入库，share_data 由服务端填充
+        val shareDomain = data.shareData?.toDomain()
+        val shareDataJson = shareDomain?.let {
+            kotlinx.serialization.json.Json.encodeToString(
+                com.fox.music.core.model.chat.ShareData.serializer(), it,
+            )
+        }
+        val entity = MessageEntity(
+            localId = localId,
+            serverId = data.id,
+            conversationId = receiverId,
+            senderId = senderId,
+            receiverId = receiverId,
+            content = data.content.ifBlank { content },
+            type = "share",
+            status = "sent",
+            shareType = data.shareType ?: shareType,
+            shareId = data.shareId ?: shareId,
+            shareDataJson = shareDataJson,
+            sentAt = data.sentAt?.takeIf { it.isNotBlank() } ?: now.toString(),
+            cachedAt = now,
+        )
+        messageDao.insertMessage(entity)
+
+        val existingConversation = conversationDao.getConversation(receiverId)
+        conversationDao.upsertConversation(
+            ConversationEntity(
+                peerUserId = receiverId,
+                peerNickname = peerNickname ?: existingConversation?.peerNickname,
+                peerAvatar = peerAvatar ?: existingConversation?.peerAvatar,
+                peerMark = existingConversation?.peerMark,
+                lastMessageLocalId = localId,
+                lastMessagePreview = "[分享]",
+                lastMessageStatus = "sent",
+                lastMessageAt = now,
+                unreadCount = existingConversation?.unreadCount ?: 0,
+                updatedAt = now,
+            ),
+        )
+
+        localId
+    }
+
     override suspend fun retryMessage(localId: String): Result<Unit> = suspendRunCatching {
         val entity = messageDao.getMessageByLocalId(localId) ?: throw Exception("消息不存在")
         messageDao.updateMessageStatus(
@@ -178,7 +250,42 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteMessage(localId: String): Result<Unit> = suspendRunCatching {
+        val message = messageDao.getMessageByLocalId(localId)
         messageDao.deleteMessageByLocalId(localId)
+        // 删除后更新对话预览
+        if (message != null) {
+            refreshConversationPreview(message.conversationId)
+        }
+    }
+
+    override suspend fun deleteMessages(localIds: List<String>): Result<Unit> = suspendRunCatching {
+        if (localIds.isEmpty()) return@suspendRunCatching
+        // 先收集受影响的对话 ID
+        val affectedConversationIds = localIds.mapNotNull { localId ->
+            messageDao.getMessageByLocalId(localId)?.conversationId
+        }.distinct()
+        messageDao.deleteMessagesByLocalIds(localIds)
+        // 批量更新受影响的对话预览
+        affectedConversationIds.forEach { conversationId ->
+            refreshConversationPreview(conversationId)
+        }
+    }
+
+    /** 重新计算并更新对话的最后一条消息预览 */
+    private suspend fun refreshConversationPreview(conversationId: Long) {
+        val conversation = conversationDao.getConversation(conversationId) ?: return
+        val latestMessage = messageDao.getLatestMessageByConversation(conversationId)
+        if (latestMessage != null) {
+            conversationDao.updateLastMessage(
+                peerUserId = conversationId,
+                preview = previewForMessage(latestMessage.content, latestMessage.type),
+                status = latestMessage.status,
+                at = latestMessage.cachedAt,
+                localId = latestMessage.localId,
+            )
+        } else {
+            conversationDao.clearConversationPreview(conversationId)
+        }
     }
 
     override suspend fun cancelSending(localId: String): Result<Unit> = suspendRunCatching {
@@ -204,6 +311,11 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteConversation(targetId: Long): Result<Unit> = suspendRunCatching {
+        conversationDao.deleteConversation(targetId)
+    }
+
+    override suspend fun clearChatHistory(targetId: Long): Result<Unit> = suspendRunCatching {
+        messageDao.deleteMessagesByConversation(targetId)
         conversationDao.deleteConversation(targetId)
     }
 

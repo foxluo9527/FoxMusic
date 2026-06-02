@@ -65,6 +65,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.chat.Message
+import com.fox.music.core.model.chat.MessageType
+import com.fox.music.core.model.music.DetailType
+import com.fox.music.core.model.music.Music
 import com.fox.music.feature.chat.ui.component.ChatInputBar
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewDialog
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewType
@@ -92,8 +95,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import androidx.core.net.toUri
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,7 +104,8 @@ fun ChatDetailScreen(
     viewModel: ChatDetailViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     onNavigateToSettings: (Long, String, String?) -> Unit = { _, _, _ -> },
-    onNavigateToSelectFriend: () -> Unit = {},
+    onForward: (Message) -> Unit = {},
+    onShareClick: (Message, List<Message>) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -121,30 +123,23 @@ fun ChatDetailScreen(
     var showMediaSelector by remember { mutableStateOf(false) }
     var pendingRecall by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var pendingDelete by remember { mutableStateOf<String?>(null) }
-    var pendingForwardMessage by remember { mutableStateOf<Message?>(null) }
     val scope = rememberCoroutineScope()
 
-    // Listen for selected friend from SelectFriendScreen
-    val navController = rememberNavController()
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    LaunchedEffect(backStackEntry) {
-        val entry = backStackEntry ?: return@LaunchedEffect
-        val friendId = entry.savedStateHandle.get<Long>("selectedFriendId") ?: return@LaunchedEffect
-        val friendNickname = entry.savedStateHandle.get<String>("selectedFriendNickname") ?: ""
-        val friendAvatar = entry.savedStateHandle.get<String>("selectedFriendAvatar") ?: ""
-
-        // Clear the saved state to avoid re-triggering
-        entry.savedStateHandle.remove<Long>("selectedFriendId")
-        entry.savedStateHandle.remove<String>("selectedFriendNickname")
-        entry.savedStateHandle.remove<String>("selectedFriendAvatar")
-
-        // Forward the pending message to the selected friend
-        val messageToForward = pendingForwardMessage
-        if (messageToForward != null && friendId > 0) {
-            pendingForwardMessage = null
-            viewModel.forwardMessage(friendId, messageToForward)
-        }
+    // 转发：MainScreen 将 friendId 写入 ChatDetail backStackEntry 的 savedStateHandle，
+    // ViewModel 通过 getStateFlow 响应式监听
+    LaunchedEffect(Unit) {
+        viewModel.savedStateHandle.getStateFlow<Long?>("forwardFriendId", null)
+            .collect { friendId ->
+                if (friendId == null || friendId <= 0L) return@collect
+                viewModel.savedStateHandle["forwardFriendId"] = null
+                val pendingMsg = viewModel.pendingForwardMessage
+                if (pendingMsg != null) {
+                    viewModel.clearPendingForward()
+                    viewModel.forwardMessage(friendId, pendingMsg)
+                }
+            }
     }
+
     val cropLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -160,11 +155,23 @@ fun ChatDetailScreen(
     }
 
     val pickFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
+        contract = ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
-        uri?.let {
-            val fileName = context.resolveDisplayName(it)
-            viewModel.sendIntent(ChatDetailIntent.SendFile(it, fileName))
+        uri?.let { fileUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    fileUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            } catch (_: Exception) {
+                // 部分 content provider 不支持持久化权限，忽略
+            }
+            val fileName = try {
+                context.resolveDisplayName(fileUri)
+            } catch (_: Exception) {
+                null
+            }
+            viewModel.sendIntent(ChatDetailIntent.SendFile(fileUri, fileName))
         }
     }
 
@@ -485,7 +492,7 @@ fun ChatDetailScreen(
                         },
                         onPickFile = {
                             dismissAttachmentSheet()
-                            pickFileLauncher.launch("*/*")
+                            pickFileLauncher.launch(arrayOf("*/*"))
                         },
                         onVoicePressStart = {
                             isVoicePressing = true
@@ -610,13 +617,15 @@ fun ChatDetailScreen(
                 val localId = message.localId
                 val isSelected = localId != null && localId in state.selectedMessageIds
 
-                val previousMessage = if (index > 0) reversedMessages[index - 1] else null
-                val showTime = if (previousMessage == null) {
+                // reverseLayout=true: index 0 在屏幕底部（最新），index 最大在屏幕顶部（最早）
+                // 视觉上的"上一条"是 index + 1（更早的消息）
+                val visuallyPreviousMessage = reversedMessages.getOrNull(index + 1)
+                val showTime = if (visuallyPreviousMessage == null) {
                     true
                 } else {
                     val currentMillis = parseTimestampMillis(message.createdAt)
-                    val previousMillis = parseTimestampMillis(previousMessage.createdAt)
-                    currentMillis == null || shouldShowMessageTime(currentMillis, previousMillis)
+                    val previousMillis = parseTimestampMillis(visuallyPreviousMessage.createdAt)
+                    previousMillis == null || currentMillis == null || shouldShowMessageTime(currentMillis, previousMillis)
                 }
 
                 if (state.isSelectionMode && localId != null) {
@@ -642,6 +651,7 @@ fun ChatDetailScreen(
                         onRetry = { viewModel.sendIntent(ChatDetailIntent.RetryMessage(it)) },
                         onMediaClick = { viewingMessageMedia = it },
                         onFileClick = { openFileWithSystem(context, it) },
+                        onShareClick = { msg -> onShareClick(msg, state.messages) },
                         onDelete = { pendingDelete = it },
                         onRecall = { messageId, localId ->
                             pendingRecall = messageId to localId
@@ -652,7 +662,10 @@ fun ChatDetailScreen(
                             clipboard.setPrimaryClip(ClipData.newPlainText("message", content))
                             Toast.makeText(context, "复制成功", Toast.LENGTH_SHORT).show()
                         },
-                        onForward = { msg -> pendingForwardMessage = msg },
+                        onForward = { msg ->
+                            viewModel.setPendingForward(msg)
+                            onForward(msg)
+                        },
                         onMultiSelect = { localId ->
                             viewModel.sendIntent(ChatDetailIntent.EnterSelectionMode(localId))
                         },
@@ -696,6 +709,8 @@ private fun SelectionMessageItem(
             onRetry = {},
             onMediaClick = onMediaClick,
             onFileClick = onFileClick,
+            onMultiSelect = { onToggleSelection() },
+            isInSelectionMode = true,
             showTime = showTime,
         )
     }

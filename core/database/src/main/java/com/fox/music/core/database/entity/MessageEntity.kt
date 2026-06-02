@@ -33,4 +33,7 @@ data class MessageEntity(
     val isRead: Boolean = false,
     val sentAt: String? = null,
     val cachedAt: Long = System.currentTimeMillis(),
+    val shareType: String? = null,
+    val shareId: Long? = null,
+    val shareDataJson: String? = null,
 )

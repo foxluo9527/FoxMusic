@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -54,6 +55,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -87,12 +89,14 @@ fun ChatMessageItem(
     onRetry: (String) -> Unit,
     onMediaClick: (ChatMessageMediaViewer) -> Unit = {},
     onFileClick: (Message) -> Unit = {},
+    onShareClick: (Message) -> Unit = {},
     onDelete: (String) -> Unit = {},
     onRecall: (Long, String) -> Unit = { _, _ -> },
     onCancelSending: (String) -> Unit = {},
     onCopy: (String) -> Unit = {},
     onForward: (Message) -> Unit = {},
     onMultiSelect: (String) -> Unit = {},
+    isInSelectionMode: Boolean = false,
     showTime: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -102,12 +106,7 @@ fun ChatMessageItem(
 
     Box(modifier = modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = { showContextMenu = true },
-                ),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start,
         ) {
             if (showTime) {
@@ -175,8 +174,15 @@ fun ChatMessageItem(
                     ) {
                         ChatMessageContent(
                             message = message,
-                            onMediaClick = onMediaClick,
-                            onFileClick = onFileClick,
+                            onMediaClick = if (isInSelectionMode) { _ -> } else onMediaClick,
+                            onFileClick = if (isInSelectionMode) { _ -> } else onFileClick,
+                            onShareClick = if (isInSelectionMode) { _ -> } else onShareClick,
+                            onLongClick = if (isInSelectionMode) ({ }) else ({ showContextMenu = true }),
+                            onBubbleClick = if (isInSelectionMode && message.localId != null) {
+                                { onMultiSelect(message.localId!!) }
+                            } else {
+                                { }
+                            },
                         )
                     }
                     if (isOutgoing && message.status == MessageStatus.FAILED) {
@@ -273,7 +279,7 @@ private fun MessageContextMenuPopup(
     val hasServerId = message.id > 0L && message.status != MessageStatus.SENDING && message.status != MessageStatus.FAILED
     val canRecall = hasServerId && !message.isRecalled
     val isPlainText = message.type == MessageType.TEXT
-    val canForward = message.type != MessageType.AUDIO
+    val canForward = message.type != MessageType.AUDIO && message.status != MessageStatus.FAILED
 
     val density = LocalDensity.current
     val triangleHeightPx = with(density) { 10.dp.toPx() }
@@ -509,25 +515,40 @@ private fun ChatMessageContent(
     message: Message,
     onMediaClick: (ChatMessageMediaViewer) -> Unit,
     onFileClick: (Message) -> Unit,
+    onShareClick: (Message) -> Unit = {},
+    onLongClick: () -> Unit = {},
+    onBubbleClick: () -> Unit = {},
 ) {
     when (val previewType = message.resolveMediaPreviewType()) {
         ChatMediaPreviewType.IMAGE -> ImageMessageBubble(
             message = message,
             onClick = onMediaClick,
+            onLongClick = onLongClick,
+            onBubbleClick = onBubbleClick,
         )
         ChatMediaPreviewType.VIDEO -> VideoMessageBubble(
             message = message,
             onClick = onMediaClick,
+            onLongClick = onLongClick,
+            onBubbleClick = onBubbleClick,
         )
         null -> when (message.type) {
-            MessageType.AUDIO -> AudioMessageBubble(message)
+            MessageType.AUDIO -> AudioMessageBubble(message, onLongClick = onLongClick, onBubbleClick = onBubbleClick)
             MessageType.FILE -> FileMessageBubble(
                 message = message,
                 onClick = onFileClick,
+                onLongClick = onLongClick,
+                onBubbleClick = onBubbleClick,
             )
-            MessageType.MUSIC -> TextMessageBubble("[音乐] ${message.content}")
-            MessageType.TEXT -> TextMessageBubble(message.content)
-            MessageType.IMAGE -> ImageMessageBubble(message, onClick = onMediaClick)
+            MessageType.MUSIC -> TextMessageBubble("[音乐] ${message.content}", onLongClick = onLongClick, onBubbleClick = onBubbleClick)
+            MessageType.SHARE -> ShareMessageBubble(
+                message = message,
+                onClick = { onShareClick(message) },
+                onLongClick = onLongClick,
+                onBubbleClick = onBubbleClick,
+            )
+            MessageType.TEXT -> TextMessageBubble(message.content, onLongClick = onLongClick, onBubbleClick = onBubbleClick)
+            MessageType.IMAGE -> ImageMessageBubble(message, onClick = onMediaClick, onLongClick = onLongClick, onBubbleClick = onBubbleClick)
         }
     }
 }
@@ -536,6 +557,8 @@ private fun ChatMessageContent(
 private fun ImageMessageBubble(
     message: Message,
     onClick: (ChatMessageMediaViewer) -> Unit,
+    onLongClick: () -> Unit = {},
+    onBubbleClick: () -> Unit = {},
 ) {
     val previewUrl = message.resolveMediaPreviewUrl()
     val fileName = message.localMediaFileName ?: parseFileContentName(message.content)
@@ -547,17 +570,22 @@ private fun ImageMessageBubble(
             .fillMaxWidth(0.5f)
             .aspectRatio(imageRatio)
             .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = previewUrl != null) {
-                previewUrl?.let { url ->
-                    onClick(
-                        ChatMessageMediaViewer(
-                            previewType = ChatMediaPreviewType.IMAGE,
-                            mediaUrl = url,
-                            fileName = fileName,
-                        ),
-                    )
-                }
-            },
+            .combinedClickable(
+                enabled = previewUrl != null,
+                onClick = {
+                    onBubbleClick()
+                    previewUrl?.let { url ->
+                        onClick(
+                            ChatMessageMediaViewer(
+                                previewType = ChatMediaPreviewType.IMAGE,
+                                mediaUrl = url,
+                                fileName = fileName,
+                            ),
+                        )
+                    }
+                },
+                onLongClick = onLongClick,
+            ),
         contentScale = ContentScale.Fit,
         loading = {
             Box(
@@ -583,6 +611,8 @@ private fun ImageMessageBubble(
 private fun VideoMessageBubble(
     message: Message,
     onClick: (ChatMessageMediaViewer) -> Unit,
+    onLongClick: () -> Unit = {},
+    onBubbleClick: () -> Unit = {},
 ) {
     val previewUrl = message.resolveMediaPreviewUrl()
     val fileName = message.localMediaFileName ?: parseFileContentName(message.content)
@@ -608,17 +638,22 @@ private fun VideoMessageBubble(
             .height(180.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(enabled = previewUrl != null) {
-                previewUrl?.let { url ->
-                    onClick(
-                        ChatMessageMediaViewer(
-                            previewType = ChatMediaPreviewType.VIDEO,
-                            mediaUrl = url,
-                            fileName = fileName,
-                        ),
-                    )
-                }
-            },
+            .combinedClickable(
+                enabled = previewUrl != null,
+                onClick = {
+                    onBubbleClick()
+                    previewUrl?.let { url ->
+                        onClick(
+                            ChatMessageMediaViewer(
+                                previewType = ChatMediaPreviewType.VIDEO,
+                                mediaUrl = url,
+                                fileName = fileName,
+                            ),
+                        )
+                    }
+                },
+                onLongClick = onLongClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (frameBitmap != null) {
@@ -688,16 +723,20 @@ private suspend fun extractVideoFrameBitmap(
 }
 
 @Composable
-private fun TextMessageBubble(text: String) {
+private fun TextMessageBubble(text: String, onLongClick: () -> Unit = {}, onBubbleClick: () -> Unit = {}) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.combinedClickable(
+            onClick = onBubbleClick,
+            onLongClick = onLongClick,
+        ),
     )
 }
 
 @Composable
-private fun AudioMessageBubble(message: Message) {
+private fun AudioMessageBubble(message: Message, onLongClick: () -> Unit = {}, onBubbleClick: () -> Unit = {}) {
     val context = LocalContext.current
     var playing by remember(message.localId) { mutableStateOf(false) }
     val player = remember(message.localId) { MediaPlayer() }
@@ -714,47 +753,51 @@ private fun AudioMessageBubble(message: Message) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.clickable {
-            val rawUrl = message.localMediaUri?.takeIf { it.isNotBlank() }
-                ?: message.remoteMediaUrl?.takeIf { it.isNotBlank() }
-                ?: message.content
-            val resolvedUrl = MediaUrlResolver.resolve(rawUrl) ?: return@clickable
+        modifier = Modifier.combinedClickable(
+            onClick = {
+                onBubbleClick()
+                val rawUrl = message.localMediaUri?.takeIf { it.isNotBlank() }
+                    ?: message.remoteMediaUrl?.takeIf { it.isNotBlank() }
+                    ?: message.content
+                val resolvedUrl = MediaUrlResolver.resolve(rawUrl) ?: return@combinedClickable
 
-            if (playing) {
-                runCatching {
-                    if (player.isPlaying) player.pause()
-                    player.seekTo(0)
-                }
-                playing = false
-                return@clickable
-            }
-
-            runCatching {
-                player.reset()
-                player.setOnCompletionListener { playing = false }
-                player.setOnErrorListener { _, _, _ ->
+                if (playing) {
+                    runCatching {
+                        if (player.isPlaying) player.pause()
+                        player.seekTo(0)
+                    }
                     playing = false
-                    true
+                    return@combinedClickable
                 }
-                player.setOnPreparedListener { mp ->
-                    mp.start()
-                    playing = true
-                }
-                when {
-                    resolvedUrl.startsWith("http://", ignoreCase = true) ||
-                        resolvedUrl.startsWith("https://", ignoreCase = true) -> {
-                        player.setDataSource(resolvedUrl)
-                        player.prepareAsync()
+
+                runCatching {
+                    player.reset()
+                    player.setOnCompletionListener { playing = false }
+                    player.setOnErrorListener { _, _, _ ->
+                        playing = false
+                        true
                     }
-                    else -> {
-                        player.setDataSource(context, Uri.parse(resolvedUrl))
-                        player.prepareAsync()
+                    player.setOnPreparedListener { mp ->
+                        mp.start()
+                        playing = true
                     }
+                    when {
+                        resolvedUrl.startsWith("http://", ignoreCase = true) ||
+                            resolvedUrl.startsWith("https://", ignoreCase = true) -> {
+                            player.setDataSource(resolvedUrl)
+                            player.prepareAsync()
+                        }
+                        else -> {
+                            player.setDataSource(context, Uri.parse(resolvedUrl))
+                            player.prepareAsync()
+                        }
+                    }
+                }.onFailure {
+                    playing = false
                 }
-            }.onFailure {
-                playing = false
-            }
-        },
+            },
+            onLongClick = onLongClick,
+        ),
     ) {
         Icon(Icons.Default.PlayArrow, contentDescription = "播放语音")
         val durationSec = ((message.audioDurationMs ?: 0L) / 1000L).coerceAtLeast(1L)
@@ -766,12 +809,17 @@ private fun AudioMessageBubble(message: Message) {
 private fun FileMessageBubble(
     message: Message,
     onClick: (Message) -> Unit,
+    onLongClick: () -> Unit = {},
+    onBubbleClick: () -> Unit = {},
 ) {
     val fileName = message.localMediaFileName ?: parseFileContentName(message.content)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.clickable { onClick(message) },
+        modifier = Modifier.combinedClickable(
+            onClick = { onBubbleClick(); onClick(message) },
+            onLongClick = onLongClick,
+        ),
     ) {
         Icon(
             imageVector = Icons.Default.AttachFile,
@@ -783,5 +831,102 @@ private fun FileMessageBubble(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun ShareMessageBubble(
+    message: Message,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    onBubbleClick: () -> Unit = {},
+) {
+    val shareData = message.shareData
+    val shareType = message.shareType ?: "music"
+    val typeLabel = when (shareType) {
+        "music" -> "🎵 音乐"
+        "playlist" -> "📋 歌单"
+        "artist" -> "🎤 艺人"
+        "album" -> "💿 专辑"
+        else -> "🔗 分享"
+    }
+    val hasData = shareData != null
+
+    Row(
+        modifier = Modifier
+            .combinedClickable(
+                onClick = { onBubbleClick(); if (hasData) onClick() },
+                onLongClick = onLongClick,
+            )
+            .widthIn(max = 240.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (hasData) {
+            val coverUrl = shareData.coverImage ?: shareData.avatar
+            if (coverUrl != null) {
+                CachedImage(
+                    imageUrl = coverUrl,
+                    contentDescription = shareData.title ?: shareData.name,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(6.dp)),
+                    shape = RoundedCornerShape(6.dp),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = typeLabel.take(2), style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = typeLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (hasData) {
+                Text(
+                    text = shareData.title ?: shareData.name ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val subtitle = when (shareType) {
+                    "music" -> shareData.artists.takeIf { it.isNotEmpty() }
+                        ?.joinToString(", ") { it.name }
+                    "playlist" -> shareData.description?.takeIf { it.isNotBlank() }
+                    "artist" -> shareData.description?.takeIf { it.isNotBlank() }
+                    "album" -> shareData.artists.takeIf { it.isNotEmpty() }
+                        ?.joinToString(", ") { it.name }
+                    else -> null
+                }
+                subtitle?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else {
+                Text(
+                    text = "该内容已删除",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                )
+            }
+        }
     }
 }

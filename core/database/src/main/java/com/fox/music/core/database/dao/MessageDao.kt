@@ -81,8 +81,14 @@ interface MessageDao {
     @Query("UPDATE messages SET isRead = 1 WHERE conversationId = :conversationId")
     suspend fun markConversationAsRead(conversationId: Long)
 
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY cachedAt DESC LIMIT 1")
+    suspend fun getLatestMessageByConversation(conversationId: Long): MessageEntity?
+
     @Query("DELETE FROM messages WHERE localId = :localId")
     suspend fun deleteMessageByLocalId(localId: String)
+
+    @Query("DELETE FROM messages WHERE localId IN (:localIds)")
+    suspend fun deleteMessagesByLocalIds(localIds: List<String>)
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
     suspend fun deleteMessagesByConversation(conversationId: Long)

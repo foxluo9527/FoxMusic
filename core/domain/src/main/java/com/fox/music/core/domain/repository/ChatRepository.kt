@@ -42,6 +42,15 @@ interface ChatRepository {
         peerAvatar: String? = null,
     ): Result<String>
 
+    suspend fun sendShareMessage(
+        receiverId: Long,
+        shareType: String,
+        shareId: Long,
+        content: String = "",
+        peerNickname: String? = null,
+        peerAvatar: String? = null,
+    ): Result<String>
+
     suspend fun retryMessage(localId: String): Result<Unit>
 
     suspend fun recallMessage(messageId: Long): Result<Unit>
@@ -52,12 +61,18 @@ interface ChatRepository {
     /** 删除本地消息记录 */
     suspend fun deleteMessage(localId: String): Result<Unit>
 
+    /** 批量删除本地消息记录，删除后更新对话预览 */
+    suspend fun deleteMessages(localIds: List<String>): Result<Unit>
+
     /** 取消发送中的消息，状态变更为发送失败 */
     suspend fun cancelSending(localId: String): Result<Unit>
 
     suspend fun markAsRead(targetId: Long): Result<Unit>
 
     suspend fun deleteConversation(targetId: Long): Result<Unit>
+
+    /** 清空与某用户的聊天记录并删除对话 */
+    suspend fun clearChatHistory(targetId: Long): Result<Unit>
 
     suspend fun pinConversation(targetId: Long, isPinned: Boolean): Result<Unit>
 

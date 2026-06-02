@@ -3,6 +3,7 @@ package com.fox.music.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.util.MediaUrlResolver
+import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.AddTrackToPlaylistUseCase
@@ -27,6 +28,7 @@ data class MusicActionsUiState(
     val showActionSheet: Boolean = false,
     val showPlaylistPicker: Boolean = false,
     val showReportSheet: Boolean = false,
+    val showSelectFriend: Boolean = false,
     val pendingMusicIds: List<Long> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
     val isPlaylistsLoading: Boolean = false,
@@ -37,6 +39,7 @@ sealed interface MusicActionsEffect {
     data class ShowToast(val message: String) : MusicActionsEffect
     data class NavigateToArtist(val artistId: Long) : MusicActionsEffect
     data object RequestCreatePlaylist : MusicActionsEffect
+    data object NavigateToSelectFriend : MusicActionsEffect
 }
 
 @HiltViewModel
@@ -47,6 +50,7 @@ class MusicActionsViewModel @Inject constructor(
     private val getPlaylistListUseCase: GetPlaylistListUseCase,
     private val downloadRepository: DownloadRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val chatRepository: ChatRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MusicActionsUiState())
@@ -189,6 +193,43 @@ class MusicActionsViewModel @Inject constructor(
         dismissActionSheet()
         viewModelScope.launch {
             _effect.emit(MusicActionsEffect.NavigateToArtist(artistId))
+        }
+    }
+
+    /** 打开好友选择页面，用于分享当前音乐 */
+    fun shareCurrentMusic() {
+        val music = _uiState.value.actionMusic ?: return
+        if (music.isThirdParty) {
+            viewModelScope.launch {
+                _effect.emit(MusicActionsEffect.ShowToast("第三方歌曲暂不支持分享"))
+            }
+            return
+        }
+        _uiState.update { it.copy(showActionSheet = false, showSelectFriend = true) }
+        viewModelScope.launch {
+            _effect.emit(MusicActionsEffect.NavigateToSelectFriend)
+        }
+    }
+
+    fun dismissSelectFriend() {
+        _uiState.update { it.copy(showSelectFriend = false) }
+    }
+
+    /** 选择好友后发送分享消息 */
+    fun sendShareMusic(friendId: Long) {
+        val music = _uiState.value.actionMusic ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(showSelectFriend = false) }
+            chatRepository.sendShareMessage(
+                receiverId = friendId,
+                shareType = "music",
+                shareId = music.id,
+                content = "",
+            ).onSuccess {
+                _effect.emit(MusicActionsEffect.ShowToast("分享成功"))
+            }.onError { _, msg ->
+                _effect.emit(MusicActionsEffect.ShowToast(msg ?: "分享失败"))
+            }
         }
     }
 

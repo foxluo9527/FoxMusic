@@ -16,6 +16,7 @@ import com.fox.music.core.model.music.Music
 fun MusicActionsHost(
     onArtistClick: (Long) -> Unit,
     onCreatePlaylist: () -> Unit,
+    onNavigateToSelectFriend: () -> Unit = {},
     viewModel: MusicActionsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -29,6 +30,7 @@ fun MusicActionsHost(
                 }
                 is MusicActionsEffect.NavigateToArtist -> onArtistClick(effect.artistId)
                 MusicActionsEffect.RequestCreatePlaylist -> onCreatePlaylist()
+                MusicActionsEffect.NavigateToSelectFriend -> onNavigateToSelectFriend()
             }
         }
     }
@@ -40,6 +42,7 @@ fun MusicActionsHost(
             onDismiss = viewModel::dismissActionSheet,
             onPlayNext = viewModel::playNext,
             onAddToPlaylist = viewModel::showAddToPlaylistForCurrentMusic,
+            onShare = viewModel::shareCurrentMusic,
             onDownload = viewModel::downloadCurrentMusic,
             onReport = viewModel::showReportSheet,
             onArtistClick = viewModel::onArtistClick,

@@ -33,7 +33,15 @@ private val CHINESE_WEEKDAYS = arrayOf("", "周一", "周二", "周三", "周四
 
 fun formatMessageDate(dateStr: String?): String {
     if (dateStr.isNullOrBlank()) return ""
-    val millis = parseMessageTimestampMillis(dateStr) ?: return dateStr
+    val millis = parseMessageTimestampMillis(dateStr) ?: run {
+        // 最终兜底：尝试直接将字符串作为 epoch millis 解析
+        dateStr.toLongOrNull()?.let { raw ->
+            val epochMs = if (dateStr.length <= 10) raw * 1000L else raw
+            val zoned = Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault())
+            return zoned.format(DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault()))
+        }
+        return dateStr
+    }
     val zoned = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
     val date = zoned.toLocalDate()
     val today = LocalDate.now(ZoneId.systemDefault())

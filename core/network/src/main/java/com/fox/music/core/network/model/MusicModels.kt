@@ -79,7 +79,6 @@ data class TagDto(
 
 @Serializable
 data class PlayRecordRequest(
-    val duration: Int? = null,
     val progress: Int? = null
 )
 

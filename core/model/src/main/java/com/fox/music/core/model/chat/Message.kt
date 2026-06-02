@@ -1,5 +1,6 @@
 package com.fox.music.core.model.chat
 
+import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.user.User
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -28,6 +29,12 @@ data class Message(
     val fileType: String? = null,
     val uploadedAt: Long? = null,
     val audioDurationMs: Long? = null,
+    @SerialName("share_type")
+    val shareType: String? = null,
+    @SerialName("share_id")
+    val shareId: Long? = null,
+    @SerialName("share_data")
+    val shareData: ShareData? = null,
 )
 
 @Serializable
@@ -41,7 +48,9 @@ enum class MessageType {
     @SerialName("file")
     FILE,
     @SerialName("music")
-    MUSIC
+    MUSIC,
+    @SerialName("share")
+    SHARE
 }
 
 @Serializable
@@ -73,4 +82,30 @@ data class SearchResultItem(
     val user: User,
     val lastMessage: Message,
     val matchCount: Int,
+)
+
+/**
+ * 分享消息的附加数据。
+ * 结构随 [shareType] 变化（music/playlist/artist/album），采用宽泛兼容策略：
+ * 所有可能字段集中在一个 data class 中，缺失字段为 null/默认值。
+ * 数据被删除时 shareData 为 null。
+ */
+@Serializable
+data class ShareData(
+    val id: Long = 0,
+    val title: String? = null,
+    val name: String? = null,
+    @SerialName("cover_image")
+    val coverImage: String? = null,
+    val avatar: String? = null,
+    val description: String? = null,
+    val url: String? = null,
+    val duration: Long = 0,
+    @SerialName("track_count")
+    val trackCount: Int = 0,
+    @SerialName("play_count")
+    val playCount: Int = 0,
+    @SerialName("favorite_count")
+    val favoriteCount: Int = 0,
+    val artists: List<Artist> = emptyList(),
 )

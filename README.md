@@ -169,7 +169,7 @@ buildConfigField("String", "BASE_URL", "\"http://your-api-host:port/\"")
 
 ## 开发说明
 
-更详细的架构约定、文件路径索引和近期功能记录见 [CLAUDE.md](./CLAUDE.md)。
+更详细的架构约定、文件路径索引和近期功能记录见 [CLAUDE.md](.claude/CLAUDE.md)。
 
 ## 许可证
 

@@ -90,7 +90,7 @@ class ChatDetailViewModel @Inject constructor(
     private val getProfileUseCase: GetProfileUseCase,
     private val activeChatTracker: ActiveChatTracker,
     private val preferencesDataStore: FoxPreferencesDataStore,
-    savedStateHandle: SavedStateHandle,
+    val savedStateHandle: SavedStateHandle,
 ) : MviViewModel<ChatDetailState, ChatDetailIntent, ChatDetailEffect>(
     ChatDetailState(
         userId = savedStateHandle.get<Long>("userId") ?: 0L,
@@ -148,6 +148,18 @@ class ChatDetailViewModel @Inject constructor(
     override fun onCleared() {
         activeChatTracker.setActivePeer(null)
         super.onCleared()
+    }
+
+    /** 待转发消息（由 ChatDetailScreen 设置） */
+    var pendingForwardMessage: Message? = null
+        private set
+
+    fun setPendingForward(message: Message) {
+        pendingForwardMessage = message
+    }
+
+    fun clearPendingForward() {
+        pendingForwardMessage = null
     }
 
     override fun handleIntent(intent: ChatDetailIntent) {
@@ -378,15 +390,9 @@ class ChatDetailViewModel @Inject constructor(
         val selectedIds = currentState.selectedMessageIds
         if (selectedIds.isEmpty()) return
         viewModelScope.launch {
-            var hasError = false
-            selectedIds.forEach { localId ->
-                when (val result = chatRepository.deleteMessage(localId)) {
-                    is Result.Error -> hasError = true
-                    else -> Unit
-                }
-            }
-            if (hasError) {
-                sendEffect(ChatDetailEffect.ShowMessage("部分消息删除失败"))
+            when (val result = chatRepository.deleteMessages(selectedIds.toList())) {
+                is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "删除失败"))
+                else -> Unit
             }
             updateState { copy(isSelectionMode = false, selectedMessageIds = emptySet()) }
         }
@@ -430,6 +436,25 @@ class ChatDetailViewModel @Inject constructor(
                 }
                 com.fox.music.core.model.chat.MessageType.AUDIO -> {
                     sendEffect(ChatDetailEffect.ShowMessage("语音消息不支持转发"))
+                }
+                com.fox.music.core.model.chat.MessageType.SHARE -> {
+                    val shareType = message.shareType ?: "music"
+                    val shareId = message.shareId ?: 0L
+                    if (shareId > 0) {
+                        val result = chatRepository.sendShareMessage(
+                            receiverId = targetUserId,
+                            shareType = shareType,
+                            shareId = shareId,
+                            content = message.content,
+                        )
+                        when (result) {
+                            is Result.Success -> sendEffect(ChatDetailEffect.ShowMessage("转发成功"))
+                            is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "转发失败"))
+                            is Result.Loading -> Unit
+                        }
+                    } else {
+                        sendEffect(ChatDetailEffect.ShowMessage("无法转发此消息"))
+                    }
                 }
             }
         }

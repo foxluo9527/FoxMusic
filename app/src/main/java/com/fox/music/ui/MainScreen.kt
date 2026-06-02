@@ -8,6 +8,8 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,10 +44,13 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.MainActivityViewModel
 import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.chat.Message
+import com.fox.music.core.model.chat.MessageType
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlayerState
@@ -173,6 +178,30 @@ fun MainScreen(
                 launchSingleTop = true
             }
             viewModel.onRequireReLoginHandled()
+        }
+    }
+
+    // 监听从 SelectFriendScreen 返回的好友选择结果
+    val currentEntry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(currentEntry) {
+        val entry = currentEntry ?: return@LaunchedEffect
+        val friendId = entry.savedStateHandle.get<Long>("selectedFriendId") ?: return@LaunchedEffect
+        entry.savedStateHandle.remove<Long>("selectedFriendId")
+        entry.savedStateHandle.remove<String>("selectedFriendNickname")
+        entry.savedStateHandle.remove<String>("selectedFriendAvatar")
+
+        when {
+            // 音乐分享流程
+            musicActionsViewModel.uiState.value.showSelectFriend -> {
+                musicActionsViewModel.sendShareMusic(friendId)
+            }
+            // 转发流程：将 friendId 写入 ChatDetail 的 savedStateHandle
+            else -> {
+                try {
+                    val chatDetailEntry = navController.getBackStackEntry(CHAT_DETAIL_ROUTE)
+                    chatDetailEntry.savedStateHandle["forwardFriendId"] = friendId
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -335,7 +364,11 @@ fun MainScreen(
                 startDestination = HOME_ROUTE,
                 modifier = Modifier.fillMaxSize()
             ) {
-                composable(HOME_ROUTE) {
+                composable(
+                    route = HOME_ROUTE,
+                    enterTransition = { fadeIn(tween(150)) },
+                    exitTransition = { fadeOut(tween(150)) },
+                ) {
                     MainScreenWithBottomBar(
                         showBottomBar,
                         this@SharedTransitionLayout
@@ -373,7 +406,11 @@ fun MainScreen(
                         )
                     }
                 }
-                composable(DISCOVER_ROUTE) {
+                composable(
+                    route = DISCOVER_ROUTE,
+                    enterTransition = { fadeIn(tween(150)) },
+                    exitTransition = { fadeOut(tween(150)) },
+                ) {
                     MainScreenWithBottomBar(
                         showBottomBar,
                         this@SharedTransitionLayout
@@ -619,7 +656,11 @@ fun MainScreen(
                         onSaved = { profileRefreshKey++ },
                     )
                 }
-                composable(PROFILE_ROUTE) {
+                composable(
+                    route = PROFILE_ROUTE,
+                    enterTransition = { fadeIn(tween(150)) },
+                    exitTransition = { fadeOut(tween(150)) },
+                ) {
                     MainScreenWithBottomBar(
                         showBottomBar,
                         this@SharedTransitionLayout
@@ -1095,8 +1136,50 @@ fun MainScreen(
                         onNavigateToSettings = { userId, nickname, avatar ->
                             navController.navigate(chatSettingsRoute(userId, nickname, avatar))
                         },
-                        onNavigateToSelectFriend = {
+                        onForward = { message ->
                             navController.navigate(selectFriendRoute())
+                        },
+                        onShareClick = { message, allMessages ->
+                            val shareId = message.shareId ?: return@ChatDetailScreen
+                            when (message.shareType) {
+                                "music" -> {
+                                    message.shareData?.let { data ->
+                                        // 收集聊天中所有音乐分享消息，构建播放列表
+                                        val musicList = allMessages
+                                            .filter { it.type == MessageType.SHARE && it.shareType == "music" && it.shareData != null }
+                                            .mapNotNull { msg ->
+                                                msg.shareData?.let { sd ->
+                                                    Music(
+                                                        id = sd.id,
+                                                        title = sd.title ?: "",
+                                                        url = sd.url ?: "",
+                                                        coverImage = sd.coverImage,
+                                                        duration = sd.duration,
+                                                        artists = sd.artists,
+                                                    )
+                                                }
+                                            }
+                                            .ifEmpty {
+                                                listOf(
+                                                    Music(
+                                                        id = data.id,
+                                                        title = data.title ?: "",
+                                                        url = data.url ?: "",
+                                                        coverImage = data.coverImage,
+                                                        duration = data.duration,
+                                                        artists = data.artists,
+                                                    )
+                                                )
+                                            }
+                                        val startIndex = musicList.indexOfFirst { it.id == data.id }.coerceAtLeast(0)
+                                        musicController.setPlaylist(musicList, startIndex, "chat_music")
+                                        navController.navigate(PLAYER_ROUTE)
+                                    }
+                                }
+                                "playlist" -> navController.navigate(playlistDetailRoute(shareId))
+                                "album" -> navController.navigate(playlistDetailRoute(shareId, DetailType.ALBUM))
+                                "artist" -> navController.navigate(artistDetailRoute(shareId))
+                            }
                         },
                     )
                 }
@@ -1290,6 +1373,9 @@ fun MainScreen(
     MusicActionsHost(
         onArtistClick = ::onArtistClick,
         onCreatePlaylist = ::showCreatePlaylistBottomSheet,
+        onNavigateToSelectFriend = {
+            navController.navigate(selectFriendRoute())
+        },
         viewModel = musicActionsViewModel,
     )
 

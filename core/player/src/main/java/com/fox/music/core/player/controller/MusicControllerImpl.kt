@@ -40,12 +40,18 @@ import javax.inject.Singleton
 class MusicControllerImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val playbackStateStore: PlaybackStateStore,
+    private val recordPlayUseCase: com.fox.music.core.domain.usecase.RecordPlayUseCase,
 ) : MusicController {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
+
+    // 上一首歌的播放信息，用于在切歌时记录播放进度
+    private var lastTrackId: Long? = null
+    private var lastTrackDurationMs: Long = 0L
+    private var lastTrackPositionMs: Long = 0L
 
     private val _playerState = MutableStateFlow(PlayerState())
     override val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
@@ -225,6 +231,18 @@ class MusicControllerImpl @Inject constructor(
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {}
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // 记录上一首的播放进度（fire-and-forget）
+                val prevId = lastTrackId
+                if (prevId != null && prevId > 0) {
+                    val durationSec = (lastTrackDurationMs / 1000).toInt().takeIf { it > 0 }
+                    val progress = if (lastTrackDurationMs > 0) {
+                        ((lastTrackPositionMs * 100) / lastTrackDurationMs).toInt().coerceIn(0, 100)
+                    } else null
+                    scope.launch {
+                        recordPlayUseCase(prevId, durationSec, progress)
+                    }
+                }
+
                 val player = controller
                 if (userPlaylistActive && player != null && !isApplyingPlaylist()) {
                     val anchorId = userAnchorMusicId
@@ -234,6 +252,13 @@ class MusicControllerImpl @Inject constructor(
                 } else {
                     mediaItem?.mediaId?.toLongOrNull()?.let { userAnchorMusicId = it }
                 }
+
+                // 更新当前曲目追踪信息
+                val newId = mediaItem?.mediaId?.toLongOrNull()
+                lastTrackId = newId
+                lastTrackDurationMs = player?.duration?.takeIf { it > 0 } ?: 0L
+                lastTrackPositionMs = 0L
+
                 updatePlayerState()
                 if (!isRestoring) {
                     persistPlaybackState()
@@ -262,6 +287,10 @@ class MusicControllerImpl @Inject constructor(
                     val timelineReady = canUseExoTimeline(player, uiIndex)
                     if (timelineReady) {
                         _currentPosition.value = player.currentPosition
+                        lastTrackPositionMs = player.currentPosition
+                        if (player.duration > 0) {
+                            lastTrackDurationMs = player.duration
+                        }
                     }
                     updatePlayerState()
                     val positionForPersist = if (timelineReady) {

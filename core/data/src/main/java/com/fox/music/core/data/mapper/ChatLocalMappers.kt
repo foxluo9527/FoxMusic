@@ -6,9 +6,15 @@ import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.chat.MessageStatus
 import com.fox.music.core.model.chat.MessageType
+import com.fox.music.core.model.chat.ShareData
+import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.user.User
 import com.fox.music.core.network.model.ConversationDto
 import com.fox.music.core.network.model.MessageDto
+import com.fox.music.core.network.model.ShareDataDto
+import kotlinx.serialization.json.Json
+
+private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
 fun Message.toIncomingMessageEntity(conversationId: Long): MessageEntity = MessageEntity(
     localId = localId ?: "server_$id",
@@ -27,6 +33,9 @@ fun Message.toIncomingMessageEntity(conversationId: Long): MessageEntity = Messa
     isRead = status == MessageStatus.READ || readAt != null,
     sentAt = createdAt,
     cachedAt = parseTimestamp(createdAt),
+    shareType = shareType,
+    shareId = shareId,
+    shareDataJson = shareData?.let { json.encodeToString(ShareData.serializer(), it) },
 )
 
 private fun MessageType.toEntityType(): String = when (this) {
@@ -35,6 +44,7 @@ private fun MessageType.toEntityType(): String = when (this) {
     MessageType.AUDIO -> "voice"
     MessageType.FILE -> "file"
     MessageType.MUSIC -> "music"
+    MessageType.SHARE -> "share"
 }
 
 private fun MessageStatus.toEntityStatus(): String = when (this) {
@@ -54,7 +64,7 @@ fun MessageEntity.toDomainMessage(): Message = Message(
     type = type.toMessageType(),
     status = status.toMessageStatus(),
     isRecalled = isRecalled,
-    createdAt = sentAt,
+    createdAt = sentAt?.takeIf { it.isNotBlank() } ?: cachedAt.toString(),
     readAt = if (isRead) sentAt else null,
     errorMessage = errorMessage,
     localMediaUri = localMediaUri,
@@ -63,6 +73,11 @@ fun MessageEntity.toDomainMessage(): Message = Message(
     fileType = fileType,
     uploadedAt = uploadedAt,
     audioDurationMs = audioDurationMs,
+    shareType = shareType,
+    shareId = shareId,
+    shareData = shareDataJson?.let {
+        runCatching { json.decodeFromString(ShareData.serializer(), it) }.getOrNull()
+    },
 )
 
 fun MessageDto.resolveStatus(): String =
@@ -77,6 +92,7 @@ fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity {
     val resolvedType = when {
         !voiceUrl.isNullOrBlank() -> "voice"
         type.equals("voice", ignoreCase = true) -> "voice"
+        type.equals("share", ignoreCase = true) -> "share"
         else -> type
     }
     return MessageEntity(
@@ -96,6 +112,9 @@ fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity {
         isRead = isRead || resolveStatus() == "read",
         sentAt = timestamp,
         cachedAt = parseTimestamp(timestamp),
+        shareType = shareType,
+        shareId = shareId,
+        shareDataJson = shareData?.let { json.encodeToString(ShareData.serializer(), it.toDomain()) },
     )
 }
 
@@ -156,6 +175,7 @@ fun previewForMessage(content: String, type: String): String = when (type.lowerc
         else -> "[文件]"
     }
     "music" -> "[音乐]"
+    "share" -> "[分享]"
     else -> content.take(50)
 }
 
@@ -168,6 +188,7 @@ fun previewForMessage(message: Message): String = when (message.type) {
         else -> "[文件]"
     }
     MessageType.MUSIC -> "[音乐]"
+    MessageType.SHARE -> "[分享]"
     MessageType.TEXT -> message.content.take(50)
 }
 
@@ -192,6 +213,7 @@ private fun String.toMessageType(): MessageType = when (lowercase()) {
     "audio", "voice" -> MessageType.AUDIO
     "video", "file" -> MessageType.FILE
     "music" -> MessageType.MUSIC
+    "share" -> MessageType.SHARE
     else -> MessageType.TEXT
 }
 
@@ -213,3 +235,26 @@ private fun parseTimestamp(value: String?): Long {
         System.currentTimeMillis()
     }
 }
+
+/** 将服务端 share_data DTO 转为领域模型 */
+fun ShareDataDto.toDomain(): ShareData = ShareData(
+    id = id,
+    title = title,
+    name = name,
+    coverImage = coverImage,
+    avatar = avatar,
+    description = description,
+    url = url,
+    duration = duration,
+    trackCount = trackCount,
+    playCount = playCount,
+    favoriteCount = favoriteCount,
+    artists = artists.map { dto ->
+        Artist(
+            id = dto.id,
+            name = dto.name,
+            avatar = dto.avatar,
+            coverImage = dto.coverImage,
+        )
+    },
+)

@@ -58,7 +58,6 @@ class MusicRepositoryImpl @Inject constructor(
         val response = musicApi.recordPlay(
             id,
             com.fox.music.core.network.model.PlayRecordRequest(
-                duration = durationSeconds,
                 progress = progressPercent
             )
         )

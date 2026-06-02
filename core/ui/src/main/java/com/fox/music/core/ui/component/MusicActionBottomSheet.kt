@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
 import com.fox.music.core.common.util.MediaUrlResolver
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +40,7 @@ fun MusicActionBottomSheet(
     onDismiss: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToPlaylist: () -> Unit,
+    onShare: (() -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
     onReport: () -> Unit,
     onArtistClick: (Long) -> Unit,
@@ -110,6 +112,16 @@ fun MusicActionBottomSheet(
                     label = "添加到歌单",
                     onClick = {
                         onAddToPlaylist()
+                    },
+                )
+            }
+            if (!music.isThirdParty && onShare != null) {
+                ActionRow(
+                    icon = Icons.Default.Share,
+                    label = "分享给好友",
+                    onClick = {
+                        onShare()
+                        onDismiss()
                     },
                 )
             }
