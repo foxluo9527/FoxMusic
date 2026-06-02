@@ -63,7 +63,7 @@ class SocialRepositoryImpl @Inject constructor(
             com.fox.music.core.network.model.FriendRequestBody(
                 friendId = userId,
                 message = message,
-                mark = mark?.takeIf { it.isNotBlank() },
+                mark = mark ?: "",
             )
         )
         if (response.isSuccess) Unit else throw Exception(response.message)
@@ -96,9 +96,9 @@ class SocialRepositoryImpl @Inject constructor(
         page: Int,
         limit: Int,
         keyword: String?,
-        sort : String
+        sort: String
     ): Result<PagedData<Post>> = suspendRunCatching {
-        val response = socialApi.getPosts(page, limit, keyword,sort)
+        val response = socialApi.getPosts(page, limit, keyword, sort)
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPagedData { it.toPost() }
