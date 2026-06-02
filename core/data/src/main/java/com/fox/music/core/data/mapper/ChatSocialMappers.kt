@@ -150,6 +150,9 @@ fun MessageDto.toMessage(): Message = Message(
     remoteMediaUrl = voiceUrl ?: fileUrl,
     fileType = fileType,
     audioDurationMs = voiceDuration?.times(1000L),
+    shareType = shareType,
+    shareId = shareId,
+    shareData = shareData?.toDomain(),
 )
 
 fun ConversationDto.toChatConversation(): ChatConversation = ChatConversation(

@@ -1156,6 +1156,9 @@ fun MainScreen(
                                                         coverImage = sd.coverImage,
                                                         duration = sd.duration,
                                                         artists = sd.artists,
+                                                        lyrics = sd.lyrics,
+                                                        lyricsTrans = sd.lyricsTrans,
+                                                        lyricsUrl = sd.lyricsUrl,
                                                     )
                                                 }
                                             }
@@ -1168,6 +1171,9 @@ fun MainScreen(
                                                         coverImage = data.coverImage,
                                                         duration = data.duration,
                                                         artists = data.artists,
+                                                        lyrics = data.lyrics,
+                                                        lyricsTrans = data.lyricsTrans,
+                                                        lyricsUrl = data.lyricsUrl,
                                                     )
                                                 )
                                             }

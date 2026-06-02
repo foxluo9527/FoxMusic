@@ -249,6 +249,9 @@ fun ShareDataDto.toDomain(): ShareData = ShareData(
     trackCount = trackCount,
     playCount = playCount,
     favoriteCount = favoriteCount,
+    lyrics = lyrics,
+    lyricsTrans = lyricsTrans,
+    lyricsUrl = lyricsUrl,
     artists = artists.map { dto ->
         Artist(
             id = dto.id,

@@ -107,5 +107,10 @@ data class ShareData(
     val playCount: Int = 0,
     @SerialName("favorite_count")
     val favoriteCount: Int = 0,
+    val lyrics: String? = null,
+    @SerialName("lyrics_trans")
+    val lyricsTrans: String? = null,
+    @SerialName("lyrics_url")
+    val lyricsUrl: String? = null,
     val artists: List<Artist> = emptyList(),
 )
