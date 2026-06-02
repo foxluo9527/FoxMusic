@@ -22,8 +22,8 @@ android {
         applicationId = "com.fox.music"
         minSdk = 26
         targetSdk = 37
-        versionCode = 102
-        versionName = "1.0.2"
+        versionCode = 103
+        versionName = "1.0.3"
 
         buildConfigField("String", "BUGLY_APP_ID", "\"79570062b4\"")
         buildConfigField("String", "BUGLY_APP_KEY", "\"9d6fcb14-8250-4eb8-b053-17b21d0a3aa8\"")
