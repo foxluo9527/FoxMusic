@@ -13,6 +13,7 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.fox.music.MainActivity
 import com.fox.music.R
+import com.fox.music.core.network.websocket.ConnectionState
 import com.fox.music.core.network.websocket.WebSocketManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -22,11 +23,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * 前台 Service 保活 WebSocket 长连接。
+ * 使用 [remoteMessaging] 类型以符合 Android 14+ 对即时消息前台服务的约束。
  */
 @AndroidEntryPoint
 class RealtimeConnectionService : Service() {
@@ -36,6 +40,7 @@ class RealtimeConnectionService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var watchdogJob: Job? = null
+    private var connectionStateJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var connectionStarted = false
 
@@ -57,17 +62,10 @@ class RealtimeConnectionService : Service() {
             }
         }
 
-        val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        val notification = buildNotification(resolveNotificationText())
+        startForegroundWithType(notification)
 
+        observeConnectionStateForNotification()
         startConnectionWatchdog()
 
         if (!connectionStarted) {
@@ -81,6 +79,7 @@ class RealtimeConnectionService : Service() {
 
     override fun onDestroy() {
         watchdogJob?.cancel()
+        connectionStateJob?.cancel()
         scope.cancel()
         releaseWakeLock()
         super.onDestroy()
@@ -88,12 +87,65 @@ class RealtimeConnectionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    /** 兜底检测：WebSocketManager 内部已有 scheduleReconnect，此处仅作低频补充 */
+    private fun startForegroundWithType(notification: android.app.Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            }
+            startForeground(NOTIFICATION_ID, notification, type)
+        } else {
+            @Suppress("DEPRECATION")
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun observeConnectionStateForNotification() {
+        connectionStateJob?.cancel()
+        connectionStateJob = webSocketManager.connectionState
+            .onEach { updateForegroundNotification(resolveNotificationText(it)) }
+            .launchIn(scope)
+    }
+
+    private fun resolveNotificationText(state: ConnectionState? = null): String {
+        val resolved = state ?: run {
+            when {
+                webSocketManager.isConnected() -> ConnectionState.CONNECTED
+                else -> ConnectionState.DISCONNECTED
+            }
+        }
+        return when (resolved) {
+            ConnectionState.CONNECTED -> getString(R.string.realtime_notification_connected)
+            ConnectionState.CONNECTING -> getString(R.string.realtime_notification_connecting)
+            ConnectionState.DISCONNECTING,
+            ConnectionState.DISCONNECTED,
+            ConnectionState.FAILED,
+            -> getString(R.string.realtime_notification_disconnected)
+        }
+    }
+
+    private fun updateForegroundNotification(contentText: String) {
+        val notification = buildNotification(contentText)
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        nm.notify(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            }
+            startForeground(NOTIFICATION_ID, notification, type)
+        }
+    }
+
+    /** 兜底：进程未被 OEM 冻结时尽快恢复连接 */
     private fun startConnectionWatchdog() {
         watchdogJob?.cancel()
         watchdogJob = scope.launch {
             while (isActive) {
                 delay(WATCHDOG_INTERVAL_MS)
+                renewWakeLock()
                 if (!webSocketManager.isConnected()) {
                     webSocketManager.ensureConnected()
                 }
@@ -108,8 +160,16 @@ class RealtimeConnectionService : Service() {
             "FoxMusic:RealtimeConnection",
         ).apply {
             setReferenceCounted(false)
-            acquire(WAKE_LOCK_TIMEOUT_MS)
+            acquire(WAKE_LOCK_HOLD_MS)
         }
+    }
+
+    private fun renewWakeLock() {
+        val lock = wakeLock ?: return
+        if (lock.isHeld) {
+            lock.release()
+        }
+        lock.acquire(WAKE_LOCK_HOLD_MS)
     }
 
     private fun releaseWakeLock() {
@@ -124,21 +184,23 @@ class RealtimeConnectionService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "消息连接",
-            NotificationManager.IMPORTANCE_LOW,
+            NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
-            description = "保持实时消息连接"
+            description = getString(R.string.realtime_notification_battery_hint)
             setShowBadge(false)
         }
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
     }
 
-    private fun buildNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(contentText: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_notification)
-        .setContentTitle("FoxMusic 消息服务")
-        .setContentText("正在保持实时消息连接")
+        .setContentTitle(getString(R.string.realtime_notification_title))
+        .setContentText(contentText)
+        .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
         .setOngoing(true)
         .setSilent(true)
-        .setPriority(NotificationCompat.PRIORITY_LOW)
+        .setOnlyAlertOnce(true)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         .setContentIntent(
             PendingIntent.getActivity(
                 this,
@@ -150,11 +212,12 @@ class RealtimeConnectionService : Service() {
         .build()
 
     companion object {
-        private const val CHANNEL_ID = "fox_realtime_connection_channel"
+        /** v2：提高重要性，避免部分 ROM 将低优先级前台服务与网络一并限制 */
+        private const val CHANNEL_ID = "fox_realtime_connection_channel_v2"
         private const val NOTIFICATION_ID = 2001
         private const val ACTION_STOP = "com.fox.music.realtime.STOP"
-        private const val WATCHDOG_INTERVAL_MS = 10_000L
-        private const val WAKE_LOCK_TIMEOUT_MS = 24 * 60 * 60 * 1000L
+        private const val WATCHDOG_INTERVAL_MS = 15_000L
+        private const val WAKE_LOCK_HOLD_MS = 10 * 60 * 1000L
 
         fun start(context: Context) {
             val intent = Intent(context, RealtimeConnectionService::class.java)

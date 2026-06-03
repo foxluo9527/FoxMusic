@@ -87,7 +87,9 @@ class RealtimeMessageCoordinator @Inject constructor(
     }
 
     fun onAppBackground() {
-        // 后台由 RealtimeConnectionService + WebSocketManager 内部重连保活
+        scope.launch {
+            webSocketManager.ensureConnected()
+        }
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)

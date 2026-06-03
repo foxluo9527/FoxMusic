@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">FoxMusic</string>
+    <string name="realtime_notification_title">FoxMusic 消息服务</string>
+    <string name="realtime_notification_connected">实时消息已连接</string>
+    <string name="realtime_notification_connecting">正在连接实时消息…</string>
+    <string name="realtime_notification_disconnected">实时消息未连接，正在重试</string>
+    <string name="realtime_notification_battery_hint">若后台收不到消息，请在系统设置中关闭本应用的电池优化并允许后台活动</string>
+    <string name="background_guide_title">允许后台接收消息</string>
+    <string name="background_guide_message">为保证退出应用后仍能收到聊天与通知，请在系统设置中为 FoxMusic 开启：\n\n1. 电池：不优化 / 无限制\n2. 允许后台活动或自启动（一加、OPPO 等手机在「应用管理 → 耗电管理」中设置）\n\n设置完成后可点「已完成设置」。</string>
+    <string name="background_guide_go_settings">去设置</string>
+    <string name="background_guide_done">已完成设置</string>
+    <string name="background_guide_later">稍后</string>
 </resources>

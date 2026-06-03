@@ -48,6 +48,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.MainActivityViewModel
+import com.fox.music.realtime.BackgroundPermissionGuide
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.chat.MessageType
@@ -934,12 +935,33 @@ fun MainScreen(
                         animationSpec = tween(300)
                     )
                 }) {
+                    val loginContext = LocalContext.current
+                    var showBackgroundGuide by remember { mutableStateOf(false) }
+                    val navigateHomeFromLogin = {
+                        navController.navigate(HOME_ROUTE) {
+                            popUpTo(HOME_ROUTE) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                    if (showBackgroundGuide) {
+                        BackgroundPermissionGuideDialog(
+                            onLater = {
+                                showBackgroundGuide = false
+                                navigateHomeFromLogin()
+                            },
+                            onConfirmed = {
+                                showBackgroundGuide = false
+                                navigateHomeFromLogin()
+                            },
+                        )
+                    }
                     LoginScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToHome = {
-                            navController.navigate(HOME_ROUTE) {
-                                popUpTo(HOME_ROUTE) { inclusive = false }
-                                launchSingleTop = true
+                            if (BackgroundPermissionGuide.shouldShowAfterLogin(loginContext)) {
+                                showBackgroundGuide = true
+                            } else {
+                                navigateHomeFromLogin()
                             }
                         },
                     )
