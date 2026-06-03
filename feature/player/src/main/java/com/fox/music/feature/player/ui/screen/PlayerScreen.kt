@@ -129,14 +129,25 @@ fun PlayerScreen(
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                 .background(Color(0xFFF6F7F9))
         ) {
-            Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .sharedBounds(
+                        sharedTransitionScope.rememberSharedContentState(
+                            key = "player-blur-bg-${playerState.currentMusic?.id}",
+                        ),
+                        animatedVisibilityScope = animatedContentScope,
+                    )
+                    .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)),
+            ) {
                 ImageWithPaletteColors(
-                    Modifier.fillMaxSize(),
-                    playerState.currentMusic?.coverImage
-                ) {dominant, contrast ->
-                    dominantColor = Color(dominant)
-                    contrastColor = Color(contrast)
-                }
+                    modifier = Modifier.fillMaxSize(),
+                    url = playerState.currentMusic?.coverImage,
+                    onColorsExtracted = { dominant: Int, contrast: Int ->
+                        dominantColor = Color(dominant)
+                        contrastColor = Color(contrast)
+                    },
+                )
                 Spacer(
                     Modifier
                         .fillMaxSize()

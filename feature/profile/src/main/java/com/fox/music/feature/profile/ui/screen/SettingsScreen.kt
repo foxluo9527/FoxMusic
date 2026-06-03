@@ -56,6 +56,7 @@ fun SettingsScreen(
     onEditProfile: () -> Unit = {},
     onManageLibrary: () -> Unit = {},
     onDownloadManager: () -> Unit = {},
+    onReportHistory: () -> Unit = {},
     onInstallApk: (File) -> Unit = {},
     onLogout: () -> Unit = {},
 ) {
@@ -72,6 +73,7 @@ fun SettingsScreen(
                 SettingsEffect.NavigateToEditProfile -> onEditProfile()
                 SettingsEffect.NavigateToManageLibrary -> onManageLibrary()
                 SettingsEffect.NavigateToDownloadManager -> onDownloadManager()
+                SettingsEffect.NavigateToReportHistory -> onReportHistory()
                 SettingsEffect.NavigateToLogin -> onLogout()
                 is SettingsEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
@@ -315,6 +317,12 @@ fun SettingsScreen(
                             title = "下载管理",
                             subtitle = "查看与管理已下载歌曲",
                             onClick = { viewModel.sendIntent(SettingsIntent.OnDownloadManagerClick) },
+                        )
+                        SettingsDivider()
+                        SettingsNavigationItem(
+                            title = "举报历史",
+                            subtitle = "查看你提交的举报记录",
+                            onClick = { viewModel.sendIntent(SettingsIntent.OnReportHistoryClick) },
                         )
                         SettingsDivider()
                         SettingsNavigationItem(

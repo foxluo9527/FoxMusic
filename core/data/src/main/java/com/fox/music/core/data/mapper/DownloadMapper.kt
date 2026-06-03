@@ -18,6 +18,8 @@ fun DownloadEntity.toDownloadTask(): DownloadTask = DownloadTask(
     totalBytes = totalBytes,
     downloadedBytes = downloadedBytes,
     createdAt = createdAt,
+    lyrics = lyrics,
+    lyricsTrans = lyricsTrans,
 )
 
 fun DownloadTask.toMusic(): Music? {
@@ -28,8 +30,10 @@ fun DownloadTask.toMusic(): Music? {
     return Music(
         id = musicId,
         title = title,
-        url = file.toURI().toString(),
+        url = "file://${file.absolutePath}",
         coverImage = coverUrl,
+        lyrics = lyrics,
+        lyricsTrans = lyricsTrans,
         artists = artistNames.split(",")
             .map { it.trim() }
             .filter { it.isNotEmpty() }

@@ -16,4 +16,6 @@ data class DownloadEntity(
     val totalBytes: Long = 0,
     val downloadedBytes: Long = 0,
     val createdAt: Long = System.currentTimeMillis(),
+    val lyrics: String? = null,
+    val lyricsTrans: String? = null,
 )

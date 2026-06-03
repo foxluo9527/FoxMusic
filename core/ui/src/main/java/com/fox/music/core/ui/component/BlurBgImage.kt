@@ -15,13 +15,14 @@ import com.fox.music.core.ui.modifier.BlurTransformation
  *    Desc   :
  */
 @Composable
-fun BlurBgImage(modifier: Modifier = Modifier,url: String?) {
+fun BlurBgImage(modifier: Modifier = Modifier, url: String?) {
+    val cacheKey = url?.let { "$it?cacheBlur" }
     val painter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(LocalContext.current)
             .data(processUrl(url))
             .transformations(BlurTransformation(radius = 90, scale = 1f))
-            .diskCacheKey(url)
-            .memoryCacheKey(url)
+            .diskCacheKey(cacheKey)
+            .memoryCacheKey(cacheKey)
             .build()
     )
     Image(

@@ -18,6 +18,7 @@ import javax.inject.Inject
 data class UserProfileState(
     val userId: Long = 0L,
     val nickname: String = "",
+    val mark: String? = null,
     val avatar: String? = null,
     val signature: String? = null,
     val isFriend: Boolean = false,
@@ -25,10 +26,19 @@ data class UserProfileState(
     val isSelf: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
-) : UiState
+    val showRemarkDialog: Boolean = false,
+    val isSavingRemark: Boolean = false,
+) : UiState {
+    /** 展示名：有备注优先备注，否则昵称 */
+    val displayName: String
+        get() = mark?.takeIf { it.isNotBlank() } ?: nickname.takeIf { it.isNotBlank() } ?: "用户"
+}
 
 sealed interface UserProfileIntent : UiIntent {
     data object Load : UserProfileIntent
+    data object ShowRemarkDialog : UserProfileIntent
+    data object DismissRemarkDialog : UserProfileIntent
+    data class SubmitRemark(val remark: String) : UserProfileIntent
 }
 
 sealed interface UserProfileEffect : UiEffect {
@@ -57,6 +67,34 @@ class UserProfileViewModel @Inject constructor(
     override fun handleIntent(intent: UserProfileIntent) {
         when (intent) {
             UserProfileIntent.Load -> loadProfile()
+            UserProfileIntent.ShowRemarkDialog -> updateState { copy(showRemarkDialog = true) }
+            UserProfileIntent.DismissRemarkDialog -> updateState { copy(showRemarkDialog = false) }
+            is UserProfileIntent.SubmitRemark -> submitRemark(intent.remark)
+        }
+    }
+
+    private fun submitRemark(remark: String) {
+        if (!currentState.isFriend || currentState.isSavingRemark) return
+        val trimmed = remark.trim().take(MAX_REMARK_LENGTH)
+        viewModelScope.launch {
+            updateState { copy(isSavingRemark = true) }
+            when (val result = socialRepository.setFriendRemark(currentState.userId, trimmed)) {
+                is Result.Success -> {
+                    updateState {
+                        copy(
+                            mark = trimmed.takeIf { it.isNotBlank() },
+                            isSavingRemark = false,
+                            showRemarkDialog = false,
+                        )
+                    }
+                    sendEffect(UserProfileEffect.ShowMessage("备注已更新"))
+                }
+                is Result.Error -> {
+                    updateState { copy(isSavingRemark = false) }
+                    sendEffect(UserProfileEffect.ShowMessage(result.message ?: "备注更新失败"))
+                }
+                is Result.Loading -> Unit
+            }
         }
     }
 
@@ -68,7 +106,7 @@ class UserProfileViewModel @Inject constructor(
         sendEffect(
             UserProfileEffect.NavigateToChat(
                 userId = currentState.userId,
-                peerNickname = currentState.nickname.takeIf { it.isNotBlank() },
+                peerNickname = currentState.displayName.takeIf { it.isNotBlank() && it != "用户" },
                 peerAvatar = currentState.avatar,
             ),
         )
@@ -99,6 +137,7 @@ class UserProfileViewModel @Inject constructor(
 
             var isFriend = currentState.isFriend
             var nickname = currentState.nickname
+            var mark = currentState.mark
             var avatar = currentState.avatar
             var signature = currentState.signature
             var errorMessage: String? = null
@@ -108,14 +147,15 @@ class UserProfileViewModel @Inject constructor(
                     val friend = friendsResult.data.firstOrNull { it.id == currentState.userId }
                     if (friend != null) {
                         isFriend = true
-                        nickname = friend.mark?.takeIf { it.isNotBlank() }
-                            ?: friend.nickname?.takeIf { it.isNotBlank() }
+                        mark = friend.mark?.takeIf { it.isNotBlank() }
+                        nickname = friend.nickname?.takeIf { it.isNotBlank() }
                             ?: friend.username?.takeIf { it.isNotBlank() }
                             ?: nickname
                         avatar = friend.avatar ?: avatar
                         signature = friend.signature ?: signature
                     } else {
                         isFriend = false
+                        mark = null
                     }
                 }
                 is Result.Error -> errorMessage = friendsResult.message
@@ -134,6 +174,7 @@ class UserProfileViewModel @Inject constructor(
             updateState {
                 copy(
                     nickname = nickname,
+                    mark = mark,
                     avatar = avatar,
                     signature = signature,
                     isFriend = isFriend,
@@ -143,5 +184,9 @@ class UserProfileViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    companion object {
+        const val MAX_REMARK_LENGTH = 20
     }
 }

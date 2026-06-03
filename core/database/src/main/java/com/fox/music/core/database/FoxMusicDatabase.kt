@@ -29,7 +29,7 @@ import com.fox.music.core.database.entity.UserEntity
         SearchHistoryEntity::class,
         DownloadEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

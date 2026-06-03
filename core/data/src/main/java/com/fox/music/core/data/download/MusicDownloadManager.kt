@@ -9,6 +9,7 @@ import com.fox.music.core.data.mapper.toDownloadTask
 import com.fox.music.core.database.dao.DownloadDao
 import com.fox.music.core.database.entity.DownloadEntity
 import com.fox.music.core.domain.repository.DownloadRepository
+import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.download.DownloadTask
@@ -39,6 +40,7 @@ class MusicDownloadManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val downloadDao: DownloadDao,
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val musicRepository: MusicRepository,
 ) : DownloadRepository {
 
     private val downloadClient = OkHttpClient.Builder()
@@ -66,13 +68,18 @@ class MusicDownloadManager @Inject constructor(
         for (music in musics) {
             val existing = downloadDao.getByMusicId(music.id)
             when {
-                existing?.status == DownloadStatus.COMPLETED.name -> continue
+                existing?.status == DownloadStatus.COMPLETED.name -> {
+                    backfillLyricsIfMissing(existing, music)
+                    continue
+                }
                 existing == null -> {
-                    downloadDao.insert(music.toDownloadEntity(DownloadStatus.PENDING))
+                    val (lyrics, lyricsTrans) = resolveLyrics(music)
+                    downloadDao.insert(music.toDownloadEntity(DownloadStatus.PENDING, lyrics, lyricsTrans))
                 }
                 existing.status == DownloadStatus.FAILED.name ||
                     existing.status == DownloadStatus.PAUSED.name ||
                     existing.status == DownloadStatus.DOWNLOADING.name -> {
+                    backfillLyricsIfMissing(existing, music)
                     if (!activeJobs.containsKey(music.id)) {
                         downloadDao.updateStatus(music.id, DownloadStatus.PENDING.name)
                     }
@@ -81,6 +88,26 @@ class MusicDownloadManager @Inject constructor(
             }
         }
         startNextDownloads()
+    }
+
+    /** 老下载记录（迁移前）可能没有歌词，重新入队时尝试补全。 */
+    private suspend fun backfillLyricsIfMissing(existing: DownloadEntity, music: Music) {
+        if (!existing.lyrics.isNullOrBlank()) return
+        val (lyrics, lyricsTrans) = resolveLyrics(music)
+        if (!lyrics.isNullOrBlank()) {
+            downloadDao.update(existing.copy(lyrics = lyrics, lyricsTrans = lyricsTrans))
+        }
+    }
+
+    /** 优先用内存中的歌词；缺失时联网拉取歌曲详情补全，失败则返回原值。 */
+    private suspend fun resolveLyrics(music: Music): Pair<String?, String?> {
+        if (!music.lyrics.isNullOrBlank()) return music.lyrics to music.lyricsTrans
+        val detail = try {
+            musicRepository.getMusicDetail(music.id).getOrNull()?.music
+        } catch (_: Exception) {
+            null
+        }
+        return (detail?.lyrics ?: music.lyrics) to (detail?.lyricsTrans ?: music.lyricsTrans)
     }
 
     override suspend fun pause(musicId: Long) {
@@ -335,13 +362,19 @@ class MusicDownloadManager @Inject constructor(
 
     private fun downloadDir(): File = File(context.filesDir, "downloads")
 
-    private fun Music.toDownloadEntity(status: DownloadStatus) = DownloadEntity(
+    private fun Music.toDownloadEntity(
+        status: DownloadStatus,
+        lyrics: String?,
+        lyricsTrans: String?,
+    ) = DownloadEntity(
         musicId = id,
         title = title,
         artistNames = artists.joinToString(", ") { it.name },
         coverUrl = coverImage,
         sourceUrl = url,
         status = status.name,
+        lyrics = lyrics,
+        lyricsTrans = lyricsTrans,
     )
 
     companion object {

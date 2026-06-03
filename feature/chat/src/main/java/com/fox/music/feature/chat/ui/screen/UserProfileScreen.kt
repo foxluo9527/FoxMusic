@@ -3,6 +3,7 @@ package com.fox.music.feature.chat.ui.screen
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +23,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,15 +39,21 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -148,7 +158,7 @@ fun UserProfileScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             ProfileHeader(
-                nickname = state.nickname.ifBlank { "用户" },
+                nickname = state.displayName,
                 avatar = state.avatar,
                 relationshipLabel = relationshipLabel(
                     isSelf = state.isSelf,
@@ -170,6 +180,23 @@ fun UserProfileScreen(
                         label = "用户 ID",
                         value = state.userId.toString(),
                     )
+                    if (state.isFriend) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        ProfileInfoRow(
+                            icon = Icons.Default.DriveFileRenameOutline,
+                            label = "好友备注",
+                            value = state.mark?.takeIf { it.isNotBlank() } ?: "点击设置备注",
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "修改备注",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            },
+                            onClick = { viewModel.sendIntent(UserProfileIntent.ShowRemarkDialog) },
+                        )
+                    }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ProfileInfoRow(
                         icon = Icons.AutoMirrored.Filled.Chat,
@@ -198,6 +225,54 @@ fun UserProfileScreen(
             }
         }
     }
+
+    if (state.showRemarkDialog) {
+        RemarkEditDialog(
+            initialRemark = state.mark.orEmpty(),
+            isSaving = state.isSavingRemark,
+            onConfirm = { viewModel.sendIntent(UserProfileIntent.SubmitRemark(it)) },
+            onDismiss = { viewModel.sendIntent(UserProfileIntent.DismissRemarkDialog) },
+        )
+    }
+}
+
+@Composable
+private fun RemarkEditDialog(
+    initialRemark: String,
+    isSaving: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val maxLength = UserProfileViewModel.MAX_REMARK_LENGTH
+    var text by rememberSaveable(initialRemark) { mutableStateOf(initialRemark) }
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("修改备注") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { if (it.length <= maxLength) text = it },
+                singleLine = true,
+                label = { Text("好友备注") },
+                placeholder = { Text("最多 $maxLength 个字符") },
+                supportingText = { Text("${text.length}/$maxLength") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(text) },
+                enabled = !isSaving,
+            ) {
+                Text(if (isSaving) "保存中..." else "保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text("取消")
+            }
+        },
+    )
 }
 
 @Composable
@@ -292,12 +367,15 @@ private fun ProfileInfoRow(
     icon: ImageVector,
     label: String,
     value: String,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = icon,
@@ -318,6 +396,10 @@ private fun ProfileInfoRow(
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+        }
+        if (trailing != null) {
+            Spacer(modifier = Modifier.width(12.dp))
+            trailing()
         }
     }
 }

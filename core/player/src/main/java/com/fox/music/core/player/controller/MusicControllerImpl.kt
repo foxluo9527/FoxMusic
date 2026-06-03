@@ -1037,7 +1037,12 @@ class MusicControllerImpl @Inject constructor(
         // 队列 MediaItem 仅保留播放所需字段，避免歌词等大字段导致 Binder 事务失败
         val builder = MediaItem.Builder()
             .setMediaId(id.toString())
-            .setCustomCacheKey("cache_$id")
+            .apply {
+                // 本地文件勿复用在线 cache key，否则 seek 会走 HTTP 上游
+                if (!MediaUrlResolver.isLocalMedia(url)) {
+                    setCustomCacheKey("cache_$id")
+                }
+            }
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(title)

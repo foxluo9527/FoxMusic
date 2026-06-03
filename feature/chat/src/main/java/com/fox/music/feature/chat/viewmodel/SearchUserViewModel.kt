@@ -8,6 +8,7 @@ import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.model.chat.SearchedUser
+import com.fox.music.feature.chat.util.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -58,7 +59,7 @@ class SearchUserViewModel @Inject constructor(
         sendEffect(
             SearchUserEffect.NavigateToUserProfile(
                 userId = user.id,
-                nickname = user.nickname,
+                nickname = user.displayName(),
                 avatar = user.avatar,
                 signature = user.signature,
                 isFriend = user.isFriend,

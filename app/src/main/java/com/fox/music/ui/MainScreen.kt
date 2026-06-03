@@ -122,6 +122,8 @@ import com.fox.music.feature.profile.ui.screen.EDIT_PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.EditProfileScreen
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.ProfileScreen
+import com.fox.music.feature.profile.ui.screen.REPORT_HISTORY_ROUTE
+import com.fox.music.feature.profile.ui.screen.ReportHistoryScreen
 import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.SettingsScreen
 import com.fox.music.feature.search.SEARCH_ROUTE
@@ -330,7 +332,7 @@ fun MainScreen(
 
     @Composable
     fun AnimatedContentScope.MainScreenWithBottomBar(
-        showBottomBar: Boolean,
+        showMiniPlayer: Boolean,
         sharedTransitionScope: SharedTransitionScope,
         navScreen: @Composable AnimatedContentScope.(Modifier) -> Unit,
     ) {
@@ -341,7 +343,7 @@ fun MainScreen(
                     .weight(1f)
                     .statusBarsPadding()
             )
-            if (showBottomBar) {
+            if (showMiniPlayer) {
                 MiniPlayer(
                     playerState = playerState,
                     sharedTransitionScope = sharedTransitionScope,
@@ -351,6 +353,41 @@ fun MainScreen(
                     onClick = { navController.navigate(PLAYER_ROUTE) }
                 )
             }
+        }
+    }
+
+    /**
+     * Tab 根页面布局：内容 + 迷你播放器 + 底部 Tab 栏。
+     * Tab 栏内嵌在 NavHost 目的地中，可随页面转场与可预测返回一起动画，避免回到首页后突然出现。
+     */
+    @Composable
+    fun AnimatedContentScope.MainScreenWithTabBar(
+        tabRoute: String,
+        showMiniPlayer: Boolean,
+        sharedTransitionScope: SharedTransitionScope,
+        navScreen: @Composable AnimatedContentScope.(Modifier) -> Unit,
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            navScreen(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .statusBarsPadding()
+            )
+            if (showMiniPlayer) {
+                MiniPlayer(
+                    playerState = playerState,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = this@MainScreenWithTabBar,
+                    onPlayPauseClick = { musicController.togglePlay() },
+                    onNextClick = { musicController.next() },
+                    onClick = { navController.navigate(PLAYER_ROUTE) }
+                )
+            }
+            AppBottomNavigationBar(
+                navController = navController,
+                selectedRoute = tabRoute,
+            )
         }
     }
 
@@ -369,9 +406,10 @@ fun MainScreen(
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) },
                 ) {
-                    MainScreenWithBottomBar(
-                        showBottomBar,
-                        this@SharedTransitionLayout
+                    MainScreenWithTabBar(
+                        tabRoute = HOME_ROUTE,
+                        showMiniPlayer = showBottomBar,
+                        sharedTransitionScope = this@SharedTransitionLayout,
                     ) {
                         HomeScreen(
                             modifier = it,
@@ -411,9 +449,10 @@ fun MainScreen(
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) },
                 ) {
-                    MainScreenWithBottomBar(
-                        showBottomBar,
-                        this@SharedTransitionLayout
+                    MainScreenWithTabBar(
+                        tabRoute = DISCOVER_ROUTE,
+                        showMiniPlayer = showBottomBar,
+                        sharedTransitionScope = this@SharedTransitionLayout,
                     ) {
                         DiscoverScreen(
                             modifier = it,
@@ -661,9 +700,10 @@ fun MainScreen(
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) },
                 ) {
-                    MainScreenWithBottomBar(
-                        showBottomBar,
-                        this@SharedTransitionLayout
+                    MainScreenWithTabBar(
+                        tabRoute = PROFILE_ROUTE,
+                        showMiniPlayer = showBottomBar,
+                        sharedTransitionScope = this@SharedTransitionLayout,
                     ) {
                         ProfileScreen(
                             modifier = it,
@@ -760,6 +800,7 @@ fun MainScreen(
                         onEditProfile = { navController.navigate(EDIT_PROFILE_ROUTE) },
                         onManageLibrary = { navController.navigate(MANAGE_ROUTER) },
                         onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
+                        onReportHistory = { navController.navigate(REPORT_HISTORY_ROUTE) },
                         onInstallApk = viewModel::requestInstall,
                         onLogout = {
                             navController.navigate(LOGIN_ROUTE) {
@@ -799,6 +840,34 @@ fun MainScreen(
                             onNavigateToPlayer = { navController.navigate(PLAYER_ROUTE) },
                         )
                     }
+                }
+                composable(
+                    route = REPORT_HISTORY_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300)
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300)
+                        )
+                    }
+                ) {
+                    ReportHistoryScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                        onBack = { navController.popBackStack() },
+                    )
                 }
                 composable(
                     route = EDIT_PROFILE_ROUTE,

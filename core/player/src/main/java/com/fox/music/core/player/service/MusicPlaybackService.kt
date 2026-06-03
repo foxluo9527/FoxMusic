@@ -25,6 +25,7 @@ import androidx.media3.session.MediaSessionService
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.player.cache.PlaybackCacheManager
 import com.fox.music.core.player.controller.MusicController
+import com.fox.music.core.player.datasource.RoutingDataSourceFactory
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
@@ -57,15 +58,19 @@ class MusicPlaybackService : MediaSessionService() {
         }
     }
 
-    private val cacheDataSourceFactory by lazy {
+    private val playbackDataSourceFactory by lazy {
         val upstreamFactory = DefaultDataSource.Factory(
             this,
-            DefaultHttpDataSource.Factory().setUserAgent("YourAppUserAgent"),
+            DefaultHttpDataSource.Factory().setUserAgent("FoxMusic"),
         )
-        CacheDataSource.Factory()
+        val cacheDataSourceFactory = CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        RoutingDataSourceFactory(
+            localFactory = upstreamFactory,
+            remoteFactory = cacheDataSourceFactory,
+        )
     }
 
     @OptIn(UnstableApi::class)
@@ -81,7 +86,7 @@ class MusicPlaybackService : MediaSessionService() {
                     .build(),
                 /* handleAudioFocus = */ true,
             )
-            .setMediaSourceFactory(ProgressiveMediaSource.Factory(cacheDataSourceFactory))
+            .setMediaSourceFactory(ProgressiveMediaSource.Factory(playbackDataSourceFactory))
             .setHandleAudioBecomingNoisy(true)
             .build()
             .also {

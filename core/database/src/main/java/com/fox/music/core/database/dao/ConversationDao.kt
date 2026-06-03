@@ -41,6 +41,9 @@ interface ConversationDao {
     @Query("UPDATE conversations SET unreadCount = 0 WHERE peerUserId = :peerUserId")
     suspend fun clearUnread(peerUserId: Long)
 
+    @Query("UPDATE conversations SET peerMark = :peerMark WHERE peerUserId = :peerUserId")
+    suspend fun updatePeerMark(peerUserId: Long, peerMark: String?)
+
     @Query("DELETE FROM conversations")
     suspend fun deleteAllConversations()
 

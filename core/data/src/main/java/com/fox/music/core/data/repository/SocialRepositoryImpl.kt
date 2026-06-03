@@ -20,13 +20,15 @@ import com.fox.music.core.model.chat.NotificationType
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.chat.SearchedUser
+import com.fox.music.core.database.dao.ConversationDao
 import com.fox.music.core.network.api.SocialApiService
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SocialRepositoryImpl @Inject constructor(
-    private val socialApi: SocialApiService
+    private val socialApi: SocialApiService,
+    private val conversationDao: ConversationDao,
 ) : SocialRepository {
 
     override suspend fun getFriends(): Result<List<Friend>> = suspendRunCatching {
@@ -89,7 +91,12 @@ class SocialRepositoryImpl @Inject constructor(
                     remark = remark
                 )
             )
-            if (response.isSuccess) Unit else throw Exception(response.message)
+            if (response.isSuccess) {
+                // 同步本地会话备注，保证会话列表/聊天标题展示一致
+                conversationDao.updatePeerMark(friendId, remark.ifBlank { null })
+            } else {
+                throw Exception(response.message)
+            }
         }
 
     override suspend fun getPosts(

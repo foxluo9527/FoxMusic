@@ -49,8 +49,14 @@ fun ImageWithPaletteColors(
     modifier: Modifier,
     url: String?,
     onColorsExtracted: (dominantColor: Int, contrastColor: Int) -> Unit,
+    /** 为 false 时不于每次重组时先回调占位色，避免已有缓存时切换 Tab 出现颜色跳变 */
+    emitPlaceholderColors: Boolean = true,
+    /** 为 true 时跳过 Palette 提取（例如 MiniPlayer 已有缓存的 contrast 色） */
+    skipPaletteExtraction: Boolean = false,
 ) {
-    onColorsExtracted("#f6f7f9".toColorInt(), "#202122".toColorInt())
+    if (emitPlaceholderColors) {
+        onColorsExtracted("#f6f7f9".toColorInt(), "#202122".toColorInt())
+    }
     val painter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(LocalContext.current)
             .data(processUrl(url))
@@ -61,7 +67,8 @@ fun ImageWithPaletteColors(
     )
 
     // 当图片加载成功时提取颜色
-    LaunchedEffect(painter.state) {
+    LaunchedEffect(painter.state, url, skipPaletteExtraction) {
+        if (skipPaletteExtraction) return@LaunchedEffect
         if (painter.state is AsyncImagePainter.State.Success) {
             val result = (painter.state as AsyncImagePainter.State.Success).result
             val drawable = result.drawable

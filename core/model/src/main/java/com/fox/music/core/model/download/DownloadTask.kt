@@ -19,4 +19,6 @@ data class DownloadTask(
     val totalBytes: Long,
     val downloadedBytes: Long,
     val createdAt: Long,
+    val lyrics: String? = null,
+    val lyricsTrans: String? = null,
 )

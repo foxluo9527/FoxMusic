@@ -139,7 +139,8 @@ fun ConversationEntity.toChatConversation(): ChatConversation {
         user = User(
             id = peerUserId,
             username = peerMark ?: peerNickname ?: "",
-            nickname = peerNickname,
+            // 有备注时优先用备注作为展示名（displayName 优先 nickname）
+            nickname = peerMark?.takeIf { it.isNotBlank() } ?: peerNickname,
             avatar = peerAvatar,
         ),
         lastMessage = lastMessage,

@@ -2,6 +2,8 @@ package com.fox.music.core.database.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fox.music.core.database.FoxMusicDatabase
 import com.fox.music.core.database.dao.ConversationDao
 import com.fox.music.core.database.dao.DownloadDao
@@ -21,6 +23,13 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
 
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE downloads ADD COLUMN lyrics TEXT")
+            db.execSQL("ALTER TABLE downloads ADD COLUMN lyricsTrans TEXT")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideFoxMusicDatabase(
@@ -31,6 +40,7 @@ object DatabaseModule {
             FoxMusicDatabase::class.java,
             "fox_music.db",
         )
+            .addMigrations(MIGRATION_8_9)
             .fallbackToDestructiveMigration()
             .build()
     }
