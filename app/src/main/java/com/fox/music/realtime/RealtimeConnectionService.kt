@@ -13,7 +13,6 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.fox.music.MainActivity
 import com.fox.music.R
-import com.fox.music.core.network.websocket.ConnectionState
 import com.fox.music.core.network.websocket.WebSocketManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -23,8 +22,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -40,6 +37,7 @@ class RealtimeConnectionService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var watchdogJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var connectionStarted = false
 
     override fun onCreate() {
         super.onCreate()
@@ -71,10 +69,12 @@ class RealtimeConnectionService : Service() {
         }
 
         startConnectionWatchdog()
-        observeConnectionState()
 
-        scope.launch {
-            webSocketManager.ensureConnected()
+        if (!connectionStarted) {
+            connectionStarted = true
+            scope.launch {
+                webSocketManager.ensureConnected()
+            }
         }
         return START_STICKY
     }
@@ -88,18 +88,7 @@ class RealtimeConnectionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun observeConnectionState() {
-        webSocketManager.connectionState
-            .onEach { state ->
-                if (state == ConnectionState.FAILED || state == ConnectionState.DISCONNECTED) {
-                    scope.launch {
-                        webSocketManager.ensureConnected()
-                    }
-                }
-            }
-            .launchIn(scope)
-    }
-
+    /** 兜底检测：WebSocketManager 内部已有 scheduleReconnect，此处仅作低频补充 */
     private fun startConnectionWatchdog() {
         watchdogJob?.cancel()
         watchdogJob = scope.launch {

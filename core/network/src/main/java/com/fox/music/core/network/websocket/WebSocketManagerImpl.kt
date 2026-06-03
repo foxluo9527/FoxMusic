@@ -42,6 +42,8 @@ class WebSocketManagerImpl @Inject constructor(
     private var reconnectAttempts = 0
     private var intentionalDisconnect = false
     private val connectMutex = Mutex()
+    /** 每次 doConnect 递增，用于忽略已取消的旧 WebSocket 回调 */
+    private var connectGeneration = 0L
 
     private val wsUrl: String = BuildConfig.BASE_URL
         .replace("https://", "wss://")
@@ -68,26 +70,15 @@ class WebSocketManagerImpl @Inject constructor(
     }
 
     override suspend fun connect() {
-        if (_connectionState.value == ConnectionState.CONNECTED ||
-            _connectionState.value == ConnectionState.CONNECTING
-        ) {
-            return
-        }
-        doConnect()
+        doConnect(resetReconnectAttempts = false)
     }
 
     override suspend fun ensureConnected() {
-        if (_connectionState.value == ConnectionState.CONNECTED ||
-            _connectionState.value == ConnectionState.CONNECTING
-        ) {
-            return
-        }
         intentionalDisconnect = false
-        reconnectAttempts = 0
-        doConnect()
+        doConnect(resetReconnectAttempts = true)
     }
 
-    private suspend fun doConnect() {
+    private suspend fun doConnect(resetReconnectAttempts: Boolean) {
         connectMutex.withLock {
             if (_connectionState.value == ConnectionState.CONNECTED ||
                 _connectionState.value == ConnectionState.CONNECTING
@@ -105,35 +96,46 @@ class WebSocketManagerImpl @Inject constructor(
                 return
             }
 
+            reconnectJob?.cancel()
+            reconnectJob = null
             intentionalDisconnect = false
-            reconnectAttempts = 0
+            if (resetReconnectAttempts) {
+                reconnectAttempts = 0
+            }
             webSocket?.cancel()
             webSocket = null
             _connectionState.value = ConnectionState.CONNECTING
 
+            val generation = ++connectGeneration
             val request = Request.Builder()
                 .url("$wsUrl?token=$token")
                 .build()
 
-            webSocket = okHttpClient.newWebSocket(request, createWebSocketListener())
+            webSocket = okHttpClient.newWebSocket(request, createWebSocketListener(generation))
         }
     }
 
     override suspend fun reconnect() {
-        reconnectJob?.cancel()
-        reconnectAttempts = 0
-        intentionalDisconnect = false
-        webSocket?.cancel()
-        webSocket = null
-        pingJob?.cancel()
-        _connectionState.value = ConnectionState.DISCONNECTED
-        connect()
+        connectMutex.withLock {
+            reconnectJob?.cancel()
+            reconnectJob = null
+            reconnectAttempts = 0
+            intentionalDisconnect = false
+            webSocket?.cancel()
+            webSocket = null
+            pingJob?.cancel()
+            ++connectGeneration
+            _connectionState.value = ConnectionState.DISCONNECTED
+        }
+        doConnect(resetReconnectAttempts = true)
     }
 
     override suspend fun disconnect() {
         intentionalDisconnect = true
         reconnectJob?.cancel()
+        reconnectJob = null
         pingJob?.cancel()
+        ++connectGeneration
         _connectionState.value = ConnectionState.DISCONNECTING
         webSocket?.close(1000, "User disconnected")
         webSocket = null
@@ -151,8 +153,11 @@ class WebSocketManagerImpl @Inject constructor(
 
     override fun isConnected(): Boolean = _connectionState.value == ConnectionState.CONNECTED
 
-    private fun createWebSocketListener() = object : WebSocketListener() {
+    private fun createWebSocketListener(generation: Long) = object : WebSocketListener() {
+        private fun isStale(): Boolean = generation != connectGeneration
+
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            if (isStale()) return
             Timber.d("WebSocket connected")
             reconnectAttempts = 0
             _connectionState.value = ConnectionState.CONNECTED
@@ -160,6 +165,7 @@ class WebSocketManagerImpl @Inject constructor(
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            if (isStale()) return
             Timber.d("WebSocket message received: $text")
             scope.launch {
                 parseMessage(text)?.let { _incomingMessages.emit(it) }
@@ -167,11 +173,13 @@ class WebSocketManagerImpl @Inject constructor(
         }
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            if (isStale()) return
             Timber.d("WebSocket closing: $code $reason")
             _connectionState.value = ConnectionState.DISCONNECTING
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            if (isStale()) return
             Timber.d("WebSocket closed: $code $reason")
             _connectionState.value = ConnectionState.DISCONNECTED
             pingJob?.cancel()
@@ -181,6 +189,7 @@ class WebSocketManagerImpl @Inject constructor(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            if (isStale()) return
             Timber.e(t, "WebSocket failure")
             _connectionState.value = ConnectionState.FAILED
             pingJob?.cancel()
@@ -268,14 +277,14 @@ class WebSocketManagerImpl @Inject constructor(
             Timber.w("WebSocket reconnect attempts exhausted")
             return
         }
-        reconnectJob?.cancel()
+        if (reconnectJob?.isActive == true) return
         reconnectJob = scope.launch {
             reconnectAttempts++
             val delayMs = if (reconnectAttempts <= 5) 0L else RECONNECT_INTERVAL_MS
             if (delayMs > 0) delay(delayMs)
             if (!intentionalDisconnect &&
-                (_connectionState.value == ConnectionState.FAILED ||
-                    _connectionState.value == ConnectionState.DISCONNECTED)
+                _connectionState.value != ConnectionState.CONNECTED &&
+                _connectionState.value != ConnectionState.CONNECTING
             ) {
                 connect()
             }

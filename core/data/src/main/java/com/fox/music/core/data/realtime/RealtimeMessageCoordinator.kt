@@ -66,7 +66,6 @@ class RealtimeMessageCoordinator @Inject constructor(
             .onEach { loggedIn ->
                 if (loggedIn) {
                     connectionLauncher.startConnectionService()
-                    webSocketManager.ensureConnected()
                 } else {
                     connectionLauncher.stopConnectionService()
                     webSocketManager.disconnect()
@@ -88,11 +87,7 @@ class RealtimeMessageCoordinator @Inject constructor(
     }
 
     fun onAppBackground() {
-        scope.launch {
-            if (!webSocketManager.isConnected()) {
-                webSocketManager.ensureConnected()
-            }
-        }
+        // 后台由 RealtimeConnectionService + WebSocketManager 内部重连保活
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
