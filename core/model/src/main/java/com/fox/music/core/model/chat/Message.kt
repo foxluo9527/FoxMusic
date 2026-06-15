@@ -99,6 +99,12 @@ data class ShareData(
     val coverImage: String? = null,
     val avatar: String? = null,
     val description: String? = null,
+    val content: String? = null,
+    val images: List<String> = emptyList(),
+    @SerialName("author_avatar")
+    val authorAvatar: String? = null,
+    @SerialName("author_name")
+    val authorName: String? = null,
     val url: String? = null,
     val duration: Long = 0,
     @SerialName("track_count")
@@ -114,3 +120,16 @@ data class ShareData(
     val lyricsUrl: String? = null,
     val artists: List<Artist> = emptyList(),
 )
+
+/** 帖子分享封面：优先 cover_image，其次首图、作者头像 */
+val ShareData.postCoverImage: String?
+    get() = coverImage?.takeIf { it.isNotBlank() }
+        ?: images.firstOrNull { it.isNotBlank() }
+        ?: authorAvatar?.takeIf { it.isNotBlank() }
+        ?: avatar?.takeIf { it.isNotBlank() }
+
+/** 帖子分享正文 */
+val ShareData.postBodyText: String?
+    get() = content?.takeIf { it.isNotBlank() }
+        ?: description?.takeIf { it.isNotBlank() }
+        ?: title?.takeIf { it.isNotBlank() }

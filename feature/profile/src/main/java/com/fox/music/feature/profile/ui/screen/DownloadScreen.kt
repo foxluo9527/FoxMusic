@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistPlay
@@ -46,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.download.DownloadTask
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.DownloadActionBottomSheet
 import com.fox.music.feature.profile.viewmodel.DownloadEffect
 import com.fox.music.feature.profile.viewmodel.DownloadViewModel
 
@@ -57,7 +58,7 @@ private fun RowScope.DownloadToolbarTextButton(
     icon: ImageVector,
     label: String,
 ) {
-    TextButton(modifier = Modifier.weight(1f),onClick = onClick) {
+    TextButton(modifier = Modifier.weight(1f), onClick = onClick) {
         Icon(
             imageVector = icon,
             contentDescription = label,
@@ -81,6 +82,8 @@ fun DownloadScreen(
 ) {
     val downloads by viewModel.downloads.collectAsState()
     val completedDownloads by viewModel.completedDownloads.collectAsState()
+    val actionTask by viewModel.actionTask.collectAsState()
+    val showActionSheet by viewModel.showActionSheet.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -166,14 +169,20 @@ fun DownloadScreen(
                                 viewModel.playDownload(task)
                             }
                         },
-                        onPlay = { viewModel.playDownload(task) },
-                        onPause = { viewModel.pause(task.musicId) },
-                        onResume = { viewModel.resume(task.musicId) },
-                        onDelete = { viewModel.delete(task.musicId) },
+                        onMoreClick = { viewModel.showMoreActions(task) },
                     )
                 }
             }
         }
+    }
+
+    if (showActionSheet && actionTask != null) {
+        DownloadActionBottomSheet(
+            task = actionTask!!,
+            onDismiss = viewModel::dismissActionSheet,
+            onPlayNext = { viewModel.playNext(actionTask!!) },
+            onDelete = { viewModel.delete(actionTask!!.musicId) },
+        )
     }
 }
 
@@ -182,10 +191,7 @@ private fun DownloadTaskItem(
     task: DownloadTask,
     statusLabel: String,
     onClick: () -> Unit,
-    onPlay: () -> Unit,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onDelete: () -> Unit,
+    onMoreClick: () -> Unit,
 ) {
     val isPlayable = task.status == DownloadStatus.COMPLETED
     Row(
@@ -249,25 +255,8 @@ private fun DownloadTaskItem(
                 }
             }
         }
-        when (task.status) {
-            DownloadStatus.COMPLETED -> {
-                IconButton(onClick = onPlay) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "播放")
-                }
-            }
-            DownloadStatus.DOWNLOADING, DownloadStatus.PENDING -> {
-                IconButton(onClick = onPause) {
-                    Icon(Icons.Default.Pause, contentDescription = "暂停")
-                }
-            }
-            DownloadStatus.PAUSED, DownloadStatus.FAILED -> {
-                IconButton(onClick = onResume) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "继续下载")
-                }
-            }
-        }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "删除")
+        IconButton(onClick = onMoreClick) {
+            Icon(Icons.Default.MoreVert, contentDescription = "更多")
         }
     }
 }

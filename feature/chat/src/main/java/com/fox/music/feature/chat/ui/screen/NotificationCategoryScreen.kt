@@ -53,6 +53,7 @@ fun NotificationCategoryScreen(
     modifier: Modifier = Modifier,
     viewModel: NotificationCategoryViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    onNavigateToPostDetail: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -68,6 +69,9 @@ fun NotificationCategoryScreen(
                 NotificationCategoryEffect.NavigateBack -> onBack()
                 is NotificationCategoryEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                }
+                is NotificationCategoryEffect.NavigateToPostDetail -> {
+                    onNavigateToPostDetail(effect.postId)
                 }
             }
         }
@@ -131,11 +135,13 @@ fun NotificationCategoryScreen(
                     onClick = {
                         if (state.category == NotificationCategory.SYSTEM) {
                             selectedAnnouncement = notification
-                        }
-                        if (!notification.isRead) {
-                            viewModel.sendIntent(
-                                NotificationCategoryIntent.MarkRead(notification.id),
-                            )
+                            if (!notification.isRead) {
+                                viewModel.sendIntent(
+                                    NotificationCategoryIntent.MarkRead(notification.id),
+                                )
+                            }
+                        } else {
+                            viewModel.onNotificationClick(notification)
                         }
                     },
                 )

@@ -101,6 +101,15 @@ import com.fox.music.feature.discover.DiscoverScreen
 import com.fox.music.feature.discover.HOT_ARTIST_LIST_ROUTE
 import com.fox.music.feature.discover.HotArtistListScreen
 import com.fox.music.feature.discover.artistDetailRoute
+import com.fox.music.feature.social.ui.screen.COMMUNITY_PLAZA_ROUTE
+import com.fox.music.feature.social.ui.screen.CREATE_POST_ROUTE
+import com.fox.music.feature.social.ui.screen.POST_DETAIL_ROUTE
+import com.fox.music.feature.social.ui.screen.CommunityPlazaScreen
+import com.fox.music.feature.social.ui.screen.CreatePostScreen
+import com.fox.music.feature.social.ui.screen.PostDetailScreen
+import com.fox.music.feature.social.ui.screen.createPostRoute
+import com.fox.music.feature.social.viewmodel.PostDetailViewModel
+import com.fox.music.feature.social.ui.screen.postDetailRoute
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.home.HomeScreen
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
@@ -141,6 +150,7 @@ fun MainScreen(
     viewModel: MainActivityViewModel,
     deepLinkRoute: String = HOME_ROUTE,
     musicActionsViewModel: MusicActionsViewModel = hiltViewModel(),
+    postActionsViewModel: PostActionsViewModel = hiltViewModel(),
 ) {
     val musicController = viewModel.musicController
     val authState by viewModel.authState.collectAsState()
@@ -160,7 +170,10 @@ fun MainScreen(
     var inputDialogTitle by remember { mutableStateOf("") }
     var inputDialogLabel by remember { mutableStateOf("") }
     var profileRefreshKey by remember { mutableIntStateOf(0) }
+    var plazaRefreshTrigger by remember { mutableIntStateOf(0) }
     var hideMiniPlayerInSelection by remember { mutableStateOf(false) }
+    val postActionsState by postActionsViewModel.uiState.collectAsStateWithLifecycle()
+    val currentUserId = postActionsState.currentUserId
 
     // 监听歌单状态变化
     val playlistState by viewModel.playlistState.collectAsState()
@@ -194,9 +207,11 @@ fun MainScreen(
         entry.savedStateHandle.remove<String>("selectedFriendAvatar")
 
         when {
-            // 音乐分享流程
             musicActionsViewModel.uiState.value.showSelectFriend -> {
                 musicActionsViewModel.sendShareMusic(friendId)
+            }
+            postActionsViewModel.uiState.value.showSelectFriend -> {
+                postActionsViewModel.sendSharePost(friendId)
             }
             // 转发流程：将 friendId 写入 ChatDetail 的 savedStateHandle
             else -> {
@@ -483,6 +498,19 @@ fun MainScreen(
                             onHotArtistMore = {
                                 navController.navigate(HOT_ARTIST_LIST_ROUTE)
                             },
+                            onCommunityPlazaMore = {
+                                navController.navigate(COMMUNITY_PLAZA_ROUTE)
+                            },
+                            currentUserId = currentUserId,
+                            onPostDetail = { postId ->
+                                navController.navigate(postDetailRoute(postId))
+                            },
+                            onSharePost = postActionsViewModel::sharePost,
+                            onEditPost = { postId ->
+                                navController.navigate(createPostRoute(postId))
+                            },
+                            onReportPost = postActionsViewModel::showReportSheet,
+                            onDeletePost = postActionsViewModel::showDeleteDialog,
                             onArtistClick = ::onArtistClick,
                             onMusicMoreClick = ::onMusicMoreClick,
                         )
@@ -574,6 +602,119 @@ fun MainScreen(
                             navController.navigate(ALL_ARTIST_LIST_ROUTE)
                         },
                         onBackClick = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = COMMUNITY_PLAZA_ROUTE,
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300),
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300),
+                        )
+                    },
+                ) {
+                    CommunityPlazaScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        refreshTrigger = plazaRefreshTrigger,
+                        currentUserId = currentUserId,
+                        onBack = { navController.popBackStack() },
+                        onCreatePost = { navController.navigate(createPostRoute()) },
+                        onPostDetail = { postId ->
+                            navController.navigate(postDetailRoute(postId))
+                        },
+                        onSharePost = postActionsViewModel::sharePost,
+                        onEditPost = { postId ->
+                            navController.navigate(createPostRoute(postId))
+                        },
+                        onReportPost = postActionsViewModel::showReportSheet,
+                        onDeletePost = postActionsViewModel::showDeleteDialog,
+                    )
+                }
+                composable(
+                    route = POST_DETAIL_ROUTE,
+                    arguments = listOf(
+                        navArgument("postId") { type = NavType.LongType },
+                    ),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300),
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300),
+                        )
+                    },
+                ) {
+                    PostDetailScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        currentUserId = currentUserId,
+                        onBack = { navController.popBackStack() },
+                        onSharePost = postActionsViewModel::sharePost,
+                        onEditPost = { postId ->
+                            navController.navigate(createPostRoute(postId))
+                        },
+                        onReportPost = postActionsViewModel::showReportSheet,
+                        onDeletePost = postActionsViewModel::showDeleteDialog,
+                    )
+                }
+                composable(
+                    route = CREATE_POST_ROUTE,
+                    arguments = listOf(
+                        navArgument("postId") {
+                            type = NavType.LongType
+                            defaultValue = -1L
+                        },
+                    ),
+                    enterTransition = {
+                        slideIntoContainer(
+                            towards = SlideDirection.Left,
+                            animationSpec = tween(300),
+                        )
+                    },
+                    exitTransition = {
+                        ExitTransition.None
+                    },
+                    popEnterTransition = {
+                        EnterTransition.None
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            towards = SlideDirection.Right,
+                            animationSpec = tween(300),
+                        )
+                    },
+                ) {
+                    CreatePostScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onBack = { navController.popBackStack() },
+                        onPublished = {
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set(PostDetailViewModel.POST_UPDATED_KEY, true)
+                            plazaRefreshTrigger++
+                            navController.popBackStack()
+                        },
                     )
                 }
                 composable(
@@ -789,6 +930,7 @@ fun MainScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .statusBarsPadding(),
+                        isLogin = authState.isLoggedIn,
                         isDesktopLyricEnabled = isDesktopLyricEnabled,
                         onDesktopLyricChange = { enabled ->
                             if (enabled) {
@@ -798,6 +940,7 @@ fun MainScreen(
                             }
                         },
                         onBack = { navController.popBackStack() },
+                        onLogin = { navController.navigate(LOGIN_ROUTE) },
                         onEditProfile = { navController.navigate(EDIT_PROFILE_ROUTE) },
                         onManageLibrary = { navController.navigate(MANAGE_ROUTER) },
                         onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
@@ -1185,6 +1328,9 @@ fun MainScreen(
                             .fillMaxSize()
                             .statusBarsPadding(),
                         onBack = { navController.popBackStack() },
+                        onNavigateToPostDetail = { postId ->
+                            navController.navigate(postDetailRoute(postId))
+                        },
                     )
                 }
                 composable(
@@ -1276,6 +1422,7 @@ fun MainScreen(
                                 "playlist" -> navController.navigate(playlistDetailRoute(shareId))
                                 "album" -> navController.navigate(playlistDetailRoute(shareId, DetailType.ALBUM))
                                 "artist" -> navController.navigate(artistDetailRoute(shareId))
+                                "post" -> navController.navigate(postDetailRoute(shareId))
                             }
                         },
                     )
@@ -1474,6 +1621,22 @@ fun MainScreen(
             navController.navigate(selectFriendRoute())
         },
         viewModel = musicActionsViewModel,
+    )
+
+    PostActionsHost(
+        onNavigateToSelectFriend = {
+            navController.navigate(selectFriendRoute())
+        },
+        onNavigateToEditPost = { postId ->
+            navController.navigate(createPostRoute(postId))
+        },
+        onPostDeleted = {
+            plazaRefreshTrigger++
+            if (navController.currentDestination?.route?.startsWith("post_detail") == true) {
+                navController.popBackStack()
+            }
+        },
+        viewModel = postActionsViewModel,
     )
 
     if (showCreatePlaylistBottomSheet) {

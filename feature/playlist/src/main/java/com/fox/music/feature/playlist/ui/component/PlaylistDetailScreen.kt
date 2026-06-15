@@ -98,7 +98,7 @@ fun PlaylistDetailScreen(
     val state by viewModel.uiState.collectAsState()
     val pagingItems = viewModel.tracks.collectAsLazyPagingItems()
     val context = LocalContext.current
-    val playlistKey = viewModel.playlistKey
+    val playlistKey by viewModel.playlistKey.collectAsState()
     var showManageSheet by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 

@@ -3,8 +3,6 @@ package com.fox.music.core.ui.component
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -18,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
@@ -27,42 +26,90 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.social.Post
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PostCard(
     post: Post,
     onPostClick: () -> Unit,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
+    onShareClick: () -> Unit,
     onUserClick: () -> Unit,
     modifier: Modifier = Modifier,
+    previewComment: Comment? = null,
+    isOwnPost: Boolean = false,
+    onEditClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {},
+    onReportClick: () -> Unit = {},
+    onImageClick: (Int) -> Unit = {},
 ) {
+    var showMoreSheet by remember { mutableStateOf(false) }
+
+    if (showMoreSheet) {
+        PostMoreBottomSheet(
+            isOwnPost = isOwnPost,
+            onDismiss = { showMoreSheet = false },
+            onEdit = onEditClick,
+            onDelete = onDeleteClick,
+            onReport = onReportClick,
+        )
+    }
+
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onPostClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+        PostContentBody(
+            post = post,
+            previewComment = previewComment,
+            onPostClick = onPostClick,
+            onImageClick = onImageClick,
+            onUserClick = onUserClick,
+            showMoreButton = true,
+            onMoreClick = { showMoreSheet = true },
+            onLikeClick = onLikeClick,
+            onCommentClick = onCommentClick,
+            onShareClick = onShareClick,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+@Composable
+fun PostContentBody(
+    post: Post,
+    onPostClick: () -> Unit,
+    onLikeClick: () -> Unit,
+    onCommentClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onUserClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    previewComment: Comment? = null,
+    showMoreButton: Boolean = false,
+    onMoreClick: () -> Unit = {},
+    onImageClick: (Int) -> Unit = {},
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 用户信息行
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .clickable(onClick = onUserClick),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -74,7 +121,7 @@ fun PostCard(
                     placeholderIcon = Icons.Default.Person,
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
+                Column {
                     Text(
                         text = post.authorName ?: "未知用户",
                         style = MaterialTheme.typography.titleSmall,
@@ -87,156 +134,176 @@ fun PostCard(
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 文字内容
-            Text(
-                text = post.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 6,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            // 图片九宫格
-            if (post.images.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                ImageGrid(images = post.images)
+            if (showMoreButton) {
+                IconButton(onClick = onMoreClick) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                }
             }
+        }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = post.content,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 6,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onPostClick),
+        )
+
+        if (post.images.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
+            PostImageGrid(
+                images = post.images,
+                onImageClick = onImageClick,
+            )
+        }
 
-            // 底部交互栏
+        previewComment?.let { comment ->
+            PostCommentPreview(
+                comment = comment,
+                onClick = onPostClick,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        PostInteractionBar(
+            post = post,
+            onLikeClick = onLikeClick,
+            onCommentClick = onCommentClick,
+            onShareClick = onShareClick,
+        )
+    }
+}
+
+@Composable
+fun PostInteractionBar(
+    post: Post,
+    onLikeClick: () -> Unit,
+    onCommentClick: () -> Unit,
+    onShareClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PostActionItem(
+            modifier = Modifier.weight(1f),
+            icon = if (post.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+            tint = if (post.isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            count = post.likeCount,
+            onClick = onLikeClick,
+        )
+        PostActionItem(
+            modifier = Modifier.weight(1f),
+            icon = Icons.Default.ChatBubbleOutline,
+            count = post.commentCount,
+            onClick = onCommentClick,
+        )
+        PostActionItem(
+            modifier = Modifier.weight(1f),
+            icon = Icons.Default.Share,
+            onClick = onShareClick,
+            showCount = false,
+        )
+    }
+}
+
+@Composable
+private fun PostActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    count: Int = 0,
+    showCount: Boolean = true,
+) {
+    Row(
+        modifier = modifier.clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+            Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        }
+        if (showCount) {
+            Text(
+                text = formatCount(count),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+fun PostImageGrid(
+    images: List<String>,
+    onImageClick: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val imageCount = images.size.coerceAtMost(9)
+    val displayImages = images.take(imageCount)
+    val columns = when (imageCount) {
+        1, 2 -> imageCount
+        4 -> 2
+        else -> 3
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (imageCount == 1) {
+            CachedImage(
+                imageUrl = displayImages[0],
+                contentDescription = "动态图片",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clickable { onImageClick(0) },
+                shape = MaterialTheme.shapes.small,
+            )
+            return@Column
+        }
+
+        displayImages.chunked(columns).forEachIndexed { rowIndex, rowImages ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // 点赞
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        IconButton(
-                            onClick = onLikeClick,
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                imageVector = if (post.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = "点赞",
-                                tint = if (post.isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                        Text(
-                            text = formatCount(post.likeCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    // 评论
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        IconButton(
-                            onClick = onCommentClick,
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ChatBubbleOutline,
-                                contentDescription = "评论",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                        Text(
-                            text = formatCount(post.commentCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    // 收藏数（分享数作为收藏数展示）
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        IconButton(
-                            onClick = onCommentClick,
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "分享",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                        Text(
-                            text = formatCount(post.shareCount),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                rowImages.forEachIndexed { colIndex, imageUrl ->
+                    val globalIndex = rowIndex * columns + colIndex
+                    CachedImage(
+                        imageUrl = imageUrl,
+                        contentDescription = "动态图片",
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            .clickable { onImageClick(globalIndex) },
+                        shape = MaterialTheme.shapes.small,
+                    )
+                }
+                repeat(columns - rowImages.size) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ImageGrid(
-    images: List<String>,
-    modifier: Modifier = Modifier,
-) {
-    val imageCount = images.size.coerceAtMost(9)
-
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        maxItemsInEachRow = 3,
-    ) {
-        images.take(imageCount).forEach {imageUrl ->
-            val itemModifier = when(imageCount) {
-                1 -> Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-
-                else -> Modifier
-                    .weight(1f)
-                    .aspectRatio(1f)
-            }
-
-            CachedImage(
-                imageUrl = imageUrl,
-                contentDescription = "动态图片",
-                modifier = itemModifier,
-                shape = MaterialTheme.shapes.small,
-            )
-        }
-    }
-}
-
 private fun formatPostTime(createdAt: String?): String {
     if (createdAt == null) return "刚刚"
-
     return try {
         val postTime = ZonedDateTime.parse(createdAt, DateTimeFormatter.ISO_DATE_TIME)
         val now = ZonedDateTime.now()
         val minutes = java.time.Duration.between(postTime, now).toMinutes()
-
         when {
             minutes < 1 -> "刚刚"
             minutes < 60 -> "${minutes}分钟前"

@@ -71,6 +71,8 @@ import com.fox.music.core.common.util.MediaUrlResolver
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.chat.MessageStatus
 import com.fox.music.core.model.chat.MessageType
+import com.fox.music.core.model.chat.postBodyText
+import com.fox.music.core.model.chat.postCoverImage
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.feature.chat.ui.util.parseFileContentName
 import com.fox.music.feature.chat.ui.util.resolveMediaPreviewType
@@ -843,6 +845,16 @@ private fun ShareMessageBubble(
 ) {
     val shareData = message.shareData
     val shareType = message.shareType ?: "music"
+    if (shareType == "post") {
+        PostShareMessageBubble(
+            message = message,
+            shareData = shareData,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            onBubbleClick = onBubbleClick,
+        )
+        return
+    }
     val typeLabel = when (shareType) {
         "music" -> "🎵 音乐"
         "playlist" -> "📋 歌单"
@@ -920,6 +932,67 @@ private fun ShareMessageBubble(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            } else {
+                Text(
+                    text = "该内容已删除",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PostShareMessageBubble(
+    message: Message,
+    shareData: com.fox.music.core.model.chat.ShareData?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onBubbleClick: () -> Unit,
+) {
+    val hasData = shareData != null
+    val coverUrl = shareData?.postCoverImage
+    val bodyText = shareData?.postBodyText
+        ?: message.content.takeIf { it.isNotBlank() }
+        ?: if (hasData) "" else "该内容已删除"
+
+    Row(
+        modifier = Modifier
+            .combinedClickable(
+                onClick = { onBubbleClick(); if (hasData) onClick() },
+                onLongClick = onLongClick,
+            )
+            .widthIn(max = 240.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (!coverUrl.isNullOrBlank()) {
+            CachedImage(
+                imageUrl = coverUrl,
+                contentDescription = "帖子封面",
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                shape = RoundedCornerShape(6.dp),
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = "分享了一篇帖子",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (hasData) {
+                Text(
+                    text = bodyText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
             } else {
                 Text(
                     text = "该内容已删除",

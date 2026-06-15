@@ -72,7 +72,7 @@ enum class ChoiceType {
 }
 
 sealed interface SettingsIntent : UiIntent {
-    data object Load : SettingsIntent
+    data class Load(val fetchProfile: Boolean = true) : SettingsIntent
     data object OnEditProfileClick : SettingsIntent
     data object OnManageLibraryClick : SettingsIntent
     data object OnLogoutClick : SettingsIntent
@@ -165,7 +165,7 @@ class SettingsViewModel @Inject constructor(
 
     override fun handleIntent(intent: SettingsIntent) {
         when (intent) {
-            SettingsIntent.Load -> load()
+            is SettingsIntent.Load -> load(intent.fetchProfile)
             SettingsIntent.OnEditProfileClick -> sendEffect(SettingsEffect.NavigateToEditProfile)
             SettingsIntent.OnManageLibraryClick -> {
                 if (currentState.user?.isAdmin == true) {
@@ -324,10 +324,14 @@ class SettingsViewModel @Inject constructor(
         return if (context.packageName.endsWith(".debug")) "debug" else "official"
     }
 
-    private fun load() {
+    private fun load(fetchProfile: Boolean) {
         viewModelScope.launch {
             updateState { copy(isLoading = true) }
             refreshCacheSize()
+            if (!fetchProfile) {
+                updateState { copy(isLoading = false) }
+                return@launch
+            }
             getProfileUseCase()
                 .onSuccess { user -> updateState { copy(user = user, isLoading = false) } }
                 .onError { _, msg ->

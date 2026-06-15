@@ -61,7 +61,9 @@ fun MusicActionsHost(
 
     if (state.showReportSheet && music != null) {
         ReportBottomSheet(
-            musicTitle = music.title,
+            targetTitle = music.title,
+            targetName = music.title,
+            reportHeader = "举报歌曲",
             isSubmitting = state.isReportSubmitting,
             onDismiss = viewModel::dismissReportSheet,
             onSubmit = viewModel::submitReport,

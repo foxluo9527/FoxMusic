@@ -27,10 +27,7 @@ class AlbumPagingSource(
             result.exceptionOrNull()?.let {throw it}
             (pagedData?.list ?: emptyList()).let {data ->
                 val prevKey = if (page > 1) page - 1 else null
-                val nextKey = if (
-                    data.isNotEmpty()
-                    && page < (pagedData?.totalPages ?: 1) - 1
-                ) page + 1 else null
+                val nextKey = if (data.isNotEmpty() && (pagedData?.hasMore == true)) page + 1 else null
                 val list = data.filter {music ->
                     mapPageDataList.isEmpty() || mapPageDataList.toList()
                         .all {(index, list) ->

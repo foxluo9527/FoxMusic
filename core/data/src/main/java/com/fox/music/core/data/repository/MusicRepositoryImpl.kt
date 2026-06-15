@@ -28,9 +28,11 @@ class MusicRepositoryImpl @Inject constructor(
         limit: Int,
         keyword: String?,
         tagId: Long?,
-        sort: String?
+        sort: String?,
+        seed: String?,
+        excludeIds: String?,
     ): Result<PagedData<Music>> = suspendRunCatching {
-        val response = musicApi.getMusicList(page, limit, keyword, tagId, sort)
+        val response = musicApi.getMusicList(page, limit, keyword, tagId, sort, seed, excludeIds)
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPagedData { it.toMusic() }

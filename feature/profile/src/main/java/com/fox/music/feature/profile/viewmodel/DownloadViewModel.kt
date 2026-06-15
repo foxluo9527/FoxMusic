@@ -10,9 +10,11 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.player.controller.MusicController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -39,6 +41,12 @@ class DownloadViewModel @Inject constructor(
     private val _effect = MutableSharedFlow<DownloadEffect>()
     val effect: SharedFlow<DownloadEffect> = _effect.asSharedFlow()
 
+    private val _actionTask = MutableStateFlow<DownloadTask?>(null)
+    val actionTask = _actionTask.asStateFlow()
+
+    private val _showActionSheet = MutableStateFlow(false)
+    val showActionSheet = _showActionSheet.asStateFlow()
+
     var totalBytes: Long = 0L
         private set
 
@@ -54,6 +62,16 @@ class DownloadViewModel @Inject constructor(
         }
     }
 
+    fun showMoreActions(task: DownloadTask) {
+        _actionTask.value = task
+        _showActionSheet.value = true
+    }
+
+    fun dismissActionSheet() {
+        _showActionSheet.value = false
+        _actionTask.value = null
+    }
+
     fun pause(musicId: Long) {
         viewModelScope.launch { downloadRepository.pause(musicId) }
     }
@@ -66,6 +84,20 @@ class DownloadViewModel @Inject constructor(
         viewModelScope.launch {
             downloadRepository.delete(musicId)
             refreshTotalBytes()
+        }
+    }
+
+    fun playNext(task: DownloadTask) {
+        val music = task.toMusic()
+        if (music == null) {
+            viewModelScope.launch {
+                _effect.emit(DownloadEffect.ShowMessage("文件不存在或尚未下载完成"))
+            }
+            return
+        }
+        musicController.addToQueue(music)
+        viewModelScope.launch {
+            _effect.emit(DownloadEffect.ShowMessage("已添加到下一首播放"))
         }
     }
 

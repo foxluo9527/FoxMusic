@@ -39,8 +39,12 @@ data class Post(
     val commentCount: Int = 0,
     @SerialName("share_count")
     val shareCount: Int = 0,
+    @SerialName("collection_count")
+    val collectionCount: Int = 0,
     @SerialName("is_liked")
     val isLiked: Boolean = false,
+    @SerialName("is_favorited")
+    val isFavorited: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
     @SerialName("updated_at")
@@ -54,6 +58,8 @@ data class Post(
 @Serializable
 data class Comment(
     val id: Long,
+    @SerialName("post_id")
+    val postId: Long? = null,
     @SerialName("user_id")
     val userId: Long,
     val content: String,
@@ -66,6 +72,22 @@ data class Comment(
     val isLiked: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
+    @SerialName("updated_at")
+    val updatedAt: String? = null,
+    @SerialName("author_name")
+    val authorName: String? = null,
+    @SerialName("author_avatar")
+    val authorAvatar: String? = null,
+    @SerialName("parent_content")
+    val parentContent: String? = null,
+    @SerialName("parent_author_name")
+    val parentAuthorName: String? = null,
     val user: User? = null,
-    val replies: List<Comment> = emptyList()
+    val replies: List<Comment> = emptyList(),
 )
+
+val Comment.displayAuthorName: String
+    get() = authorName ?: user?.nickname ?: user?.username ?: "匿名用户"
+
+val Comment.displayAuthorAvatar: String?
+    get() = authorAvatar ?: user?.avatar

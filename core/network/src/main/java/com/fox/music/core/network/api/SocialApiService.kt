@@ -14,6 +14,8 @@ import com.fox.music.core.network.model.NotificationDto
 import com.fox.music.core.network.model.PagedResponse
 import com.fox.music.core.network.model.PostCommentRequest
 import com.fox.music.core.network.model.PostDto
+import com.fox.music.core.network.model.SocialPostCommentRequest
+import com.fox.music.core.network.model.UpdatePostRequest
 import com.fox.music.core.network.model.SearchedUserDto
 import com.fox.music.core.network.model.SetRemarkRequest
 import com.fox.music.core.network.model.UnreadCountDto
@@ -22,6 +24,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.HTTP
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -69,8 +72,17 @@ interface SocialApiService {
     @DELETE("api/posts/{id}")
     suspend fun deletePost(@Path("id") id: Long): ApiResponse<Unit>
 
+    @PUT("api/posts/{id}")
+    suspend fun updatePost(
+        @Path("id") id: Long,
+        @Body request: UpdatePostRequest,
+    ): ApiResponse<PostDto>
+
     @POST("api/posts/{id}/like")
     suspend fun togglePostLike(@Path("id") id: Long): ApiResponse<Unit>
+
+    @POST("api/posts/{id}/favorite")
+    suspend fun togglePostFavorite(@Path("id") id: Long): ApiResponse<Unit>
 
     @GET("api/posts/{id}/comments")
     suspend fun getPostComments(
@@ -82,8 +94,15 @@ interface SocialApiService {
     @POST("api/posts/{id}/comments")
     suspend fun postComment(
         @Path("id") id: Long,
-        @Body request: PostCommentRequest
+        @Body request: SocialPostCommentRequest,
     ): ApiResponse<CommentDto>
+
+    @GET("api/posts/comments/{id}/replies")
+    suspend fun getPostCommentReplies(
+        @Path("id") commentId: Long,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20,
+    ): ApiResponse<PagedResponse<CommentDto>>
 
     // Favorites
     @GET("api/favorites")

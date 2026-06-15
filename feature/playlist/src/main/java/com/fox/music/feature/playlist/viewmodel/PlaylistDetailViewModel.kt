@@ -31,6 +31,9 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -158,14 +161,23 @@ class PlaylistDetailViewModel @Inject constructor(
         updateState { copy(detailType = it) }
     }
 
-    /** 与路由绑定，不依赖 header 接口返回，避免 playlistKey 为空导致点播无响应 */
-    val playlistKey: String
-        get() = when (detailType) {
-            DetailType.RECOMMEND -> "collection_detail/${Long.MAX_VALUE}"
-            DetailType.NEW_MUSIC -> "collection_detail/${Long.MAX_VALUE - 1}"
-            DetailType.FAVORITE_MUSIC -> "collection_detail/${DetailType.FAVORITE_MUSIC_ID}"
-            else -> if (detailId > 0L) "collection_detail/$detailId" else ""
-        }
+    /** 与路由绑定；推荐歌单在拿到 recommendSeed 后再生成 key，避免不同推荐会话互相覆盖播放列表 */
+    private val _playlistKey = MutableStateFlow(initialPlaylistKey())
+    val playlistKey: StateFlow<String> = _playlistKey.asStateFlow()
+
+    private fun initialPlaylistKey(): String = when (detailType) {
+        DetailType.RECOMMEND -> ""
+        DetailType.NEW_MUSIC -> "collection_detail/${Long.MAX_VALUE - 1}"
+        DetailType.FAVORITE_MUSIC -> "collection_detail/${DetailType.FAVORITE_MUSIC_ID}"
+        else -> if (detailId > 0L) "collection_detail/$detailId" else ""
+    }
+
+    private fun recommendPlaylistKey(seed: String): String =
+        "collection_detail/${Long.MAX_VALUE}/$seed"
+
+    private fun onRecommendSeedLoaded(seed: String) {
+        _playlistKey.value = recommendPlaylistKey(seed)
+    }
 
     // 歌曲列表分页数据
     val tracks: Flow<PagingData<Music>> by lazy {
@@ -174,6 +186,11 @@ class PlaylistDetailViewModel @Inject constructor(
                 getMusicListUseCase.getPagingSource(
                     sort = if (detailType == DetailType.NEW_MUSIC) "latest" else "recommend",
                     maxTotalItems = 100,
+                    onRecommendSeedLoaded = if (detailType == DetailType.RECOMMEND) {
+                        ::onRecommendSeedLoaded
+                    } else {
+                        null
+                    },
                 ).flow.cachedIn(viewModelScope)
             }
 

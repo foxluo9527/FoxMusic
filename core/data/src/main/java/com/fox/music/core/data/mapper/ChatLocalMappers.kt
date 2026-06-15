@@ -238,27 +238,40 @@ private fun parseTimestamp(value: String?): Long {
 }
 
 /** 将服务端 share_data DTO 转为领域模型 */
-fun ShareDataDto.toDomain(): ShareData = ShareData(
-    id = id,
-    title = title,
-    name = name,
-    coverImage = coverImage,
-    avatar = avatar,
-    description = description,
-    url = url,
-    duration = duration,
-    trackCount = trackCount,
-    playCount = playCount,
-    favoriteCount = favoriteCount,
-    lyrics = lyrics,
-    lyricsTrans = lyricsTrans,
-    lyricsUrl = lyricsUrl,
-    artists = artists.map { dto ->
-        Artist(
-            id = dto.id,
-            name = dto.name,
-            avatar = dto.avatar,
-            coverImage = dto.coverImage,
-        )
-    },
-)
+fun ShareDataDto.toDomain(): ShareData {
+    val resolvedCover = coverImage?.takeIf { it.isNotBlank() }
+        ?: images.firstOrNull { it.isNotBlank() }
+        ?: authorAvatar?.takeIf { it.isNotBlank() }
+        ?: avatar?.takeIf { it.isNotBlank() }
+    val resolvedDescription = description?.takeIf { it.isNotBlank() }
+        ?: content?.takeIf { it.isNotBlank() }
+        ?: title?.takeIf { it.isNotBlank() }
+    return ShareData(
+        id = id,
+        title = title,
+        name = name,
+        coverImage = resolvedCover,
+        avatar = avatar ?: authorAvatar,
+        description = resolvedDescription,
+        content = content,
+        images = images,
+        authorAvatar = authorAvatar,
+        authorName = authorName,
+        url = url,
+        duration = duration,
+        trackCount = trackCount,
+        playCount = playCount,
+        favoriteCount = favoriteCount,
+        lyrics = lyrics,
+        lyricsTrans = lyricsTrans,
+        lyricsUrl = lyricsUrl,
+        artists = artists.map { dto ->
+            Artist(
+                id = dto.id,
+                name = dto.name,
+                avatar = dto.avatar,
+                coverImage = dto.coverImage,
+            )
+        },
+    )
+}

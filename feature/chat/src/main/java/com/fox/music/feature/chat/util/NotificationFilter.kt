@@ -20,7 +20,9 @@ object NotificationFilter {
         notifications.filter { it.type in CATEGORY_DISPLAY_TYPES }
 
     fun commentNotifications(notifications: List<Notification>): List<Notification> =
-        displayableNotifications(notifications).filter { it.type == NotificationType.COMMENT }
+        displayableNotifications(notifications).filter {
+            it.type == NotificationType.COMMENT || it.type == NotificationType.MENTION
+        }
 
     fun systemNotifications(notifications: List<Notification>): List<Notification> =
         displayableNotifications(notifications).filter { it.type == NotificationType.SYSTEM }

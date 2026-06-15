@@ -26,6 +26,7 @@ class GetMusicListUseCase @Inject constructor(
         tagId: Long? = null,
         sort: String? = null,
         maxTotalItems: Int? = null,
+        onRecommendSeedLoaded: ((String) -> Unit)? = null,
     ) = Pager(
         config = PagingConfig(
             pageSize = limit,
@@ -39,6 +40,7 @@ class GetMusicListUseCase @Inject constructor(
                 tagId,
                 sort,
                 maxTotalItems = maxTotalItems,
+                onRecommendSeedLoaded = onRecommendSeedLoaded,
             )
         }
     )

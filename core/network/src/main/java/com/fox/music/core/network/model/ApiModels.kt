@@ -2,6 +2,7 @@ package com.fox.music.core.network.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNames
 
 /**
  * {
@@ -28,10 +29,12 @@ data class PagedResponse<T>(
     val list: List<T> = emptyList(),
     val total: Int = 0,
     val current: Int = 1,
-    @SerialName("page_size")
+    @JsonNames("pageSize", "page_size")
     val pageSize: Int = 20,
-    @SerialName("total_pages")
+    @JsonNames("totalPages", "total_pages")
     val totalPages: Int = 0,
+    @JsonNames("recommendSeed", "recommend_seed")
+    val recommendSeed: String? = null,
 )
 
 @Serializable

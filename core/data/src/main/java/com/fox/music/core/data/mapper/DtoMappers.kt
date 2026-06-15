@@ -155,6 +155,7 @@ private fun String.toLocalMusicId(): Long {
 
 fun CommentDto.toComment(): Comment = Comment(
     id = id,
+    postId = postId,
     userId = userId,
     content = content,
     parentId = parentId,
@@ -162,8 +163,20 @@ fun CommentDto.toComment(): Comment = Comment(
     replyCount = replyCount,
     isLiked = isLiked,
     createdAt = createdAt,
-    user = user?.toUser(),
-    replies = replies.map { it.toComment() }
+    updatedAt = updatedAt,
+    authorName = authorName,
+    authorAvatar = authorAvatar,
+    parentContent = parentContent,
+    parentAuthorName = parentAuthorName,
+    user = user?.toUser() ?: authorName?.let { name ->
+        User(
+            id = userId,
+            username = name,
+            nickname = name,
+            avatar = authorAvatar,
+        )
+    },
+    replies = replies.map { it.toComment() },
 )
 
 fun PlayHistoryDto.toPlayHistory(): PlayHistory = PlayHistory(
@@ -179,7 +192,8 @@ fun <T, R> PagedResponse<T>.toPagedData(transform: (T) -> R): PagedData<R> = Pag
     total = total,
     current = current,
     pageSize = pageSize,
-    totalPages = totalPages
+    totalPages = totalPages,
+    recommendSeed = recommendSeed,
 )
 
 fun ArtistDetailDto.toArtistDetail(): ArtistDetail = ArtistDetail(

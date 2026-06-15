@@ -94,6 +94,8 @@ data class PostCommentRequest(
 @Serializable
 data class CommentDto(
     val id: Long,
+    @SerialName("post_id")
+    val postId: Long? = null,
     @SerialName("user_id")
     val userId: Long,
     val content: String,
@@ -106,8 +108,18 @@ data class CommentDto(
     val isLiked: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
+    @SerialName("updated_at")
+    val updatedAt: String? = null,
+    @SerialName("author_name")
+    val authorName: String? = null,
+    @SerialName("author_avatar")
+    val authorAvatar: String? = null,
+    @SerialName("parent_content")
+    val parentContent: String? = null,
+    @SerialName("parent_author_name")
+    val parentAuthorName: String? = null,
     val user: UserDto? = null,
-    val replies: List<CommentDto> = emptyList()
+    val replies: List<CommentDto> = emptyList(),
 )
 
 @Serializable

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import android.widget.Toast
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -63,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.common.R as CommonR
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.AlbumListItem
@@ -146,12 +150,27 @@ fun ProfileScreen(
     }
 
     when {
-        !isLogin -> ErrorView(
-            Modifier.fillMaxSize(),
-            "请先登录",
-            retryText = "登录",
-            onRetry = onLogin,
-        )
+        !isLogin -> {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ProfilePageTopTitle(
+                    unreadCount = 0,
+                    onMessageNotificationClick = onLogin,
+                )
+                ProfileHeaderCard(
+                    nickname = stringResource(CommonR.string.app_name),
+                    signature = "设置",
+                    avatarUrl = null,
+                    showFavoriteIcon = false,
+                    onUserInfoClick = onSettingsClick,
+                )
+                ProfileGuestLoginPrompt(onLogin = onLogin)
+            }
+        }
 
         state.isLoading && state.user == null -> LoadingIndicator(useLottie = false)
         state.error != null && state.user == null -> ErrorView(message = state.error!!)
@@ -170,7 +189,7 @@ fun ProfileScreen(
                     nickname = user.nickname ?: user.username,
                     signature = user.signature,
                     avatarUrl = user.avatar,
-                    onUserInfoClick = { viewModel.sendIntent(ProfileIntent.OnSettingsClick) }
+                    onUserInfoClick = { viewModel.sendIntent(ProfileIntent.OnSettingsClick) },
                 )
                 ProfileTabRow(
                     selectedTab = collectState.currentPage,
@@ -423,11 +442,36 @@ private fun ProfilePageTopTitle(
 }
 
 @Composable
+private fun ColumnScope.ProfileGuestLoginPrompt(onLogin: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "登录后可同步歌单、收藏与个人数据",
+            color = MaterialTheme.colorScheme.outline,
+            fontSize = 14.sp,
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = onLogin,
+            modifier = Modifier.fillMaxWidth(0.6f),
+        ) {
+            Text(text = "登录")
+        }
+    }
+}
+
+@Composable
 private fun ProfileHeaderCard(
     nickname: String,
     signature: String?,
     avatarUrl: String?,
-    onUserInfoClick: () -> Unit
+    showFavoriteIcon: Boolean = true,
+    onUserInfoClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -471,16 +515,18 @@ private fun ProfileHeaderCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Icon(
-                            imageVector = Icons.Default.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .padding(start = 4.dp)
-                                .size(18.dp),
-                        )
+                        if (showFavoriteIcon) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .padding(start = 4.dp)
+                                    .size(18.dp),
+                            )
+                        }
                     }
-                    signature?.let {
+                    signature?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             text = it,
                             color = MaterialTheme.colorScheme.outline,

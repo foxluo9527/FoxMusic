@@ -73,8 +73,12 @@ data class PostDto(
     val commentCount: Int = 0,
     @SerialName("share_count")
     val shareCount: Int = 0,
+    @SerialName("collection_count")
+    val collectionCount: Int = 0,
     @SerialName("is_liked")
     val isLiked: Boolean = false,
+    @SerialName("is_favorited")
+    val isFavorited: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
     @SerialName("updated_at")
@@ -87,10 +91,30 @@ data class PostDto(
 
 @Serializable
 data class CreatePostRequest(
+    val title: String,
     val content: String,
     val images: List<String>? = null,
+    val tags: List<String>? = null,
     @SerialName("music_id")
-    val musicId: Long? = null
+    val musicId: Long? = null,
+    val status: String = "published",
+)
+
+@Serializable
+data class UpdatePostRequest(
+    val title: String? = null,
+    val content: String? = null,
+    val images: List<String>? = null,
+    val tags: List<String>? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class SocialPostCommentRequest(
+    val content: String,
+    @SerialName("parent_id")
+    val parentId: Long? = null,
+    val images: List<String>? = null,
 )
 
 @Serializable

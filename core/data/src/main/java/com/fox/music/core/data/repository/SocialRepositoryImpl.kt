@@ -115,13 +115,20 @@ class SocialRepositoryImpl @Inject constructor(
     override suspend fun createPost(
         content: String,
         images: List<String>,
-        musicId: Long?
+        musicId: Long?,
+        title: String?,
+        status: String,
     ): Result<Post> = suspendRunCatching {
+        val resolvedTitle = title?.takeIf { it.isNotBlank() }
+            ?: content.lineSequence().firstOrNull()?.take(50)?.trim()?.takeIf { it.isNotBlank() }
+            ?: "无标题"
         val response = socialApi.createPost(
             com.fox.music.core.network.model.CreatePostRequest(
+                title = resolvedTitle,
                 content = content,
                 images = images.ifEmpty { null },
-                musicId = musicId
+                musicId = musicId,
+                status = status,
             )
         )
         val data = response.data
@@ -143,8 +150,37 @@ class SocialRepositoryImpl @Inject constructor(
         if (response.isSuccess) Unit else throw Exception(response.message)
     }
 
+    override suspend fun updatePost(
+        id: Long,
+        content: String,
+        images: List<String>,
+        title: String?,
+        status: String?,
+    ): Result<Post> = suspendRunCatching {
+        val resolvedTitle = title?.takeIf { it.isNotBlank() }
+            ?: content.lineSequence().firstOrNull()?.take(50)?.trim()?.takeIf { it.isNotBlank() }
+        val response = socialApi.updatePost(
+            id,
+            com.fox.music.core.network.model.UpdatePostRequest(
+                title = resolvedTitle,
+                content = content,
+                images = images.ifEmpty { null },
+                status = status,
+            ),
+        )
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.toPost()
+        } else throw Exception(response.message)
+    }
+
     override suspend fun togglePostLike(id: Long): Result<Unit> = suspendRunCatching {
         val response = socialApi.togglePostLike(id)
+        if (response.isSuccess) Unit else throw Exception(response.message)
+    }
+
+    override suspend fun togglePostFavorite(id: Long): Result<Unit> = suspendRunCatching {
+        val response = socialApi.togglePostFavorite(id)
         if (response.isSuccess) Unit else throw Exception(response.message)
     }
 
@@ -160,6 +196,18 @@ class SocialRepositoryImpl @Inject constructor(
         } else throw Exception(response.message)
     }
 
+    override suspend fun getPostCommentReplies(
+        commentId: Long,
+        page: Int,
+        limit: Int,
+    ): Result<PagedData<Comment>> = suspendRunCatching {
+        val response = socialApi.getPostCommentReplies(commentId, page, limit)
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.toPagedData { it.toComment() }
+        } else throw Exception(response.message)
+    }
+
     override suspend fun postComment(
         postId: Long,
         content: String,
@@ -167,11 +215,10 @@ class SocialRepositoryImpl @Inject constructor(
     ): Result<Comment> = suspendRunCatching {
         val response = socialApi.postComment(
             postId,
-            com.fox.music.core.network.model.PostCommentRequest(
-                musicId = null,
+            com.fox.music.core.network.model.SocialPostCommentRequest(
                 content = content,
-                parentId = parentId
-            )
+                parentId = parentId,
+            ),
         )
         val data = response.data
         if (response.isSuccess && data != null) {

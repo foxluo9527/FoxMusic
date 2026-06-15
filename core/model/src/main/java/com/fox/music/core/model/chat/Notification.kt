@@ -20,6 +20,17 @@ data class Notification(
     val targetType: String? = null
 )
 
+/** 解析评论/@提及通知关联的帖子 ID */
+fun Notification.resolvePostId(): Long? {
+    if (targetType?.equals("post", ignoreCase = true) == true && targetId != null) {
+        return targetId
+    }
+    if (type == NotificationType.COMMENT || type == NotificationType.MENTION) {
+        return targetId
+    }
+    return null
+}
+
 @Serializable
 enum class NotificationType {
     @SerialName("system")

@@ -11,33 +11,49 @@ class MusicPagingSource(
     private val tagId: Long? = null,
     private val sort: String? = "",
     private val maxTotalItems: Int? = null,
-): PagingSource<Int, Music>() {
+    private val onRecommendSeedLoaded: ((String) -> Unit)? = null,
+) : PagingSource<Int, Music>() {
     private val mapPageDataList = mutableMapOf<Int, List<Music>>()
+    private val accumulatedExcludeIds = mutableListOf<Long>()
+    private var currentSeed: String? = null
+
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Music> {
         return try {
-            // 尝试网络请求
             val page = params.key ?: 1
-            val result = repo.getMusicList(page, params.loadSize, keyword, tagId, sort)
+            val excludeIdsParam = accumulatedExcludeIds.takeIf { it.isNotEmpty() }
+                ?.joinToString(",")
+            val result = repo.getMusicList(
+                page, params.loadSize, keyword, tagId, sort,
+                seed = currentSeed,
+                excludeIds = excludeIdsParam,
+            )
             val pagedData = result.getOrNull()
-            result.exceptionOrNull()?.let {throw it}
-            (pagedData?.list ?: emptyList()).let {data ->
+            result.exceptionOrNull()?.let { throw it }
+
+            if (page == 1 && pagedData?.recommendSeed != null) {
+                currentSeed = pagedData.recommendSeed
+                onRecommendSeedLoaded?.invoke(pagedData.recommendSeed ?: "")
+            }
+
+            (pagedData?.list ?: emptyList()).let { data ->
                 val prevKey = if (page > 1) page - 1 else null
-                val nextKey = if (
-                    data.isNotEmpty()
-                    && page < (pagedData?.totalPages ?: 1) - 1
-                ) page + 1 else null
-                val list = data.filter {music ->
-                    mapPageDataList.isEmpty() || mapPageDataList.toList()
-                        .all {(index, list) ->
-                            if (sort == "recommend" || index >= page - 2) {
-                                list.all {
-                                    it.id != music.id
+                val nextKey =
+                    if (data.isNotEmpty() && (pagedData?.hasMore == true)) page + 1 else null
+                val list = if (currentSeed != null) {
+                    data
+                } else {
+                    data.filter { music ->
+                        mapPageDataList.isEmpty() || mapPageDataList.toList()
+                            .all { (index, list) ->
+                                if (sort == "recommend" || index >= page - 2) {
+                                    list.all { it.id != music.id }
+                                } else {
+                                    true
                                 }
-                            } else {
-                                true
                             }
-                        }
+                    }
                 }
+                accumulatedExcludeIds.addAll(list.map { it.id })
                 val max = maxTotalItems
                 val previousTotal = if (max != null) {
                     mapPageDataList.filterKeys { it < page }.values.sumOf { it.size }
@@ -54,11 +70,12 @@ class MusicPagingSource(
                 } else {
                     list
                 }
-                val cappedNextKey = if (max != null && (previousTotal + cappedList.size >= max || cappedList.size < list.size)) {
-                    null
-                } else {
-                    nextKey
-                }
+                val cappedNextKey =
+                    if (max != null && (previousTotal + cappedList.size >= max || cappedList.size < list.size)) {
+                        null
+                    } else {
+                        nextKey
+                    }
                 mapPageDataList[page] = cappedList
                 LoadResult.Page(
                     data = cappedList,
@@ -67,13 +84,12 @@ class MusicPagingSource(
                 )
             }
         } catch (e: Exception) {
-            // 异常情况回退本地
             LoadResult.Error(e)
         }
     }
 
     override fun getRefreshKey(state: PagingState<Int, Music>): Int? {
-        return state.anchorPosition?.let {anchorPosition ->
+        return state.anchorPosition?.let { anchorPosition ->
             state.closestPageToPosition(anchorPosition)?.prevKey?.plus(1)
                 ?: state.closestPageToPosition(anchorPosition)?.nextKey?.minus(1)
         }

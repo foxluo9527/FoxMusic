@@ -9,6 +9,7 @@ import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.model.chat.Notification
+import com.fox.music.core.model.chat.resolvePostId
 import com.fox.music.feature.chat.util.NotificationFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -41,6 +42,7 @@ sealed interface NotificationCategoryIntent : UiIntent {
 sealed interface NotificationCategoryEffect : UiEffect {
     data class ShowMessage(val message: String) : NotificationCategoryEffect
     data object NavigateBack : NotificationCategoryEffect
+    data class NavigateToPostDetail(val postId: Long) : NotificationCategoryEffect
 }
 
 @HiltViewModel
@@ -64,6 +66,16 @@ class NotificationCategoryViewModel @Inject constructor(
 
     fun onBackClick() {
         sendEffect(NotificationCategoryEffect.NavigateBack)
+    }
+
+    fun onNotificationClick(notification: Notification) {
+        if (!notification.isRead) {
+            sendIntent(NotificationCategoryIntent.MarkRead(notification.id))
+        }
+        if (currentState.category == NotificationCategory.SYSTEM) return
+        notification.resolvePostId()?.let { postId ->
+            sendEffect(NotificationCategoryEffect.NavigateToPostDetail(postId))
+        }
     }
 
     private fun loadNotifications() {

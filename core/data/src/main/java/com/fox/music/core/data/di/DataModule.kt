@@ -9,6 +9,7 @@ import com.fox.music.core.data.repository.ChatRepositoryImpl
 import com.fox.music.core.data.repository.FavoriteRepositoryImpl
 import com.fox.music.core.data.repository.ImportRepositoryImpl
 import com.fox.music.core.data.repository.MusicRepositoryImpl
+import com.fox.music.core.data.repository.PostDraftRepositoryImpl
 import com.fox.music.core.data.repository.PlaylistRepositoryImpl
 import com.fox.music.core.data.repository.ReportRepositoryImpl
 import com.fox.music.core.data.repository.SearchRepositoryImpl
@@ -24,6 +25,7 @@ import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.MusicRepository
+import com.fox.music.core.domain.repository.PostDraftRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.ReportRepository
 import com.fox.music.core.domain.repository.SearchRepository
@@ -43,6 +45,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindMusicRepository(impl: MusicRepositoryImpl): MusicRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPostDraftRepository(impl: PostDraftRepositoryImpl): PostDraftRepository
 
     @Binds
     @Singleton

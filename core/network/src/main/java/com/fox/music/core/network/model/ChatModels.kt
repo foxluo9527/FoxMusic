@@ -107,6 +107,12 @@ data class ShareDataDto(
     val coverImage: String? = null,
     val avatar: String? = null,
     val description: String? = null,
+    val content: String? = null,
+    val images: List<String> = emptyList(),
+    @SerialName("author_avatar")
+    val authorAvatar: String? = null,
+    @SerialName("author_name")
+    val authorName: String? = null,
     val url: String? = null,
     val duration: Long = 0,
     @SerialName("track_count")

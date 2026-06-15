@@ -11,7 +11,9 @@ interface MusicApiService {
         @Query("limit") limit: Int = 20,
         @Query("keyword") keyword: String? = null,
         @Query("tag_id") tagId: Long? = null,
-        @Query("sort") sort: String? = null
+        @Query("sort") sort: String? = null,
+        @Query("seed") seed: String? = null,
+        @Query("exclude_ids") excludeIds: String? = null,
     ): ApiResponse<PagedResponse<MusicDto>>
 
     @GET("api/music/third-party/search")

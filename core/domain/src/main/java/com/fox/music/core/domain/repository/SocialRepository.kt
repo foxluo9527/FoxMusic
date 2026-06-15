@@ -33,15 +33,37 @@ interface SocialRepository {
         sort:String = "latest"
     ): Result<PagedData<Post>>
 
-    suspend fun createPost(content: String, images: List<String> = emptyList(), musicId: Long? = null): Result<Post>
+    suspend fun createPost(
+        content: String,
+        images: List<String> = emptyList(),
+        musicId: Long? = null,
+        title: String? = null,
+        status: String = "published",
+    ): Result<Post>
 
     suspend fun getPostDetail(id: Long): Result<Post>
 
     suspend fun deletePost(id: Long): Result<Unit>
 
+    suspend fun updatePost(
+        id: Long,
+        content: String,
+        images: List<String> = emptyList(),
+        title: String? = null,
+        status: String? = null,
+    ): Result<Post>
+
     suspend fun togglePostLike(id: Long): Result<Unit>
 
+    suspend fun togglePostFavorite(id: Long): Result<Unit>
+
     suspend fun getPostComments(id: Long, page: Int = 1, limit: Int = 20): Result<PagedData<Comment>>
+
+    suspend fun getPostCommentReplies(
+        commentId: Long,
+        page: Int = 1,
+        limit: Int = 20,
+    ): Result<PagedData<Comment>>
 
     suspend fun postComment(postId: Long, content: String, parentId: Long? = null): Result<Comment>
 

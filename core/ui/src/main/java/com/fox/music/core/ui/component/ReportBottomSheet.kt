@@ -39,10 +39,12 @@ val REPORT_REASONS = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportBottomSheet(
-    musicTitle: String,
+    targetTitle: String,
+    targetName: String,
     isSubmitting: Boolean,
     onDismiss: () -> Unit,
     onSubmit: (reason: String, description: String?) -> Unit,
+    reportHeader: String = "举报",
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedReason by remember { mutableStateOf(REPORT_REASONS.first().key) }
@@ -58,11 +60,11 @@ fun ReportBottomSheet(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             Text(
-                text = "举报歌曲",
+                text = reportHeader,
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
-                text = musicTitle,
+                text = targetName,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),

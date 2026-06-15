@@ -15,7 +15,9 @@ interface MusicRepository {
         limit: Int = 20,
         keyword: String? = null,
         tagId: Long? = null,
-        sort: String? = null
+        sort: String? = null,
+        seed: String? = null,
+        excludeIds: String? = null,
     ): Result<PagedData<Music>>
 
     suspend fun getMusicDetail(id: Long): Result<MusicDetail>

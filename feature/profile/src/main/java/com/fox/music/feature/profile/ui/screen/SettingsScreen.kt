@@ -50,9 +50,11 @@ const val SETTINGS_ROUTE = "settings"
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
+    isLogin: Boolean = true,
     isDesktopLyricEnabled: Boolean = false,
     onDesktopLyricChange: (Boolean) -> Unit = {},
     onBack: () -> Unit = {},
+    onLogin: () -> Unit = {},
     onEditProfile: () -> Unit = {},
     onManageLibrary: () -> Unit = {},
     onDownloadManager: () -> Unit = {},
@@ -63,8 +65,8 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
-        viewModel.sendIntent(SettingsIntent.Load)
+    LaunchedEffect(isLogin) {
+        viewModel.sendIntent(SettingsIntent.Load(fetchProfile = isLogin))
     }
 
     LaunchedEffect(Unit) {
@@ -199,7 +201,7 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        if (state.isLoading && state.user == null) {
+        if (state.isLoading && state.user == null && isLogin) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -216,16 +218,24 @@ fun SettingsScreen(
             ) {
                 item {
                     SettingsGroup(title = "账号") {
-                        SettingsNavigationItem(
-                            title = "编辑资料",
-                            subtitle = "昵称、签名、邮箱、头像",
-                            onClick = { viewModel.sendIntent(SettingsIntent.OnEditProfileClick) },
-                        )
-                        SettingsDivider()
-                        SettingsNavigationItem(
-                            title = "退出登录",
-                            onClick = { viewModel.sendIntent(SettingsIntent.OnLogoutClick) },
-                        )
+                        if (isLogin) {
+                            SettingsNavigationItem(
+                                title = "编辑资料",
+                                subtitle = "昵称、签名、邮箱、头像",
+                                onClick = { viewModel.sendIntent(SettingsIntent.OnEditProfileClick) },
+                            )
+                            SettingsDivider()
+                            SettingsNavigationItem(
+                                title = "退出登录",
+                                onClick = { viewModel.sendIntent(SettingsIntent.OnLogoutClick) },
+                            )
+                        } else {
+                            SettingsNavigationItem(
+                                title = "点击登录",
+                                subtitle = "登录后可同步账号与个性化设置",
+                                onClick = onLogin,
+                            )
+                        }
                     }
                 }
 
@@ -235,14 +245,6 @@ fun SettingsScreen(
                             title = "循环模式",
                             subtitle = viewModel.repeatModeLabel(state.repeatMode),
                             onClick = { viewModel.sendIntent(SettingsIntent.ShowRepeatModePicker) },
-                        )
-                        SettingsDivider()
-                        SettingsSwitchItem(
-                            title = "自动播放",
-                            checked = state.preferences.autoPlay,
-                            onCheckedChange = {
-                                viewModel.sendIntent(SettingsIntent.UpdateAutoPlay(it))
-                            },
                         )
                         SettingsDivider()
                         SettingsSwitchItem(
