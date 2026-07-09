@@ -53,3 +53,5 @@ app/release/
 /feature/profile/build/
 /feature/search/build/
 /feature/social/build/
+/feature/automotive/build/
+/feature/automotive/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/

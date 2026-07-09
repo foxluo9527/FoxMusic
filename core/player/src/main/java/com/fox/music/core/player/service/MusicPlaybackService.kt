@@ -2,7 +2,6 @@ package com.fox.music.core.player.service
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.annotation.OptIn
@@ -20,14 +19,13 @@ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.player.cache.PlaybackCacheManager
 import com.fox.music.core.player.controller.MusicController
+import com.fox.music.core.player.lyric.CarBluetoothLyricMetadataCoordinator
 import com.fox.music.core.player.datasource.RoutingDataSourceFactory
-import com.google.common.util.concurrent.Futures
-import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import javax.inject.Inject
@@ -35,7 +33,7 @@ import kotlinx.coroutines.runBlocking
 
 @UnstableApi
 @AndroidEntryPoint
-class MusicPlaybackService : MediaSessionService() {
+class MusicPlaybackService : MediaLibraryService() {
 
     @Inject
     lateinit var musicController: MusicController
@@ -46,7 +44,13 @@ class MusicPlaybackService : MediaSessionService() {
     @Inject
     lateinit var preferencesDataStore: FoxPreferencesDataStore
 
-    private var mediaSession: MediaSession? = null
+    @Inject
+    lateinit var playbackMediaLibraryCallback: PlaybackMediaLibraryCallback
+
+    @Inject
+    lateinit var carBluetoothLyricMetadataCoordinator: CarBluetoothLyricMetadataCoordinator
+
+    private var mediaLibrarySession: MediaLibrarySession? = null
 
     val cache: SimpleCache by lazy {
         val cacheDir = File(cacheDir, PlaybackCacheManager.CACHE_DIR_NAME)
@@ -96,65 +100,34 @@ class MusicPlaybackService : MediaSessionService() {
 
         val player = PlaylistForwardingPlayer(exoPlayer, musicController)
 
-        mediaSession = MediaSession.Builder(this, player)
-            .setCallback(PlaybackMediaSessionCallback())
-            .build()
+        carBluetoothLyricMetadataCoordinator.attach(player)
+
+        mediaLibrarySession = MediaLibrarySession.Builder(
+            this,
+            player,
+            playbackMediaLibraryCallback,
+        ).build()
     }
 
-    /**
-     * MediaController 传入的 MediaItem 在跨进程后不含 [MediaItem.localConfiguration]，
-     * 需在 Session 侧根据 [MediaItem.RequestMetadata.mediaUri] 还原可播放 URI。
-     */
-    private inner class PlaybackMediaSessionCallback : MediaSession.Callback {
-        override fun onAddMediaItems(
-            mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            mediaItems: MutableList<MediaItem>,
-        ): ListenableFuture<List<MediaItem>> =
-            Futures.immediateFuture(mediaItems.map(::toPlayableMediaItem))
-
-        override fun onSetMediaItems(
-            mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            mediaItems: MutableList<MediaItem>,
-            startIndex: Int,
-            startPositionMs: Long,
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            val playableItems = mediaItems.map(::toPlayableMediaItem)
-            return Futures.immediateFuture(
-                MediaSession.MediaItemsWithStartPosition(
-                    playableItems,
-                    startIndex,
-                    startPositionMs,
-                ),
-            )
-        }
-
-        private fun toPlayableMediaItem(mediaItem: MediaItem): MediaItem {
-            val uri = mediaItem.localConfiguration?.uri ?: mediaItem.requestMetadata.mediaUri
-                ?: return mediaItem
-            return mediaItem.buildUpon().setUri(uri).build()
-        }
-    }
-
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
+        return mediaLibrarySession
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = mediaSession?.player
+        val player = mediaLibrarySession?.player
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
             stopSelf()
         }
     }
 
     override fun onDestroy() {
-        val hadSession = mediaSession != null
-        mediaSession?.run {
+        val hadSession = mediaLibrarySession != null
+        carBluetoothLyricMetadataCoordinator.detach()
+        mediaLibrarySession?.run {
             player.release()
             release()
         }
-        mediaSession = null
+        mediaLibrarySession = null
         if (hadSession) {
             playbackCacheManager.detachCache()
             cache.release()

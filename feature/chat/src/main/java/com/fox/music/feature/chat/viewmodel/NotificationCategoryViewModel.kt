@@ -8,7 +8,9 @@ import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SocialRepository
+import com.fox.music.core.domain.usecase.ResolveMusicCommentNavigationUseCase
 import com.fox.music.core.model.chat.Notification
+import com.fox.music.core.model.chat.resolveMusicCommentId
 import com.fox.music.core.model.chat.resolvePostId
 import com.fox.music.feature.chat.util.NotificationFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,11 +45,13 @@ sealed interface NotificationCategoryEffect : UiEffect {
     data class ShowMessage(val message: String) : NotificationCategoryEffect
     data object NavigateBack : NotificationCategoryEffect
     data class NavigateToPostDetail(val postId: Long) : NotificationCategoryEffect
+    data class NavigateToMusicComment(val musicId: Long, val commentId: Long) : NotificationCategoryEffect
 }
 
 @HiltViewModel
 class NotificationCategoryViewModel @Inject constructor(
     private val socialRepository: SocialRepository,
+    private val resolveMusicCommentNavigationUseCase: ResolveMusicCommentNavigationUseCase,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<NotificationCategoryState, NotificationCategoryIntent, NotificationCategoryEffect>(
     NotificationCategoryState(
@@ -73,8 +77,37 @@ class NotificationCategoryViewModel @Inject constructor(
             sendIntent(NotificationCategoryIntent.MarkRead(notification.id))
         }
         if (currentState.category == NotificationCategory.SYSTEM) return
+
+        notification.resolveMusicCommentId()?.let { commentId ->
+            navigateToMusicComment(commentId)
+            return
+        }
+
         notification.resolvePostId()?.let { postId ->
             sendEffect(NotificationCategoryEffect.NavigateToPostDetail(postId))
+        }
+    }
+
+    private fun navigateToMusicComment(commentId: Long) {
+        viewModelScope.launch {
+            when (val result = resolveMusicCommentNavigationUseCase(commentId)) {
+                is Result.Success -> {
+                    sendEffect(
+                        NotificationCategoryEffect.NavigateToMusicComment(
+                            musicId = result.data.musicId,
+                            commentId = result.data.commentId,
+                        )
+                    )
+                }
+                is Result.Error -> {
+                    sendEffect(
+                        NotificationCategoryEffect.ShowMessage(
+                            result.message ?: "无法打开音乐评论"
+                        )
+                    )
+                }
+                is Result.Loading -> Unit
+            }
         }
     }
 

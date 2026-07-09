@@ -1,6 +1,7 @@
 package com.fox.music.core.data.di
 
 import com.fox.music.core.data.download.MusicDownloadManager
+import com.fox.music.core.data.cache.RecommendedMusicCacheManagerImpl
 import com.fox.music.core.data.repository.AppUpdateRepositoryImpl
 import com.fox.music.core.data.repository.AlbumRepositoryImpl
 import com.fox.music.core.data.repository.ArtistRepositoryImpl
@@ -27,6 +28,7 @@ import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PostDraftRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
+import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.ReportRepository
 import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.repository.SocialRepository
@@ -45,6 +47,12 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindMusicRepository(impl: MusicRepositoryImpl): MusicRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRecommendedMusicCacheManager(
+        impl: RecommendedMusicCacheManagerImpl,
+    ): RecommendedMusicCacheManager
 
     @Binds
     @Singleton

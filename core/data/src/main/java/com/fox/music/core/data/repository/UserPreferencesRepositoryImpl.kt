@@ -4,6 +4,7 @@ import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.datastore.FoxPreferencesDataStore
+import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.model.user.DarkMode
 import com.fox.music.core.model.user.PlayQuality
 import com.fox.music.core.model.user.UserPreferences
@@ -33,6 +34,11 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             .combine(dataStore.notificationSettings) { list, v -> list + v }
             .combine(dataStore.language) { list, v -> list + v }
             .combine(dataStore.cacheMaxBytes) { list, v -> list + v }
+            .combine(dataStore.themePresetId) { list, v -> list + v }
+            .combine(dataStore.customThemeSeed) { list, v -> list + v }
+            .combine(dataStore.desktopLyricEnabled) { list, v -> list + v }
+            .combine(dataStore.lockScreenLyricEnabled) { list, v -> list + v }
+            .combine(dataStore.carBluetoothLyricEnabled) { list, v -> list + v }
             .map { list ->
                 @Suppress("UNCHECKED_CAST")
                 val isLoggedIn = list[0] as Boolean
@@ -48,6 +54,11 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                 val notificationSettings = list[10] as com.fox.music.core.model.user.NotificationPreferenceSettings
                 val language = list[11] as String
                 val cacheMaxBytes = list[12] as Long
+                val appThemeId = list[13] as String
+                val customThemeSeedArgb = list[14] as Long
+                val desktopLyricEnabled = list[15] as Boolean
+                val lockScreenLyricEnabled = list[16] as Boolean
+                val carBluetoothLyricEnabled = list[17] as Boolean
                 UserPreferences(
                     isLoggedIn = isLoggedIn,
                     token = token,
@@ -71,6 +82,11 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                     },
                     downloadOnWifiOnly = downloadOnWifiOnly,
                     showLyrics = showLyrics,
+                    appThemeId = appThemeId,
+                    customThemeSeedArgb = customThemeSeedArgb,
+                    desktopLyricEnabled = desktopLyricEnabled,
+                    lockScreenLyricEnabled = lockScreenLyricEnabled,
+                    carBluetoothLyricEnabled = carBluetoothLyricEnabled,
                     notificationSettings = notificationSettings,
                     language = language,
                     cacheMaxBytes = cacheMaxBytes,
@@ -143,6 +159,35 @@ class UserPreferencesRepositoryImpl @Inject constructor(
 
     override suspend fun updateCacheMaxBytes(maxBytes: Long): Result<Unit> = suspendRunCatching {
         dataStore.updateCacheMaxBytes(maxBytes)
+        Unit
+    }
+
+    override suspend fun updateAppTheme(themeId: String, customSeedArgb: Long?): Result<Unit> = suspendRunCatching {
+        if (themeId == AppThemeIds.CUSTOM && customSeedArgb != null) {
+            dataStore.updateCustomThemeSeed(customSeedArgb)
+        } else {
+            dataStore.updateThemePresetId(themeId)
+        }
+        Unit
+    }
+
+    override suspend fun updateDynamicColor(enabled: Boolean): Result<Unit> = suspendRunCatching {
+        dataStore.updateDynamicColor(enabled)
+        Unit
+    }
+
+    override suspend fun updateDesktopLyricEnabled(enabled: Boolean): Result<Unit> = suspendRunCatching {
+        dataStore.updateDesktopLyricEnabled(enabled)
+        Unit
+    }
+
+    override suspend fun updateLockScreenLyricEnabled(enabled: Boolean): Result<Unit> = suspendRunCatching {
+        dataStore.updateLockScreenLyricEnabled(enabled)
+        Unit
+    }
+
+    override suspend fun updateCarBluetoothLyricEnabled(enabled: Boolean): Result<Unit> = suspendRunCatching {
+        dataStore.updateCarBluetoothLyricEnabled(enabled)
         Unit
     }
 }

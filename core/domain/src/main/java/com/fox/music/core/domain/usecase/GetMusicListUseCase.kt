@@ -5,12 +5,14 @@ import androidx.paging.PagingConfig
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.paging.MusicPagingSource
 import com.fox.music.core.domain.repository.MusicRepository
+import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
 import javax.inject.Inject
 
 class GetMusicListUseCase @Inject constructor(
-    private val musicRepository: MusicRepository
+    private val musicRepository: MusicRepository,
+    private val recommendedMusicCacheManager: RecommendedMusicCacheManager,
 ) {
     suspend operator fun invoke(
         page: Int = 1,
@@ -41,6 +43,8 @@ class GetMusicListUseCase @Inject constructor(
                 sort,
                 maxTotalItems = maxTotalItems,
                 onRecommendSeedLoaded = onRecommendSeedLoaded,
+                recommendedMusicCacheManager = sort?.takeIf { it == "recommend" }
+                    ?.let { recommendedMusicCacheManager },
             )
         }
     )

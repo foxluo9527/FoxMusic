@@ -12,6 +12,12 @@ sealed class Result<out T> {
     fun getOrNull(): T? = (this as? Success)?.data
     fun exceptionOrNull(): Throwable? = (this as? Error)?.exception
 
+    fun getOrThrow(): T = when (this) {
+        is Success -> data
+        is Error -> throw exception
+        is Loading -> throw IllegalStateException("Result is loading")
+    }
+
     inline fun <R> map(transform: (T) -> R): Result<R> = when (this) {
         is Success -> Success(transform(data))
         is Error -> this

@@ -1,5 +1,6 @@
 package com.fox.music.feature.profile.ui.screen
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +39,8 @@ import com.fox.music.feature.profile.ui.component.SettingsSwitchItem
 import com.fox.music.feature.profile.viewmodel.ChoiceType
 import com.fox.music.feature.profile.viewmodel.SettingsEffect
 import com.fox.music.feature.profile.viewmodel.SettingsIntent
+import com.fox.music.core.ui.theme.AppThemePresets
+import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.model.user.isAdmin
 import com.fox.music.core.model.chat.NotificationType
 import com.fox.music.feature.profile.viewmodel.SettingsViewModel
@@ -51,8 +54,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
     isLogin: Boolean = true,
-    isDesktopLyricEnabled: Boolean = false,
-    onDesktopLyricChange: (Boolean) -> Unit = {},
+    onDesktopLyricSettings: () -> Unit = {},
+    onThemeSettings: () -> Unit = {},
     onBack: () -> Unit = {},
     onLogin: () -> Unit = {},
     onEditProfile: () -> Unit = {},
@@ -81,6 +84,9 @@ fun SettingsScreen(
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
                 is SettingsEffect.LaunchInstall -> onInstallApk(effect.file)
+                SettingsEffect.RecreateActivity -> {
+                    (context as? Activity)?.recreate()
+                }
             }
         }
     }
@@ -247,12 +253,6 @@ fun SettingsScreen(
                             onClick = { viewModel.sendIntent(SettingsIntent.ShowRepeatModePicker) },
                         )
                         SettingsDivider()
-                        SettingsSwitchItem(
-                            title = "桌面歌词",
-                            checked = isDesktopLyricEnabled,
-                            onCheckedChange = onDesktopLyricChange,
-                        )
-                        SettingsDivider()
                         SettingsNavigationItem(
                             title = "定时关闭",
                             subtitle = viewModel.sleepTimerLabel(state.sleepTimer),
@@ -300,11 +300,31 @@ fun SettingsScreen(
                 }
 
                 item {
+                    SettingsGroup(title = "桌面与歌词") {
+                        SettingsNavigationItem(
+                            title = "桌面与歌词",
+                            subtitle = "桌面歌词、车载模式、锁屏歌词、桌面小组件",
+                            onClick = onDesktopLyricSettings,
+                        )
+                    }
+                }
+
+                item {
                     SettingsGroup(title = "应用") {
                         SettingsNavigationItem(
                             title = "深色模式",
                             subtitle = viewModel.darkModeLabel(state.preferences.darkMode),
                             onClick = { viewModel.sendIntent(SettingsIntent.ShowDarkModePicker) },
+                        )
+                        SettingsDivider()
+                        SettingsNavigationItem(
+                            title = "主题设置",
+                            subtitle = if (state.preferences.appThemeId == AppThemeIds.CUSTOM) {
+                                "个性自定义"
+                            } else {
+                                AppThemePresets.presetName(state.preferences.appThemeId)
+                            },
+                            onClick = onThemeSettings,
                         )
                         SettingsDivider()
                         SettingsSwitchItem(

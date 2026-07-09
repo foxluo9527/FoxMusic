@@ -1,5 +1,18 @@
 <resources>
     <string name="app_name">FoxMusic</string>
+    <string name="widget_description">FoxMusic 播放控制小组件</string>
+    <string name="widget_small_label">FoxMusic · 迷你</string>
+    <string name="widget_medium_label">FoxMusic · 标准</string>
+    <string name="widget_large_label">FoxMusic · 大卡</string>
+    <string name="widget_small_description">方形迷你播放小组件</string>
+    <string name="widget_medium_description">横向标准播放控制小组件</string>
+    <string name="widget_large_description">大卡封面与播放控制小组件</string>
+    <string name="widget_cover_desc">专辑封面</string>
+    <string name="widget_play_pause_desc">播放或暂停</string>
+    <string name="widget_favorite_desc">收藏</string>
+    <string name="widget_repeat_desc">播放模式</string>
+    <string name="widget_prev_desc">上一首</string>
+    <string name="widget_next_desc">下一首</string>
     <string name="realtime_notification_title">FoxMusic 消息服务</string>
     <string name="realtime_notification_connected">实时消息已连接</string>
     <string name="realtime_notification_connecting">正在连接实时消息…</string>

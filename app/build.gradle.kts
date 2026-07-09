@@ -22,8 +22,8 @@ android {
         applicationId = "com.fox.music"
         minSdk = 26
         targetSdk = 37
-        versionCode = 105
-        versionName = "1.0.5"
+        versionCode = 106
+        versionName = "1.0.6"
 
         buildConfigField("String", "BUGLY_APP_ID", "\"79570062b4\"")
         buildConfigField("String", "BUGLY_APP_KEY", "\"9d6fcb14-8250-4eb8-b053-17b21d0a3aa8\"")
@@ -92,6 +92,7 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:common"))
     implementation(project(":core:player"))
     implementation(project(":core:network"))
     // Feature modules
@@ -104,6 +105,7 @@ dependencies {
     implementation(project(":feature:social"))
     implementation(project(":feature:chat"))
     implementation(project(":feature:profile"))
+    implementation(project(":feature:automotive"))
 
     // AndroidX Core
     implementation(libs.androidx.core.ktx)

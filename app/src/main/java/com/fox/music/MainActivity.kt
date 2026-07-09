@@ -20,12 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
-import com.fox.music.core.model.user.DarkMode
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.fox.music.core.ui.theme.resolveDarkTheme
 import com.fox.music.feature.chat.chatDetailRoute
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.notification.FoxNotificationManager
 import com.fox.music.ui.MainScreen
-import com.fox.music.ui.theme.FoxMusicTheme
+import com.fox.music.core.ui.theme.FoxMusicTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -80,13 +81,13 @@ class MainActivity : ComponentActivity() {
 fun FoxMusicApp(startRoute: MutableState<String>) {
     val viewModel: MainActivityViewModel = hiltViewModel()
     val userPreferences by viewModel.userPreferences.collectAsState()
-    val darkTheme = when (userPreferences.darkMode) {
-        DarkMode.DARK -> true
-        DarkMode.LIGHT -> false
-        DarkMode.FOLLOW_SYSTEM -> isSystemInDarkTheme()
-    }
+    val darkTheme = userPreferences.resolveDarkTheme(isSystemInDarkTheme())
     val navController = rememberNavController()
-    FoxMusicTheme(darkTheme = darkTheme) {
+    FoxMusicTheme(
+        darkTheme = darkTheme,
+        appThemeId = userPreferences.appThemeId,
+        customThemeSeedArgb = userPreferences.customThemeSeedArgb,
+    ) {
         MainScreen(
             modifier = Modifier.fillMaxSize(),
             navController = navController,

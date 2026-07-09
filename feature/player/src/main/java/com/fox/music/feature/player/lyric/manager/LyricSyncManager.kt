@@ -15,6 +15,7 @@ import com.blankj.utilcode.util.ActivityUtils
 import com.blankj.utilcode.util.SPUtils
 import com.blankj.utilcode.util.ToastUtils
 import com.fox.music.core.common.EventViewModel
+import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.feature.player.lyric.data.LyricStyle
@@ -24,6 +25,9 @@ import com.hjq.permissions.OnPermissionCallback
 import com.hjq.permissions.Permission
 import com.hjq.permissions.XXPermissions
 import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,8 +109,8 @@ class LyricSyncManager private constructor() {
                 }
             }
             launch {
-                isDesktopLyricEnabled.collectLatest {
-                    SPUtils.getInstance().put("is_desktop_enable", it)
+                isDesktopLyricEnabled.collectLatest { enabled ->
+                    SPUtils.getInstance().put("is_desktop_enable", enabled)
                 }
             }
             launch {
@@ -146,13 +150,13 @@ class LyricSyncManager private constructor() {
         lyricView.setFavorite(state.isFavorite || currentMusic.isFavorite)
     }
 
-    fun openDesktopLyric(context: Context) {
+    fun openDesktopLyric(context: Context, onGranted: () -> Unit = {}) {
         XXPermissions.with(context)
             .permission(Permission.SYSTEM_ALERT_WINDOW)
             .request(object: OnPermissionCallback {
                 override fun onGranted(permissions: MutableList<String>, all: Boolean) {
                     if (all) {
-                        toggleDesktopLyric()
+                        onGranted()
                     } else {
                         showPermissionDeniedHint()
                     }
@@ -166,6 +170,20 @@ class LyricSyncManager private constructor() {
                     }
                 }
             })
+    }
+
+    fun syncDesktopLyricEnabled(enabled: Boolean) {
+        _isDesktopLyricEnabled.value = enabled
+        if (!enabled) hideWindow()
+    }
+
+    fun enableDesktopLyricFromPreference() {
+        _isDesktopLyricEnabled.value = true
+    }
+
+    fun disableDesktopLyricFromPreference() {
+        _isDesktopLyricEnabled.value = false
+        hideWindow()
     }
 
     private fun showPermissionDeniedHint() {
@@ -340,12 +358,14 @@ class LyricSyncManager private constructor() {
 
     fun enableDesktopLyric() {
         _isDesktopLyricEnabled.value = true
+        persistDesktopLyricPreference(true)
         ToastUtils.make().show("开启桌面歌词")
     }
 
     fun disableDesktopLyric() {
         _isDesktopLyricEnabled.value = false
         hideWindow()
+        persistDesktopLyricPreference(false)
         ToastUtils.make().show("关闭桌面歌词")
     }
 
@@ -365,4 +385,21 @@ class LyricSyncManager private constructor() {
         return styleManager.currentStyle
     }
 
+    private fun persistDesktopLyricPreference(enabled: Boolean) {
+        if (!::context.isInitialized) return
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching {
+                EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    LyricPreferencesEntryPoint::class.java,
+                ).userPreferencesRepository().updateDesktopLyricEnabled(enabled)
+            }
+        }
+    }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface LyricPreferencesEntryPoint {
+    fun userPreferencesRepository(): UserPreferencesRepository
 }

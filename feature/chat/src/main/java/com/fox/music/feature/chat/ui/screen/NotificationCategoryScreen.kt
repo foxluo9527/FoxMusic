@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,6 +55,7 @@ fun NotificationCategoryScreen(
     viewModel: NotificationCategoryViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     onNavigateToPostDetail: (Long) -> Unit = {},
+    onNavigateToMusicComment: (Long, Long) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -73,6 +75,9 @@ fun NotificationCategoryScreen(
                 is NotificationCategoryEffect.NavigateToPostDetail -> {
                     onNavigateToPostDetail(effect.postId)
                 }
+                is NotificationCategoryEffect.NavigateToMusicComment -> {
+                    onNavigateToMusicComment(effect.musicId, effect.commentId)
+                }
             }
         }
     }
@@ -87,6 +92,9 @@ fun NotificationCategoryScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
         },
     ) { padding ->

@@ -20,15 +20,25 @@ data class Notification(
     val targetType: String? = null
 )
 
-/** 解析评论/@提及通知关联的帖子 ID */
+/** 音乐评论通知：type 与帖子评论同为 comment，靠 target_type 区分 */
+fun Notification.isMusicCommentNotification(): Boolean =
+    targetType?.equals("music_comment", ignoreCase = true) == true
+
+/** 帖子评论通知：type=comment/mention 且 target_type 不是 music_comment */
+fun Notification.isPostCommentNotification(): Boolean =
+    (type == NotificationType.COMMENT || type == NotificationType.MENTION) &&
+        !isMusicCommentNotification()
+
+/** 解析帖子评论通知关联的帖子 ID（target_id 为帖子 ID） */
 fun Notification.resolvePostId(): Long? {
-    if (targetType?.equals("post", ignoreCase = true) == true && targetId != null) {
-        return targetId
-    }
-    if (type == NotificationType.COMMENT || type == NotificationType.MENTION) {
-        return targetId
-    }
-    return null
+    if (!isPostCommentNotification()) return null
+    return targetId
+}
+
+/** 解析音乐评论通知关联的评论 ID */
+fun Notification.resolveMusicCommentId(): Long? {
+    if (!isMusicCommentNotification()) return null
+    return targetId
 }
 
 @Serializable

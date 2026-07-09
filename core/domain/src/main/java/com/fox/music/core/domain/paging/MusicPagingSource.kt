@@ -3,7 +3,9 @@ package com.fox.music.core.domain.paging
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.fox.music.core.domain.repository.MusicRepository
+import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.RecommendedMusicCache
 
 class MusicPagingSource(
     private val repo: MusicRepository,
@@ -12,6 +14,7 @@ class MusicPagingSource(
     private val sort: String? = "",
     private val maxTotalItems: Int? = null,
     private val onRecommendSeedLoaded: ((String) -> Unit)? = null,
+    private val recommendedMusicCacheManager: RecommendedMusicCacheManager? = null,
 ) : PagingSource<Int, Music>() {
     private val mapPageDataList = mutableMapOf<Int, List<Music>>()
     private val accumulatedExcludeIds = mutableListOf<Long>()
@@ -19,6 +22,16 @@ class MusicPagingSource(
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Music> {
         return try {
+            if (sort == "recommend" && recommendedMusicCacheManager != null) {
+                recommendedMusicCacheManager.getCache()?.let { cache ->
+                    return loadFromCache(params, cache)
+                }
+                recommendedMusicCacheManager.prefetchIfNeeded()
+                recommendedMusicCacheManager.getCache()?.let { cache ->
+                    return loadFromCache(params, cache)
+                }
+            }
+
             val page = params.key ?: 1
             val excludeIdsParam = accumulatedExcludeIds.takeIf { it.isNotEmpty() }
                 ?.joinToString(",")
@@ -93,5 +106,39 @@ class MusicPagingSource(
             state.closestPageToPosition(anchorPosition)?.prevKey?.plus(1)
                 ?: state.closestPageToPosition(anchorPosition)?.nextKey?.minus(1)
         }
+    }
+
+    private fun loadFromCache(
+        params: LoadParams<Int>,
+        cache: RecommendedMusicCache,
+    ): LoadResult<Int, Music> {
+        val page = params.key ?: 1
+        if (page == 1 && cache.seed.isNotBlank()) {
+            currentSeed = cache.seed
+            onRecommendSeedLoaded?.invoke(cache.seed)
+        }
+
+        val pageSize = params.loadSize
+        val maxItems = maxTotalItems ?: cache.items.size
+        val effectiveItems = cache.items.take(maxItems)
+        val startIndex = (page - 1) * pageSize
+        if (startIndex >= effectiveItems.size) {
+            return LoadResult.Page(
+                data = emptyList(),
+                prevKey = if (page > 1) page - 1 else null,
+                nextKey = null,
+            )
+        }
+
+        val endIndex = minOf(startIndex + pageSize, effectiveItems.size)
+        val pageData = effectiveItems.subList(startIndex, endIndex)
+        val prevKey = if (page > 1) page - 1 else null
+        val nextKey = if (endIndex < effectiveItems.size) page + 1 else null
+        mapPageDataList[page] = pageData
+        return LoadResult.Page(
+            data = pageData,
+            prevKey = prevKey,
+            nextKey = nextKey,
+        )
     }
 }

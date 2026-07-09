@@ -153,31 +153,36 @@ private fun String.toLocalMusicId(): Long {
     return if (hashed >= 0L) -(hashed + 1L) else hashed
 }
 
-fun CommentDto.toComment(): Comment = Comment(
-    id = id,
-    postId = postId,
-    userId = userId,
-    content = content,
-    parentId = parentId,
-    likeCount = likeCount,
-    replyCount = replyCount,
-    isLiked = isLiked,
-    createdAt = createdAt,
-    updatedAt = updatedAt,
-    authorName = authorName,
-    authorAvatar = authorAvatar,
-    parentContent = parentContent,
-    parentAuthorName = parentAuthorName,
-    user = user?.toUser() ?: authorName?.let { name ->
-        User(
-            id = userId,
-            username = name,
-            nickname = name,
-            avatar = authorAvatar,
-        )
-    },
-    replies = replies.map { it.toComment() },
-)
+fun CommentDto.toComment(): Comment {
+    val resolvedAuthorName = authorName ?: userNickname ?: userName
+    val resolvedAuthorAvatar = authorAvatar ?: userAvatar
+    return Comment(
+        id = id,
+        postId = postId,
+        musicId = musicId,
+        userId = userId,
+        content = content,
+        parentId = parentId,
+        likeCount = likeCount,
+        replyCount = replyCount,
+        isLiked = isLike || isLiked,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        authorName = resolvedAuthorName,
+        authorAvatar = resolvedAuthorAvatar,
+        parentContent = parentContent,
+        parentAuthorName = parentAuthorName,
+        user = user?.toUser() ?: resolvedAuthorName?.let { name ->
+            User(
+                id = userId,
+                username = userName ?: name,
+                nickname = userNickname ?: name,
+                avatar = resolvedAuthorAvatar,
+            )
+        },
+        replies = replies.map { it.toComment() },
+    )
+}
 
 fun PlayHistoryDto.toPlayHistory(): PlayHistory = PlayHistory(
     id = id,

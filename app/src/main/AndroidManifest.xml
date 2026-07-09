@@ -37,6 +37,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FoxMusic"
         tools:targetApi="33">
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
         <activity
             android:exported="true"
             android:label="@string/app_name"
@@ -50,6 +54,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".car.CarModeActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Theme.FoxMusic" />
+
+        <activity
+            android:name=".lyric.LockScreenLyricActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.FoxMusic" />
 
         <service
             android:name=".realtime.RealtimeConnectionService"
@@ -72,6 +92,54 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <receiver
+            android:name=".widget.FoxMusicWidgetSmallReceiver"
+            android:exported="true"
+            android:label="@string/widget_small_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/fox_music_widget_small_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.FoxMusicWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_medium_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/fox_music_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.FoxMusicWidgetLargeReceiver"
+            android:exported="true"
+            android:label="@string/widget_large_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/fox_music_widget_large_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WidgetActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.fox.music.widget.TOGGLE" />
+                <action android:name="com.fox.music.widget.PREVIOUS" />
+                <action android:name="com.fox.music.widget.NEXT" />
+                <action android:name="com.fox.music.widget.REPEAT" />
+                <action android:name="com.fox.music.widget.FAVORITE" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.startup.InitializationProvider"

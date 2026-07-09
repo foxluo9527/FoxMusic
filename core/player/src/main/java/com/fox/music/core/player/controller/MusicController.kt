@@ -64,4 +64,9 @@ interface MusicController {
      * 更新当前播放曲目的收藏状态（同步内存歌单与 UI）
      */
     fun updateCurrentMusicFavorite(isFavorite: Boolean)
+
+    /**
+     * 将详情接口拉取到的歌词写回内存歌单与 UI
+     */
+    fun updateMusicLyrics(musicId: Long, lyrics: String?, lyricsTrans: String?)
 }

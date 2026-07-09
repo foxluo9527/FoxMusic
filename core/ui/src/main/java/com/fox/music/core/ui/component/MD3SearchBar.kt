@@ -1,4 +1,4 @@
-package com.example.ui.components
+package com.fox.music.core.ui.component
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize

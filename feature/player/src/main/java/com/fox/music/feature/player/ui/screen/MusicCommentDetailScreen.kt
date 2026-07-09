@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,10 +25,17 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.social.Comment
+import com.fox.music.core.model.social.displayAuthorAvatar
+import com.fox.music.core.model.social.displayAuthorName
+import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.feature.player.viewmodel.CommentLikeState
+import com.fox.music.feature.player.viewmodel.MusicCommentDetailEffect
 import com.fox.music.feature.player.viewmodel.MusicCommentDetailIntent
 import com.fox.music.feature.player.viewmodel.MusicCommentDetailViewModel
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 const val MUSIC_COMMENT_DETAIL_ROUTE = "music_comment_detail/{musicId}/{commentId}"
 fun musicCommentDetailRoute(musicId: Long, commentId: Long) = "music_comment_detail/$musicId/$commentId"
@@ -44,12 +53,40 @@ fun MusicCommentDetailScreen(
     val commentsPaging = viewModel.getCommentsPaging(musicId).collectAsLazyPagingItems()
     val context = LocalContext.current
 
+    LaunchedEffect(state.commentsRefreshTrigger) {
+        if (state.commentsRefreshTrigger > 0) {
+            commentsPaging.refresh()
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                is com.fox.music.feature.player.viewmodel.MusicCommentDetailEffect.ShowMessage -> {
+                is MusicCommentDetailEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
+                MusicCommentDetailEffect.CommentSent -> {
+                    commentsPaging.refresh()
+                }
+            }
+        }
+    }
+
+    var hasAutoExpanded by remember(commentId) { mutableStateOf(false) }
+    LaunchedEffect(commentsPaging.loadState.refresh, commentsPaging.itemCount, commentId) {
+        if (commentId <= 0 || hasAutoExpanded) return@LaunchedEffect
+        if (commentsPaging.loadState.refresh is LoadState.Loading) return@LaunchedEffect
+        for (index in 0 until commentsPaging.itemCount) {
+            commentsPaging[index]?.takeIf { it.id == commentId }?.let { comment ->
+                viewModel.sendIntent(
+                    MusicCommentDetailIntent.ToggleExpandReplies(
+                        commentId = comment.id,
+                        embeddedReplies = comment.replies,
+                        replyCount = comment.replyCount,
+                    )
+                )
+                hasAutoExpanded = true
+                break
             }
         }
     }
@@ -63,9 +100,37 @@ fun MusicCommentDetailScreen(
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
-        }
+        },
+        bottomBar = {
+            Column(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .imePadding(),
+            ) {
+                HorizontalDivider()
+                ReplyInputField(
+                    draftText = state.replyDraft,
+                    onDraftChange = { text ->
+                        viewModel.sendIntent(MusicCommentDetailIntent.UpdateDraft(text))
+                    },
+                    onSendClick = { content ->
+                        if (commentId > 0L) {
+                            viewModel.sendIntent(
+                                MusicCommentDetailIntent.PostReply(musicId, content, commentId)
+                            )
+                        } else {
+                            Toast.makeText(context, "请选择要回复的评论", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -75,35 +140,30 @@ fun MusicCommentDetailScreen(
             CommentList(
                 commentsPaging = commentsPaging,
                 expandedComments = state.expandedComments,
-                onToggleExpand = { commentId ->
-                    viewModel.sendIntent(MusicCommentDetailIntent.ToggleExpandReplies(commentId))
+                expandedReplies = state.expandedReplies,
+                loadingReplies = state.loadingReplies,
+                commentLikes = state.commentLikes,
+                onToggleExpand = { comment ->
+                    viewModel.sendIntent(
+                        MusicCommentDetailIntent.ToggleExpandReplies(
+                            commentId = comment.id,
+                            embeddedReplies = comment.replies,
+                            replyCount = comment.replyCount,
+                        )
+                    )
                 },
-                onLikeComment = { cId ->
-                    viewModel.sendIntent(MusicCommentDetailIntent.LikeComment(cId))
+                onLikeComment = { comment ->
+                    val likeState = state.commentLikes[comment.id]
+                    viewModel.sendIntent(
+                        MusicCommentDetailIntent.LikeComment(
+                            commentId = comment.id,
+                            isLiked = likeState?.isLiked ?: comment.isLiked,
+                            likeCount = likeState?.likeCount ?: comment.likeCount,
+                        )
+                    )
                 },
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-
-            Divider()
-
-            // 回复输入框
-            ReplyInputField(
-                draftText = state.replyDraft,
-                onDraftChange = { text ->
-                    viewModel.sendIntent(MusicCommentDetailIntent.UpdateDraft(text))
-                },
-                onSendClick = {
-                    if (commentId > 0L) {
-                        viewModel.sendIntent(
-                            MusicCommentDetailIntent.PostReply(musicId, state.replyDraft, commentId)
-                        )
-                    } else {
-                        Toast.makeText(context, "请选择要回复的评论", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
+                    .fillMaxSize()
             )
         }
     }
@@ -113,8 +173,11 @@ fun MusicCommentDetailScreen(
 private fun CommentList(
     commentsPaging: LazyPagingItems<Comment>,
     expandedComments: Set<Long>,
-    onToggleExpand: (Long) -> Unit,
-    onLikeComment: (Long) -> Unit,
+    expandedReplies: Map<Long, List<Comment>>,
+    loadingReplies: Set<Long>,
+    commentLikes: Map<Long, CommentLikeState>,
+    onToggleExpand: (Comment) -> Unit,
+    onLikeComment: (Comment) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -152,8 +215,12 @@ private fun CommentList(
                                 CommentItem(
                                     comment = comment,
                                     isExpanded = expandedComments.contains(comment.id),
-                                    onToggleExpand = { onToggleExpand(comment.id) },
-                                    onLike = { onLikeComment(comment.id) }
+                                    isLastItem = index == commentsPaging.itemCount - 1,
+                                    expandedReplies = expandedReplies[comment.id] ?: emptyList(),
+                                    isLoadingReplies = loadingReplies.contains(comment.id),
+                                    commentLikes = commentLikes,
+                                    onToggleExpand = { onToggleExpand(comment) },
+                                    onLike = { onLikeComment(comment) }
                                 )
                             }
                         }
@@ -194,10 +261,18 @@ private fun CommentList(
 private fun CommentItem(
     comment: Comment,
     isExpanded: Boolean,
+    isLastItem: Boolean,
+    expandedReplies: List<Comment>,
+    isLoadingReplies: Boolean,
+    commentLikes: Map<Long, CommentLikeState> = emptyMap(),
     onToggleExpand: () -> Unit,
     onLike: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val likeState = commentLikes[comment.id]
+    val isLiked = likeState?.isLiked ?: comment.isLiked
+    val likeCount = likeState?.likeCount ?: comment.likeCount
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -209,15 +284,21 @@ private fun CommentItem(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            // 头部信息
-            Column(modifier = Modifier.weight(1f)) {
+            CachedImage(
+                imageUrl = comment.displayAuthorAvatar,
+                contentDescription = comment.displayAuthorName,
+                modifier = Modifier.size(36.dp),
+                shape = CircleShape,
+                placeholderIcon = Icons.Default.Person,
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
                 Text(
-                    text = comment.user?.nickname ?: "匿名用户",
+                    text = comment.displayAuthorName,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                 )
                 Text(
-                    text = comment.createdAt ?: "",
+                    text = formatCommentTime(comment.createdAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -229,9 +310,9 @@ private fun CommentItem(
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
-                    imageVector = if (comment.isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = "点赞",
-                    tint = if (comment.isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -254,7 +335,7 @@ private fun CommentItem(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "赞${comment.likeCount}",
+                text = "赞$likeCount",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -265,8 +346,8 @@ private fun CommentItem(
             )
         }
 
-        // 展开回复按钮
-        if (comment.replyCount > 0) {
+        // 展开回复按钮（未展开时显示）
+        if (comment.replyCount > 0 && !isExpanded) {
             Button(
                 onClick = onToggleExpand,
                 modifier = Modifier
@@ -275,20 +356,17 @@ private fun CommentItem(
                 colors = ButtonDefaults.outlinedButtonColors()
             ) {
                 Icon(
-                    imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    imageVector = Icons.Filled.KeyboardArrowDown,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    if (isExpanded) "隐藏回复" else "展开回复",
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Text("展开回复", style = MaterialTheme.typography.labelSmall)
             }
         }
 
         // 回复列表（当展开时显示）
-        if (isExpanded && comment.replies.isNotEmpty()) {
+        if (isExpanded) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -299,41 +377,73 @@ private fun CommentItem(
                     )
                     .padding(8.dp)
             ) {
-                comment.replies.forEach { reply ->
+                expandedReplies.forEach { reply ->
                     ReplyItem(reply = reply)
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                }
+                if (isLoadingReplies && expandedReplies.isEmpty()) {
+                    LoadingIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        useLottie = false
+                    )
+                }
+                if (comment.replyCount > 0) {
+                    Button(
+                        onClick = onToggleExpand,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp),
+                        colors = ButtonDefaults.outlinedButtonColors()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowUp,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("隐藏回复", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
 
-        Divider(modifier = Modifier.padding(top = 12.dp))
+        if (!isLastItem) {
+            Divider(modifier = Modifier.padding(top = 12.dp))
+        }
     }
 }
 
 @Composable
 private fun ReplyItem(reply: Comment, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            CachedImage(
+                imageUrl = reply.displayAuthorAvatar,
+                contentDescription = reply.displayAuthorName,
+                modifier = Modifier.size(28.dp),
+                shape = CircleShape,
+                placeholderIcon = Icons.Default.Person,
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(
-                    text = reply.user?.nickname ?: "匿名用户",
+                    text = reply.displayAuthorName,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                 )
                 Text(
-                    text = reply.createdAt ?: "",
+                    text = formatCommentTime(reply.createdAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(
-                text = "${reply.likeCount}赞",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
         Text(
             text = reply.content,
@@ -347,7 +457,7 @@ private fun ReplyItem(reply: Comment, modifier: Modifier = Modifier) {
 private fun ReplyInputField(
     draftText: String,
     onDraftChange: (String) -> Unit,
-    onSendClick: () -> Unit,
+    onSendClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -365,11 +475,29 @@ private fun ReplyInputField(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
-            onClick = onSendClick,
+            onClick = { onSendClick(draftText) },
             modifier = Modifier.align(Alignment.End)
         ) {
             Text("发送")
         }
+    }
+}
+
+private fun formatCommentTime(createdAt: String?): String {
+    if (createdAt == null) return "刚刚"
+    return try {
+        val postTime = ZonedDateTime.parse(createdAt, DateTimeFormatter.ISO_DATE_TIME)
+        val now = ZonedDateTime.now()
+        val minutes = java.time.Duration.between(postTime, now).toMinutes()
+        when {
+            minutes < 1 -> "刚刚"
+            minutes < 60 -> "${minutes}分钟前"
+            minutes < 1440 -> "${minutes / 60}小时前"
+            minutes < 10080 -> "${minutes / 1440}天前"
+            else -> postTime.format(DateTimeFormatter.ofPattern("MM-dd"))
+        }
+    } catch (e: Exception) {
+        "刚刚"
     }
 }
 

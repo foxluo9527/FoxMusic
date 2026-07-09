@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.model.user.NotificationPreferenceSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +45,12 @@ class FoxPreferencesDataStore @Inject constructor(
         val LANGUAGE = stringPreferencesKey("language")
         val DOWNLOAD_ON_WIFI_ONLY = booleanPreferencesKey("download_on_wifi_only")
         val CACHE_MAX_BYTES = longPreferencesKey("cache_max_bytes")
+        val THEME_PRESET_ID = stringPreferencesKey("theme_preset_id")
+        val CUSTOM_THEME_SEED = longPreferencesKey("custom_theme_seed")
+        val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
+        val LOCK_SCREEN_LYRIC_ENABLED = booleanPreferencesKey("lock_screen_lyric_enabled")
+        val CAR_LYRIC_ENABLED = booleanPreferencesKey("car_lyric_enabled")
         val REPEAT_MODE = stringPreferencesKey("repeat_mode")
         val PLAYBACK_SNAPSHOT = stringPreferencesKey("playback_snapshot")
         val PLAYBACK_CURRENT_INDEX = intPreferencesKey("playback_current_index")
@@ -90,6 +97,31 @@ class FoxPreferencesDataStore @Inject constructor(
     val downloadOnWifiOnly: Flow<Boolean> = context.dataStore.data.map { it[PreferencesKeys.DOWNLOAD_ON_WIFI_ONLY] ?: true }
     val cacheMaxBytes: Flow<Long> = context.dataStore.data.map {
         it[PreferencesKeys.CACHE_MAX_BYTES] ?: DEFAULT_CACHE_MAX_BYTES
+    }
+    val themePresetId: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.THEME_PRESET_ID]
+            ?: if (prefs[PreferencesKeys.DYNAMIC_COLOR] == true) {
+                AppThemeIds.FOX_PURPLE
+            } else {
+                AppThemeIds.DEFAULT
+            }
+    }
+    val customThemeSeed: Flow<Long> = context.dataStore.data.map {
+        it[PreferencesKeys.CUSTOM_THEME_SEED] ?: 0xFF6C63FF
+    }
+    val dynamicColor: Flow<Boolean> = context.dataStore.data.map {
+        it[PreferencesKeys.DYNAMIC_COLOR] ?: false
+    }
+    val desktopLyricEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.DESKTOP_LYRIC_ENABLED]
+            ?: prefs[booleanPreferencesKey("is_desktop_enable")]
+            ?: false
+    }
+    val lockScreenLyricEnabled: Flow<Boolean> = context.dataStore.data.map {
+        it[PreferencesKeys.LOCK_SCREEN_LYRIC_ENABLED] ?: false
+    }
+    val carBluetoothLyricEnabled: Flow<Boolean> = context.dataStore.data.map {
+        it[PreferencesKeys.CAR_LYRIC_ENABLED] ?: false
     }
 
     // Token operations
@@ -168,6 +200,40 @@ class FoxPreferencesDataStore @Inject constructor(
 
     suspend fun updateCacheMaxBytes(maxBytes: Long) {
         context.dataStore.edit { it[PreferencesKeys.CACHE_MAX_BYTES] = maxBytes }
+    }
+
+    suspend fun updateThemePresetId(themeId: String) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.THEME_PRESET_ID] = themeId
+            prefs.remove(PreferencesKeys.DYNAMIC_COLOR)
+        }
+    }
+
+    suspend fun updateCustomThemeSeed(seedArgb: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.CUSTOM_THEME_SEED] = seedArgb
+            prefs[PreferencesKeys.THEME_PRESET_ID] = AppThemeIds.CUSTOM
+            prefs.remove(PreferencesKeys.DYNAMIC_COLOR)
+        }
+    }
+
+    suspend fun updateDynamicColor(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.DYNAMIC_COLOR] = enabled }
+    }
+
+    suspend fun updateDesktopLyricEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.DESKTOP_LYRIC_ENABLED] = enabled
+            prefs.remove(booleanPreferencesKey("is_desktop_enable"))
+        }
+    }
+
+    suspend fun updateLockScreenLyricEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.LOCK_SCREEN_LYRIC_ENABLED] = enabled }
+    }
+
+    suspend fun updateCarBluetoothLyricEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[PreferencesKeys.CAR_LYRIC_ENABLED] = enabled }
     }
 
     suspend fun getCacheMaxBytes(): Long {

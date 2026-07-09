@@ -36,9 +36,9 @@ enum class AppDestinations(
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
 ) {
-    HOME(HOME_ROUTE, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-    DISCOVER(DISCOVER_ROUTE, "Discover", Icons.Filled.Explore, Icons.Outlined.Explore),
-    PROFILE(PROFILE_ROUTE, "Profile", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle),
+    HOME(HOME_ROUTE, "首页", Icons.Filled.Home, Icons.Outlined.Home),
+    DISCOVER(DISCOVER_ROUTE, "发现", Icons.Filled.Explore, Icons.Outlined.Explore),
+    PROFILE(PROFILE_ROUTE, "我的", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle),
 }
 
 @Composable

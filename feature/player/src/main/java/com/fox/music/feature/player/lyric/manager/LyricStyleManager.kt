@@ -8,6 +8,7 @@ import android.view.Gravity
 import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
 import com.blankj.utilcode.util.Utils
+import com.fox.music.core.common.lyric.LyricStyleChangeNotifier
 import com.fox.music.feature.player.lyric.data.LyricStyle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,6 +90,7 @@ class LyricStyleManager private constructor() {
                 putFloat(KEY_LINE_SPACING, style.lineSpacing)
             }
             _styleFlow.value = style
+            LyricStyleChangeNotifier.notifyChanged(Utils.getApp())
         }
     }
 

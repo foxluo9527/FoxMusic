@@ -1,96 +1,68 @@
 package com.fox.music.core.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple500,
-    onPrimary = Color.White,
-    primaryContainer = Purple200,
-    onPrimaryContainer = Purple700,
-    secondary = Pink500,
-    onSecondary = Color.White,
-    secondaryContainer = Pink200,
-    onSecondaryContainer = Pink700,
-    tertiary = Teal500,
-    onTertiary = Color.White,
-    tertiaryContainer = Teal200,
-    onTertiaryContainer = Teal700,
-    background = Gray50,
-    onBackground = Gray900,
-    surface = Color.White,
-    onSurface = Gray900,
-    surfaceVariant = Gray100,
-    onSurfaceVariant = Gray700,
-    outline = Gray400,
-    error = ErrorRedLight,
-    onError = Color.White,
-)
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple200,
-    onPrimary = Purple700,
-    primaryContainer = Purple700,
-    onPrimaryContainer = Purple200,
-    secondary = Pink200,
-    onSecondary = Pink700,
-    secondaryContainer = Pink700,
-    onSecondaryContainer = Pink200,
-    tertiary = Teal200,
-    onTertiary = Teal700,
-    tertiaryContainer = Teal700,
-    onTertiaryContainer = Teal200,
-    background = DarkBackground,
-    onBackground = Gray200,
-    surface = DarkSurface,
-    onSurface = Gray200,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = Gray400,
-    outline = Gray500,
-    error = ErrorRed,
-    onError = Gray900,
-)
+import com.fox.music.core.model.user.AppThemeIds
 
 @Composable
 fun FoxMusicTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false,
+    appThemeId: String = AppThemeIds.DEFAULT,
+    customThemeSeedArgb: Long = 0xFF6C63FF,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = resolveAppColorScheme(
+        darkTheme = darkTheme,
+        appThemeId = appThemeId,
+        customThemeSeedArgb = customThemeSeedArgb,
+    )
 
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
-        }
-    }
+    ApplyFoxSystemBars(colorScheme = colorScheme, darkTheme = darkTheme)
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = FoxMusicTypography,
+        shapes = FoxShapes,
         content = content,
     )
 }
+
+@Composable
+fun resolveColorScheme(
+    darkTheme: Boolean,
+    appThemeId: String,
+    customThemeSeedArgb: Long,
+): ColorScheme = resolveAppColorScheme(darkTheme, appThemeId, customThemeSeedArgb)
+
+@Composable
+private fun ApplyFoxSystemBars(
+    colorScheme: ColorScheme,
+    darkTheme: Boolean,
+) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+
+    SideEffect {
+        val window = (view.context as Activity).window
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        val controller = WindowCompat.getInsetsController(window, view)
+        val useLightIcons = colorScheme.surface.luminance() < 0.5f
+        controller.isAppearanceLightStatusBars = !useLightIcons
+        controller.isAppearanceLightNavigationBars = !darkTheme && colorScheme.surface.luminance() > 0.5f
+    }
+}
+
+@Composable
+fun previewColorScheme(
+    appThemeId: String,
+    customThemeSeedArgb: Long,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+): ColorScheme = resolveColorScheme(darkTheme, appThemeId, customThemeSeedArgb)

@@ -13,10 +13,28 @@ import com.fox.music.core.player.controller.MusicController
 import com.fox.music.crash.BuglyInitializer
 import com.fox.music.core.data.recovery.ChatMessageRecovery
 import com.fox.music.core.data.realtime.RealtimeMessageCoordinator
+import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
+import com.fox.music.core.domain.repository.UserPreferencesRepository
+import com.fox.music.core.player.lyric.LyricPrefetchCoordinator
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
+import com.fox.music.lyric.UnlockLyricCoordinator
 import com.fox.music.notification.FoxNotificationManager
+import com.fox.music.core.common.lyric.LyricStyleChangeNotifier
+import com.fox.music.widget.FoxMusicWidgetUpdater
+import com.fox.music.widget.WidgetBootstrapper
+import com.fox.music.widget.WidgetLyricHelper
+import com.fox.music.widget.WidgetStateWriter
+import com.fox.music.widget.WidgetThemeStore
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class FoxMusicApplication : Application(), Configuration.Provider {
@@ -36,11 +54,43 @@ class FoxMusicApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var foxNotificationManager: FoxNotificationManager
 
+    @Inject
+    lateinit var userPreferencesRepository: UserPreferencesRepository
+
+    @Inject
+    lateinit var lyricPrefetchCoordinator: LyricPrefetchCoordinator
+
+    @Inject
+    lateinit var unlockLyricCoordinator: UnlockLyricCoordinator
+
+    @Inject
+    lateinit var recommendedMusicCacheManager: RecommendedMusicCacheManager
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
         BuglyInitializer.init(this)
+        LyricStyleChangeNotifier.onLyricStyleChanged = { context ->
+            appScope.launch {
+                if (FoxMusicWidgetUpdater.isAnyInstalled(context)) {
+                    FoxMusicWidgetUpdater.updateAll(context)
+                }
+            }
+        }
         LyricSyncManager.getInstance().init(this)
+        lyricPrefetchCoordinator.start()
+        unlockLyricCoordinator.start(this)
+        appScope.launch {
+            recommendedMusicCacheManager.prefetchIfNeeded()
+        }
+        syncDesktopLyricPreference()
+        observeWidgetPlaybackState()
+        observeWidgetTheme()
+        appScope.launch {
+            WidgetBootstrapper.refreshIfInstalled(this@FoxMusicApplication)
+        }
         foxNotificationManager.createChannels()
         chatMessageRecovery.recoverPendingMessages()
         realtimeMessageCoordinator.start()
@@ -49,6 +99,10 @@ class FoxMusicApplication : Application(), Configuration.Provider {
                 super.onStart(owner)
                 EventViewModel.appInForeground.value = true
                 realtimeMessageCoordinator.onAppForeground()
+                appScope.launch {
+                    recommendedMusicCacheManager.prefetchIfNeeded()
+                    WidgetBootstrapper.refreshIfInstalled(this@FoxMusicApplication)
+                }
             }
 
             override fun onStop(owner: LifecycleOwner) {
@@ -56,8 +110,68 @@ class FoxMusicApplication : Application(), Configuration.Provider {
                 EventViewModel.appInForeground.value = false
                 realtimeMessageCoordinator.onAppBackground()
                 musicController.flushPlaybackState()
+                appScope.launch {
+                    WidgetBootstrapper.refreshIfInstalled(this@FoxMusicApplication)
+                }
             }
         })
+    }
+
+    private fun syncDesktopLyricPreference() {
+        appScope.launch {
+            val prefs = userPreferencesRepository.userPreferences.first()
+            LyricSyncManager.getInstance().syncDesktopLyricEnabled(prefs.desktopLyricEnabled)
+        }
+    }
+
+    private fun observeWidgetTheme() {
+        appScope.launch {
+            userPreferencesRepository.userPreferences
+                .distinctUntilChanged { old, new ->
+                    old.appThemeId == new.appThemeId &&
+                        old.customThemeSeedArgb == new.customThemeSeedArgb &&
+                        old.darkMode == new.darkMode
+                }
+                .collect { prefs ->
+                    val isSystemDark = (
+                        resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                        ) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                    WidgetThemeStore.sync(this@FoxMusicApplication, prefs, isSystemDark)
+                    if (FoxMusicWidgetUpdater.isAnyInstalled(this@FoxMusicApplication)) {
+                        FoxMusicWidgetUpdater.updateAll(this@FoxMusicApplication)
+                    }
+                }
+        }
+    }
+
+    private fun observeWidgetPlaybackState() {
+        appScope.launch {
+            combine(
+                musicController.playerState,
+                musicController.currentPosition,
+            ) { state, position -> state to position }
+                .map { (state, position) -> WidgetLyricHelper.buildSnapshot(state, position) }
+                .distinctUntilChanged { old, new ->
+                    old?.musicId == new?.musicId &&
+                        old?.title == new?.title &&
+                        old?.artist == new?.artist &&
+                        old?.isPlaying == new?.isPlaying &&
+                        old?.currentLyric == new?.currentLyric &&
+                        old?.lyricsRaw == new?.lyricsRaw &&
+                        old?.largeLyricLines == new?.largeLyricLines &&
+                        old?.largeLyricCurrentIndex == new?.largeLyricCurrentIndex &&
+                        old?.repeatMode == new?.repeatMode &&
+                        old?.isFavorite == new?.isFavorite &&
+                        old?.coverUrl == new?.coverUrl
+                }
+                .collect { snapshot ->
+                    snapshot ?: return@collect
+                    WidgetStateWriter.write(
+                        context = this@FoxMusicApplication,
+                        snapshot = snapshot,
+                    )
+                }
+        }
     }
 
     override val workManagerConfiguration: Configuration

@@ -109,6 +109,7 @@ sealed interface SettingsEffect : UiEffect {
     data object NavigateToLogin : SettingsEffect
     data class ShowMessage(val message: String) : SettingsEffect
     data class LaunchInstall(val file: File) : SettingsEffect
+    data object RecreateActivity : SettingsEffect
 }
 
 @HiltViewModel

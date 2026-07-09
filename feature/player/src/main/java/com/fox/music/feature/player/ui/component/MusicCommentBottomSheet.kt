@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,11 +27,17 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.social.Comment
+import com.fox.music.core.model.social.displayAuthorAvatar
+import com.fox.music.core.model.social.displayAuthorName
+import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.feature.player.viewmodel.CommentLikeState
 import com.fox.music.feature.player.viewmodel.MusicCommentDetailEffect
 import com.fox.music.feature.player.viewmodel.MusicCommentDetailIntent
 import com.fox.music.feature.player.viewmodel.MusicCommentDetailViewModel
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,11 +52,20 @@ fun MusicCommentBottomSheet(
     var selectedCommentId by remember { mutableStateOf<Long?>(null) }
     var selectedCommentUserName by remember { mutableStateOf<String?>(null) }
 
+    LaunchedEffect(state.commentsRefreshTrigger) {
+        if (state.commentsRefreshTrigger > 0) {
+            commentsPaging.refresh()
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.effect.collect {effect ->
             when(effect) {
                 is MusicCommentDetailEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                }
+                MusicCommentDetailEffect.CommentSent -> {
+                    commentsPaging.refresh()
                 }
             }
         }
@@ -104,11 +120,25 @@ fun MusicCommentBottomSheet(
                 expandedComments = state.expandedComments,
                 expandedReplies = state.expandedReplies,
                 loadingReplies = state.loadingReplies,
-                onToggleExpand = { commentId ->
-                    viewModel.sendIntent(MusicCommentDetailIntent.ToggleExpandReplies(commentId))
+                commentLikes = state.commentLikes,
+                onToggleExpand = { comment ->
+                    viewModel.sendIntent(
+                        MusicCommentDetailIntent.ToggleExpandReplies(
+                            commentId = comment.id,
+                            embeddedReplies = comment.replies,
+                            replyCount = comment.replyCount,
+                        )
+                    )
                 },
-                onLikeComment = { cId ->
-                    viewModel.sendIntent(MusicCommentDetailIntent.LikeComment(cId))
+                onLikeComment = { comment ->
+                    val likeState = state.commentLikes[comment.id]
+                    viewModel.sendIntent(
+                        MusicCommentDetailIntent.LikeComment(
+                            commentId = comment.id,
+                            isLiked = likeState?.isLiked ?: comment.isLiked,
+                            likeCount = likeState?.likeCount ?: comment.likeCount,
+                        )
+                    )
                 },
                 onCommentSelected = { commentId, userName ->
                     selectedCommentId = commentId
@@ -130,12 +160,12 @@ fun MusicCommentBottomSheet(
                 onDraftChange = {text ->
                     viewModel.sendIntent(MusicCommentDetailIntent.UpdateDraft(text))
                 },
-                onSendClick = {
+                onSendClick = { content ->
                     viewModel.sendIntent(
                         MusicCommentDetailIntent.PostReply(
                             musicId,
-                            state.replyDraft,
-                            selectedCommentId ?: 0L
+                            content,
+                            selectedCommentId
                         )
                     )
                     selectedCommentId = null
@@ -154,8 +184,9 @@ private fun CommentList(
     expandedComments: Set<Long>,
     expandedReplies: Map<Long, List<Comment>>,
     loadingReplies: Set<Long>,
-    onToggleExpand: (Long) -> Unit,
-    onLikeComment: (Long) -> Unit,
+    commentLikes: Map<Long, CommentLikeState>,
+    onToggleExpand: (Comment) -> Unit,
+    onLikeComment: (Comment) -> Unit,
     onCommentSelected: (Long, String) -> Unit = { _, _ -> },
     onLoadMoreReplies: (Long, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
@@ -195,8 +226,10 @@ private fun CommentList(
                                 CommentItem(
                                     comment = comment,
                                     isExpanded = expandedComments.contains(comment.id),
-                                    onToggleExpand = { onToggleExpand(comment.id) },
-                                    onLike = { onLikeComment(comment.id) },
+                                    isLastItem = index == commentsPaging.itemCount - 1,
+                                    commentLikes = commentLikes,
+                                    onToggleExpand = { onToggleExpand(comment) },
+                                    onLike = { onLikeComment(comment) },
                                     onSelected = onCommentSelected,
                                     expandedReplies = expandedReplies[comment.id] ?: emptyList(),
                                     isLoadingReplies = loadingReplies.contains(comment.id),
@@ -243,6 +276,8 @@ private fun CommentList(
 private fun CommentItem(
     comment: Comment,
     isExpanded: Boolean,
+    isLastItem: Boolean,
+    commentLikes: Map<Long, CommentLikeState> = emptyMap(),
     onToggleExpand: () -> Unit,
     onLike: () -> Unit,
     onSelected: (Long, String) -> Unit = { _, _ -> },
@@ -251,10 +286,14 @@ private fun CommentItem(
     onLoadMoreReplies: (Long, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
+    val likeState = commentLikes[comment.id]
+    val isLiked = likeState?.isLiked ?: comment.isLiked
+    val likeCount = likeState?.likeCount ?: comment.likeCount
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onSelected(comment.id, comment.user?.nickname ?: "匿名用户") }
+            .clickable { onSelected(comment.id, comment.displayAuthorName) }
             .padding(12.dp)
     ) {
         // 主评论内容
@@ -262,15 +301,21 @@ private fun CommentItem(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            // 头部信息
-            Column(modifier = Modifier.weight(1f)) {
+            CachedImage(
+                imageUrl = comment.displayAuthorAvatar,
+                contentDescription = comment.displayAuthorName,
+                modifier = Modifier.size(36.dp),
+                shape = CircleShape,
+                placeholderIcon = Icons.Default.Person,
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
                 Text(
-                    text = comment.user?.nickname ?: "匿名用户",
+                    text = comment.displayAuthorName,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = comment.createdAt ?: "",
+                    text = formatCommentTime(comment.createdAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -282,9 +327,9 @@ private fun CommentItem(
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
-                    imageVector = if (comment.isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = "点赞",
-                    tint = if (comment.isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -307,7 +352,7 @@ private fun CommentItem(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "赞${comment.likeCount}",
+                text = "赞$likeCount",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -318,8 +363,8 @@ private fun CommentItem(
             )
         }
 
-        // 展开回复按钮
-        if (comment.replyCount > 0) {
+        // 展开回复按钮（未展开时显示）
+        if (comment.replyCount > 0 && !isExpanded) {
             Button(
                 onClick = onToggleExpand,
                 modifier = Modifier
@@ -328,20 +373,17 @@ private fun CommentItem(
                 colors = ButtonDefaults.outlinedButtonColors()
             ) {
                 Icon(
-                    imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    imageVector = Icons.Filled.KeyboardArrowDown,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    if (isExpanded) "隐藏回复" else "展开回复",
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Text("展开回复", style = MaterialTheme.typography.labelSmall)
             }
         }
 
         // 回复列表（当展开时显示）
-        if (isExpanded && expandedReplies.isNotEmpty()) {
+        if (isExpanded) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -353,7 +395,15 @@ private fun CommentItem(
                         reply = reply,
                         onSelected = onSelected
                     )
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                }
+
+                if (isLoadingReplies && expandedReplies.isEmpty()) {
+                    LoadingIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        useLottie = false
+                    )
                 }
 
                 // 加载更多回复按钮
@@ -376,10 +426,30 @@ private fun CommentItem(
                         }
                     }
                 }
+
+                if (comment.replyCount > 0) {
+                    Button(
+                        onClick = onToggleExpand,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp),
+                        colors = ButtonDefaults.outlinedButtonColors()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.KeyboardArrowUp,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("隐藏回复", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
         }
 
-        Divider(modifier = Modifier.padding(top = 12.dp))
+        if (!isLastItem) {
+            Divider(modifier = Modifier.padding(top = 12.dp))
+        }
     }
 }
 
@@ -392,29 +462,32 @@ private fun ReplyItem(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onSelected(reply.id, reply.user?.nickname ?: "匿名用户") }
+            .padding(vertical = 8.dp)
+            .clickable { onSelected(reply.id, reply.displayAuthorName) }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            CachedImage(
+                imageUrl = reply.displayAuthorAvatar,
+                contentDescription = reply.displayAuthorName,
+                modifier = Modifier.size(28.dp),
+                shape = CircleShape,
+                placeholderIcon = Icons.Default.Person,
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(
-                    text = reply.user?.nickname ?: "匿名用户",
+                    text = reply.displayAuthorName,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = reply.createdAt ?: "",
+                    text = formatCommentTime(reply.createdAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(
-                text = "${reply.likeCount}赞",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
         Text(
             text = reply.content,
@@ -428,12 +501,18 @@ private fun ReplyItem(
 private fun ReplyInputField(
     draftText: String,
     onDraftChange: (String) -> Unit,
-    onSendClick: () -> Unit,
+    onSendClick: (String) -> Unit,
     replyToUserName: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var showInputDialog by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf(draftText) }
+
+    LaunchedEffect(draftText) {
+        if (!showInputDialog) {
+            inputText = draftText
+        }
+    }
 
     // 点击输入框时打开输入对话框
     Box(
@@ -493,8 +572,8 @@ private fun ReplyInputField(
                 Button(
                     onClick = {
                         if (inputText.isNotBlank()) {
-                            onDraftChange(inputText)
-                            onSendClick()
+                            onSendClick(inputText)
+                            onDraftChange("")
                             inputText = ""
                             showInputDialog = false
                         }
@@ -512,6 +591,24 @@ private fun ReplyInputField(
                 }
             }
         )
+    }
+}
+
+private fun formatCommentTime(createdAt: String?): String {
+    if (createdAt == null) return "刚刚"
+    return try {
+        val postTime = ZonedDateTime.parse(createdAt, DateTimeFormatter.ISO_DATE_TIME)
+        val now = ZonedDateTime.now()
+        val minutes = java.time.Duration.between(postTime, now).toMinutes()
+        when {
+            minutes < 1 -> "刚刚"
+            minutes < 60 -> "${minutes}分钟前"
+            minutes < 1440 -> "${minutes / 60}小时前"
+            minutes < 10080 -> "${minutes / 1440}天前"
+            else -> postTime.format(DateTimeFormatter.ofPattern("MM-dd"))
+        }
+    } catch (e: Exception) {
+        "刚刚"
     }
 }
 

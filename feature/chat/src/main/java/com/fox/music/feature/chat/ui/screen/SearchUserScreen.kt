@@ -35,7 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.ui.components.SearchBar
+import com.fox.music.core.ui.component.SearchBar
 import com.fox.music.feature.chat.ui.component.UserListItem
 import com.fox.music.feature.chat.ui.component.UserStatusChip
 import com.fox.music.feature.chat.util.displayName

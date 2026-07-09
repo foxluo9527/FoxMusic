@@ -19,3 +19,15 @@
 # Bugly
 -dontwarn com.tencent.bugly.**
 -keep public class com.tencent.bugly.** { *; }
+
+# Widget
+-keep class com.fox.music.widget.WidgetActionReceiver { *; }
+-keep class com.fox.music.widget.FoxMusicWidgetSmallReceiver { *; }
+-keep class com.fox.music.widget.FoxMusicWidgetReceiver { *; }
+-keep class com.fox.music.widget.FoxMusicWidgetLargeReceiver { *; }
+-keep interface com.fox.music.widget.WidgetMusicEntryPoint { *; }
+-keep interface com.fox.music.widget.WidgetBootstrapEntryPoint { *; }
+
+# Android Auto Car App
+-keep class com.fox.music.feature.automotive.** { *; }
+-keep interface com.fox.music.feature.automotive.CarEntryPoint { *; }

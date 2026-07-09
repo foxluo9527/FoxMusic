@@ -29,4 +29,14 @@ interface UserPreferencesRepository {
     suspend fun updateDownloadOnWifiOnly(enabled: Boolean): Result<Unit>
 
     suspend fun updateCacheMaxBytes(maxBytes: Long): Result<Unit>
+
+    suspend fun updateAppTheme(themeId: String, customSeedArgb: Long? = null): Result<Unit>
+
+    suspend fun updateDynamicColor(enabled: Boolean): Result<Unit>
+
+    suspend fun updateDesktopLyricEnabled(enabled: Boolean): Result<Unit>
+
+    suspend fun updateLockScreenLyricEnabled(enabled: Boolean): Result<Unit>
+
+    suspend fun updateCarBluetoothLyricEnabled(enabled: Boolean): Result<Unit>
 }

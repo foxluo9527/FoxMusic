@@ -96,15 +96,22 @@ data class CommentDto(
     val id: Long,
     @SerialName("post_id")
     val postId: Long? = null,
+    @SerialName("music_id")
+    val musicId: Long? = null,
     @SerialName("user_id")
     val userId: Long,
     val content: String,
     @SerialName("parent_id")
     val parentId: Long? = null,
+    @SerialName("reply_id")
+    val replyId: Long? = null,
     @SerialName("like_count")
     val likeCount: Int = 0,
     @SerialName("reply_count")
     val replyCount: Int = 0,
+    @SerialName("is_like")
+    val isLike: Boolean = false,
+    @SerialName("is_liked")
     val isLiked: Boolean = false,
     @SerialName("created_at")
     val createdAt: String? = null,
@@ -114,6 +121,12 @@ data class CommentDto(
     val authorName: String? = null,
     @SerialName("author_avatar")
     val authorAvatar: String? = null,
+    @SerialName("user_name")
+    val userName: String? = null,
+    @SerialName("user_nickname")
+    val userNickname: String? = null,
+    @SerialName("user_avatar")
+    val userAvatar: String? = null,
     @SerialName("parent_content")
     val parentContent: String? = null,
     @SerialName("parent_author_name")

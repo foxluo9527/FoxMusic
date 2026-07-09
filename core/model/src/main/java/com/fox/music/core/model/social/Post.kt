@@ -60,6 +60,8 @@ data class Comment(
     val id: Long,
     @SerialName("post_id")
     val postId: Long? = null,
+    @SerialName("music_id")
+    val musicId: Long? = null,
     @SerialName("user_id")
     val userId: Long,
     val content: String,

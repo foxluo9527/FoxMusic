@@ -457,6 +457,29 @@ class MusicControllerImpl @Inject constructor(
         )
     }
 
+    override fun updateMusicLyrics(musicId: Long, lyrics: String?, lyricsTrans: String?) {
+        if (lyrics.isNullOrBlank()) return
+        currentPlaylist = currentPlaylist.map { music ->
+            if (music.id == musicId) {
+                music.copy(lyrics = lyrics, lyricsTrans = lyricsTrans ?: music.lyricsTrans)
+            } else {
+                music
+            }
+        }
+        val state = _playerState.value
+        val updatedMusic = state.currentMusic?.takeIf { it.id == musicId }?.let {
+            it.copy(lyrics = lyrics, lyricsTrans = lyricsTrans ?: it.lyricsTrans)
+        }
+        if (updatedMusic != null) {
+            _playerState.value = state.copy(
+                currentMusic = updatedMusic,
+                playlist = currentPlaylist,
+            )
+        } else if (state.playlist !== currentPlaylist) {
+            _playerState.value = state.copy(playlist = currentPlaylist)
+        }
+    }
+
     private fun syncExoToAnchor(player: Player) {
         if (!userPlaylistActive || userAnchorMusicId == null) return
         val uiIndex = resolveUiIndex(player.currentMediaItemIndex)
@@ -704,15 +727,16 @@ class MusicControllerImpl @Inject constructor(
         if (currentMusic != null && playingKey == key) {
             val currentIdIndex = musics.indexOfFirst { it.id == currentMusic.id }
             if (currentIdIndex >= 0 && musics.size > currentPlaylist.size) {
-                currentPlaylist = musics
+                val mergedPlaylist = mergePlaylistPreservingDetails(currentPlaylist, musics)
+                currentPlaylist = mergedPlaylist
                 controller?.let { player ->
-                    if (musics.size > player.mediaItemCount) {
-                        for (i in player.mediaItemCount until musics.size) {
-                            player.addMediaItem(musics[i].toMediaItem())
+                    if (mergedPlaylist.size > player.mediaItemCount) {
+                        for (i in player.mediaItemCount until mergedPlaylist.size) {
+                            player.addMediaItem(mergedPlaylist[i].toMediaItem())
                         }
                     }
                 }
-                _playerState.value = _playerState.value.copy(playlist = musics)
+                _playerState.value = _playerState.value.copy(playlist = mergedPlaylist)
                 persistPlaybackState()
                 return
             }
@@ -723,8 +747,9 @@ class MusicControllerImpl @Inject constructor(
             state.currentMusic?.id == musics.getOrNull(targetIndex)?.id &&
             musics.size >= currentPlaylist.size
         ) {
-            currentPlaylist = musics
-            _playerState.value = _playerState.value.copy(playlist = musics)
+            val mergedPlaylist = mergePlaylistPreservingDetails(currentPlaylist, musics)
+            currentPlaylist = mergedPlaylist
+            _playerState.value = _playerState.value.copy(playlist = mergedPlaylist)
             return
         }
         playingKey = key
@@ -741,12 +766,13 @@ class MusicControllerImpl @Inject constructor(
         val anchorId = userAnchorMusicId ?: _playerState.value.currentMusic?.id ?: return
         val newIndex = musics.indexOfFirst { it.id == anchorId }
         if (newIndex < 0) return
-        currentPlaylist = musics
+        val mergedPlaylist = mergePlaylistPreservingDetails(currentPlaylist, musics)
+        currentPlaylist = mergedPlaylist
         expectedMediaItemIndex = newIndex
         _playerState.value = _playerState.value.copy(
-            playlist = musics,
+            playlist = mergedPlaylist,
             currentIndex = newIndex,
-            currentMusic = musics[newIndex],
+            currentMusic = mergedPlaylist[newIndex],
         )
         // 用户点播模式：ExoPlayer 仅单曲，内存歌单由 setPlaylist/navigate 维护，此处不碰队列
     }
@@ -762,13 +788,28 @@ class MusicControllerImpl @Inject constructor(
         ) {
             return
         }
-        currentPlaylist = musics
+        val mergedPlaylist = mergePlaylistPreservingDetails(currentPlaylist, musics)
+        currentPlaylist = mergedPlaylist
         expectedMediaItemIndex = newIndex
         _playerState.value = _playerState.value.copy(
-            playlist = musics,
+            playlist = mergedPlaylist,
             currentIndex = newIndex,
-            currentMusic = musics[newIndex],
+            currentMusic = mergedPlaylist[newIndex],
         )
+    }
+
+    private fun mergePlaylistPreservingDetails(
+        existing: List<Music>,
+        incoming: List<Music>,
+    ): List<Music> {
+        val existingById = existing.associateBy { it.id }
+        return incoming.map { music ->
+            val previous = existingById[music.id] ?: return@map music
+            music.copy(
+                lyrics = music.lyrics?.takeIf { it.isNotBlank() } ?: previous.lyrics,
+                lyricsTrans = music.lyricsTrans?.takeIf { it.isNotBlank() } ?: previous.lyricsTrans,
+            )
+        }
     }
 
     override fun setPlaylist(musics: List<Music>, startIndex: Int, key: String) {

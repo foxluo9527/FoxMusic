@@ -16,6 +16,7 @@ import com.fox.music.core.domain.paging.FavoriteMusicPagingSource
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
+import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.GetAlbumDetailUseCase
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
@@ -142,6 +143,7 @@ class PlaylistDetailViewModel @Inject constructor(
     private val deletePlaylistUseCase: DeletePlaylistUseCase,
     private val removeTracksFromPlaylistUseCase: RemoveTracksFromPlaylistUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val recommendedMusicCacheManager: RecommendedMusicCacheManager,
 ) : MviViewModel<PlaylistDetailState, PlaylistDetailIntent, PlaylistDetailEffect>(PlaylistDetailState()) {
 
     /** 仅当前用户创建的歌单展示管理菜单 */
@@ -240,6 +242,13 @@ class PlaylistDetailViewModel @Inject constructor(
         }
         if (detailId > 0L || detailType == DetailType.FAVORITE_MUSIC) {
             viewModelScope.launch { sendIntent(PlaylistDetailIntent.LoadHeader) }
+        }
+        if (detailType == DetailType.RECOMMEND) {
+            viewModelScope.launch {
+                recommendedMusicCacheManager.getCache()?.seed?.takeIf { it.isNotBlank() }?.let {
+                    onRecommendSeedLoaded(it)
+                }
+            }
         }
     }
 
