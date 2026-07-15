@@ -9,6 +9,7 @@ const val USER_PROFILE_ROUTE =
     "user/{userId}?nickname={nickname}&avatar={avatar}&signature={signature}&isFriend={isFriend}&isRequested={isRequested}"
 const val ADD_FRIEND_ROUTE = "user/{userId}/add-friend?nickname={nickname}"
 const val NOTIFICATION_CATEGORY_ROUTE = "messages/notifications/{type}"
+const val NOTIFICATION_SETTINGS_ROUTE = "messages/settings"
 const val CHAT_DETAIL_ROUTE = "chat/{userId}?peerNickname={peerNickname}&peerAvatar={peerAvatar}"
 const val CHAT_SEARCH_ROUTE = "messages/search"
 const val USER_CHAT_SEARCH_ROUTE = "messages/search/user/{userId}?nickname={nickname}&avatar={avatar}&query={query}"

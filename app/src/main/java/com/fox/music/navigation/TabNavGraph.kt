@@ -163,6 +163,14 @@ fun NavGraphBuilder.tabNavGraph(
                             )
                         )
                     },
+                    onPlayHistoryClick = {
+                        navController.navigate(
+                            playlistDetailRoute(
+                                DetailType.PLAY_HISTORY_ID,
+                                DetailType.PLAY_HISTORY,
+                            )
+                        )
+                    },
                     onFavoritePlaylistClick = { playlist ->
                         val type = if (playlist.type.equals("rank", ignoreCase = true)) {
                             DetailType.RANK
@@ -193,6 +201,9 @@ fun NavGraphBuilder.tabNavGraph(
                                 "collection_detail/$playlistId",
                             )
                         }
+                    },
+                    onMusicClick = { music, list ->
+                        context.onMusicClick(music, list, PROFILE_ROUTE)
                     },
                     onEditPlaylistClick = { id ->
                         navController.navigate(playlistEditRoute(id))

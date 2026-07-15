@@ -25,13 +25,13 @@ FoxMusic 是一款基于 Jetpack Compose 的 Android 在线音乐流媒体应用
 | 分页 | Paging 3 |
 | 图片加载 | Coil、Glide |
 | 最低 SDK | 26 (Android 8.0) |
-| 目标 SDK | 36 |
+| 目标 SDK | 36（app 当前 37，library 36） |
 
 ## 环境要求
 
-- Android Studio Ladybug 或更高版本
+- Android Studio 与 AGP 9 / Gradle 9 兼容版本
 - JDK 17
-- Android SDK 36
+- Android SDK 36+
 
 ## 快速开始
 
@@ -40,6 +40,17 @@ FoxMusic 是一款基于 Jetpack Compose 的 Android 在线音乐流媒体应用
 ```bash
 git clone <repository-url>
 cd FoxMusic
+```
+
+### 本地配置（可选）
+
+在 `local.properties` / `gradle.properties` 或环境变量中配置：
+
+```properties
+FOX_MUSIC_BASE_URL=https://your-api-host/
+FOX_MUSIC_MEDIA_BASE_URL=https://your-api-host
+BUGLY_APP_ID=your_bugly_id
+BUGLY_APP_KEY=your_bugly_key
 ```
 
 ### 构建 Debug 包

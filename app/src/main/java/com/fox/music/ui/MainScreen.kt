@@ -67,9 +67,9 @@ fun MainScreen(
     postActionsViewModel: PostActionsViewModel = hiltViewModel(),
 ) {
     val musicController = viewModel.musicController
-    val authState by viewModel.authState.collectAsState()
-    val updateState by viewModel.updateState.collectAsState()
-    val playerState by musicController.playerState.collectAsState(PlayerState())
+    val authState by viewModel.authState.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val playerState by musicController.playerState.collectAsStateWithLifecycle(PlayerState())
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val showBottomBar = remember(playerState.currentMusic) {

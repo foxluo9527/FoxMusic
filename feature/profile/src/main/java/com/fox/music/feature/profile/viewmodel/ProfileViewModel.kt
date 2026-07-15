@@ -7,16 +7,20 @@ import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.repository.ChatRepository
+import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.usecase.DeletePlaylistUseCase
 import com.fox.music.core.domain.usecase.GetFavoritesUseCase
+import com.fox.music.core.domain.usecase.GetListeningStatsUseCase
+import com.fox.music.core.domain.usecase.GetPlayHistoryUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistDetailUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistListUseCase
 import com.fox.music.core.domain.usecase.GetProfileUseCase
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.ListeningStats
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.user.User
@@ -31,12 +35,15 @@ data class ProfileState(
     val user: User? = null,
     val playlists: List<Playlist> = emptyList(),
     val favoriteMusicTotal: Int = 0,
+    val downloadedMusicTotal: Int = 0,
     val favoritePlaylists: List<Playlist> = emptyList(),
     val favoritePlaylistTotal: Int = 0,
     val favoriteAlbums: List<Album> = emptyList(),
     val favoriteAlbumTotal: Int = 0,
     val favoriteArtists: List<Artist> = emptyList(),
     val favoriteArtistTotal: Int = 0,
+    val playHistoryTotal: Int = 0,
+    val listeningStats: ListeningStats? = null,
     val unreadNotificationCount: Int = 0,
     val isLoading: Boolean = false,
     val isCreatingPlaylist: Boolean = false,
@@ -46,6 +53,8 @@ data class ProfileState(
 
 sealed interface ProfileIntent : UiIntent {
     data object Load : ProfileIntent
+    /** 进入「我的」页时轻量刷新听歌相关数据 */
+    data object RefreshListeningSnapshot : ProfileIntent
     data class OnPlaylistClick(val playlist: Playlist) : ProfileIntent
     data object OnFavoriteTracksClick : ProfileIntent
     data class CreatePlaylist(val title: String) : ProfileIntent
@@ -73,29 +82,43 @@ class ProfileViewModel @Inject constructor(
     private val getProfileUseCase: GetProfileUseCase,
     private val getPlaylistListUseCase: GetPlaylistListUseCase,
     private val getFavoritesUseCase: GetFavoritesUseCase,
+    private val getPlayHistoryUseCase: GetPlayHistoryUseCase,
+    private val getListeningStatsUseCase: GetListeningStatsUseCase,
     private val playlistRepository: PlaylistRepository,
     private val socialRepository: SocialRepository,
     private val chatRepository: ChatRepository,
     private val importRepository: ImportRepository,
+    private val downloadRepository: DownloadRepository,
     private val getPlaylistDetailUseCase: GetPlaylistDetailUseCase,
     private val deletePlaylistUseCase: DeletePlaylistUseCase,
 ) : MviViewModel<ProfileState, ProfileIntent, ProfileEffect>(ProfileState()) {
 
     private var cachedSocialUnread = 0
+    /** 听歌统计轻量刷新节流，避免切 Tab / 连续上报时重复打接口 */
+    private var lastListeningSnapshotAtMs = 0L
 
     init {
         EventViewModel.notificationsUpdated
             .onEach { refreshSocialUnreadCount() }
             .launchIn(viewModelScope)
 
+        EventViewModel.listeningStatsUpdated
+            .onEach { refreshListeningSnapshot(force = true) }
+            .launchIn(viewModelScope)
+
         chatRepository.observeConversations()
             .onEach { publishTotalUnread(it) }
+            .launchIn(viewModelScope)
+
+        downloadRepository.completedCount
+            .onEach { count -> updateState { copy(downloadedMusicTotal = count) } }
             .launchIn(viewModelScope)
     }
 
     override fun handleIntent(intent: ProfileIntent) {
         when (intent) {
             ProfileIntent.Load -> load()
+            ProfileIntent.RefreshListeningSnapshot -> refreshListeningSnapshot(force = false)
             is ProfileIntent.OnPlaylistClick -> {
                 sendEffect(ProfileEffect.NavigateToPlaylist(intent.playlist.id))
             }
@@ -145,6 +168,25 @@ class ProfileViewModel @Inject constructor(
         load()
     }
 
+    /**
+     * 只刷新听歌统计 + 历史播放数量，不全量拉资料/收藏。
+     * @param force 上报成功后强制刷新；进入页面时受节流限制。
+     */
+    fun refreshListeningSnapshot(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastListeningSnapshotAtMs < LISTENING_SNAPSHOT_THROTTLE_MS) {
+            return
+        }
+        lastListeningSnapshotAtMs = now
+        viewModelScope.launch {
+            getPlayHistoryUseCase(page = 1, limit = 1)
+                .onSuccess { data -> updateState { copy(playHistoryTotal = data.total) } }
+
+            getListeningStatsUseCase(days = 7)
+                .onSuccess { stats -> updateState { copy(listeningStats = stats) } }
+        }
+    }
+
     fun onCreatePlaylistClick() {
         sendEffect(ProfileEffect.NavigateToCreatePlaylist)
     }
@@ -159,6 +201,14 @@ class ProfileViewModel @Inject constructor(
 
             getPlaylistListUseCase()
                 .onSuccess { playlists -> updateState { copy(playlists = playlists) } }
+
+            getPlayHistoryUseCase(page = 1, limit = 1)
+                .onSuccess { data -> updateState { copy(playHistoryTotal = data.total) } }
+
+            getListeningStatsUseCase(days = 7)
+                .onSuccess { stats -> updateState { copy(listeningStats = stats) } }
+
+            lastListeningSnapshotAtMs = System.currentTimeMillis()
 
             getFavoritesUseCase.getMusics(limit = 50)
                 .onSuccess { data ->
@@ -258,5 +308,9 @@ class ProfileViewModel @Inject constructor(
                     sendEffect(ProfileEffect.ShowMessage(msg ?: "导入失败"))
                 }
         }
+    }
+
+    private companion object {
+        const val LISTENING_SNAPSHOT_THROTTLE_MS = 2_000L
     }
 }

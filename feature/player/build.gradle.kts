@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:domain"))
     implementation(project(":core:player"))
+    implementation(libs.androidx.activity.compose)
     implementation(libs.lyricviewx)
     // Hilt
     implementation(libs.hilt.android)

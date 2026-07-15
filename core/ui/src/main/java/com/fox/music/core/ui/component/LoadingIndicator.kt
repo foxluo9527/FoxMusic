@@ -21,27 +21,30 @@ import com.fox.music.core.ui.theme.FoxMusicTheme
 @Composable
 fun LoadingIndicator(
     modifier: Modifier = Modifier.fillMaxSize(),
-    useLottie: Boolean = true,
+    useLottie: Boolean = false,
+    useSkeleton: Boolean = true,
 ) {
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
-        if (useLottie) {
-            val composition by rememberLottieComposition(
-                LottieCompositionSpec.RawRes(R.raw.loading)
-            )
-            if (composition != null) {
-                LottieAnimation(
-                    composition = composition,
-                    iterations = LottieConstants.IterateForever,
-                    modifier = Modifier.size(120.dp),
+        when {
+            useSkeleton -> FoxSkeletonList(rows = 6)
+            useLottie -> {
+                val composition by rememberLottieComposition(
+                    LottieCompositionSpec.RawRes(R.raw.loading)
                 )
-            } else {
-                FallbackIndicator()
+                if (composition != null) {
+                    LottieAnimation(
+                        composition = composition,
+                        iterations = LottieConstants.IterateForever,
+                        modifier = Modifier.size(120.dp),
+                    )
+                } else {
+                    FallbackIndicator()
+                }
             }
-        } else {
-            FallbackIndicator()
+            else -> FallbackIndicator()
         }
     }
 }

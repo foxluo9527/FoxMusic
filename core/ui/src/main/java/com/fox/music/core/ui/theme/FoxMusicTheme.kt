@@ -15,7 +15,7 @@ import com.fox.music.core.model.user.AppThemeIds
 fun FoxMusicTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     appThemeId: String = AppThemeIds.DEFAULT,
-    customThemeSeedArgb: Long = 0xFF6C63FF,
+    customThemeSeedArgb: Long = 0xFFE8A838,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = resolveAppColorScheme(

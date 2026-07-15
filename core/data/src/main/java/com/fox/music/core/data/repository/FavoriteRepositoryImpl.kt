@@ -25,8 +25,12 @@ class FavoriteRepositoryImpl @Inject constructor(
         limit: Int,
     ): Result<PagedData<Music>> = suspendRunCatching {
         val response = favoriteApiService.getFavoriteMusics(page, limit)
-        response.data?.toPagedData { it.toMusic().copy(isFavorite = true) }
-            ?: PagedData(emptyList(), 0, 0)
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.toPagedData { it.toMusic().copy(isFavorite = true) }
+        } else {
+            throw IllegalStateException(response.message)
+        }
     }
 
     override suspend fun getFavoriteArtists(
@@ -34,8 +38,12 @@ class FavoriteRepositoryImpl @Inject constructor(
         limit: Int,
     ): Result<PagedData<Artist>> = suspendRunCatching {
         val response = favoriteApiService.getFavoriteArtists(page, limit)
-        response.data?.toPagedData { it.toArtist().copy(isFavorite = true) }
-            ?: PagedData(emptyList(), 0, 0)
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.toPagedData { it.toArtist().copy(isFavorite = true) }
+        } else {
+            throw IllegalStateException(response.message)
+        }
     }
 
     override suspend fun getFavoriteAlbums(
@@ -43,8 +51,12 @@ class FavoriteRepositoryImpl @Inject constructor(
         limit: Int,
     ): Result<PagedData<Album>> = suspendRunCatching {
         val response = favoriteApiService.getFavoriteAlbums(page, limit)
-        response.data?.toPagedData { it.toAlbum().copy(isFavorite = true) }
-            ?: PagedData(emptyList(), 0, 0)
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.toPagedData { it.toAlbum().copy(isFavorite = true) }
+        } else {
+            throw IllegalStateException(response.message)
+        }
     }
 
     override suspend fun getFavoritePlaylists(
@@ -52,7 +64,11 @@ class FavoriteRepositoryImpl @Inject constructor(
         limit: Int,
     ): Result<PagedData<Playlist>> = suspendRunCatching {
         val response = favoriteApiService.getFavoritePlaylists(page, limit)
-        response.data?.toPagedData { it.toPlaylist().copy(isFavorite = true) }
-            ?: PagedData(emptyList(), 0, 0)
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            data.toPagedData { it.toPlaylist().copy(isFavorite = true) }
+        } else {
+            throw IllegalStateException(response.message)
+        }
     }
 }

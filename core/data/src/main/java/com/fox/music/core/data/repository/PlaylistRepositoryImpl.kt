@@ -49,8 +49,12 @@ class PlaylistRepositoryImpl @Inject constructor(
     ): Result<Playlist> = suspendRunCatching {
         val response = playlistApi.createPlaylist(
             com.fox.music.core.network.model.CreatePlaylistRequest(
-                title = title
-            )
+                title = title,
+                description = description,
+                coverImage = coverImage,
+                isPublic = isPublic,
+                tags = tagIds,
+            ),
         )
         val data = response.data
         if (response.isSuccess && data != null) {

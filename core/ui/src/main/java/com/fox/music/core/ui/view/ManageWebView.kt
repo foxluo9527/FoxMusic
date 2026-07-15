@@ -11,12 +11,10 @@ import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.fox.music.core.common.EventViewModel
-import com.fox.music.core.network.BuildConfig.BASE_URL
-import com.fox.music.core.network.token.TokenManager
+import com.fox.music.core.common.constants.AppConstants
+import com.fox.music.core.common.session.TokenManager
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class ManageWebView @JvmOverloads constructor(
     context: Context,
@@ -26,13 +24,14 @@ class ManageWebView @JvmOverloads constructor(
 ) : WebView(context, attrs, defStyleAttr) {
 
     val apiUrl
-        get() = BASE_URL + "uploads/permanent/apk/mobile-music-manager.html"
+        get() = AppConstants.Network.MEDIA_BASE_URL.trimEnd('/') +
+            "/uploads/permanent/apk/mobile-music-manager.html"
 
     private val jsBridge by lazy {
         JsBridge()
     }
 
-    private var token: String? = runBlocking { tokenManager.accessToken.first() }
+    private var token: String? = tokenManager.peekAccessToken()
 
     val onBackPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {

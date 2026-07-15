@@ -53,6 +53,7 @@ import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.component.HotKeywordsCarousel
 import com.fox.music.core.ui.component.MusicListItem
 import com.fox.music.core.ui.component.PostImagePreviewDialog
@@ -127,20 +128,38 @@ fun DiscoverScreen(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 16.dp, horizontal = 16.dp),
+                contentPadding = PaddingValues(
+                    top = 12.dp,
+                    bottom = FoxSpacing.tabChromeBottom, // 悬浮 MiniPlayer + 底栏
+                    start = 20.dp,
+                    end = 20.dp,
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // 搜索热词轮播 - 占据整行
                 item(
                     span = { GridItemSpan(4) },
-                    key = "hot_keywords",
-                    contentType = "search_bar"
+                    key = "discover_hero",
+                    contentType = "hero",
                 ) {
-                    HotKeywordsCarousel(
-                        keywords = state.hotKeywords,
-                        onSearchClick = { viewModel.onSearchClick() },
-                    )
+                    Column(modifier = Modifier.padding(bottom = 4.dp)) {
+                        Text(
+                            text = "发现",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Text(
+                            text = "榜单、新声与社区广场",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                        )
+                        HotKeywordsCarousel(
+                            keywords = state.hotKeywords,
+                            onSearchClick = { viewModel.onSearchClick() },
+                        )
+                    }
                 }
 
                 // 热门榜单

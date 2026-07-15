@@ -13,6 +13,8 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.fox.music.core.common.player.PlaybackStateStore
 import com.fox.music.core.common.util.MediaUrlResolver
+import com.fox.music.core.domain.repository.DownloadRepository
+import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackSnapshot
 import com.fox.music.core.model.music.PlayerState
@@ -26,11 +28,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
+import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,17 +44,21 @@ class MusicControllerImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val playbackStateStore: PlaybackStateStore,
     private val recordPlayUseCase: com.fox.music.core.domain.usecase.RecordPlayUseCase,
+    private val downloadRepository: DownloadRepository,
 ) : MusicController {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val localPlayUrls = ConcurrentHashMap<Long, String>()
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
 
-    // 上一首歌的播放信息，用于在切歌时记录播放进度
+    // 上一首歌的播放信息，用于在切歌/暂停时上报实际收听时长
     private var lastTrackId: Long? = null
     private var lastTrackDurationMs: Long = 0L
     private var lastTrackPositionMs: Long = 0L
+    /** 避免同一进度重复上报 */
+    private var lastReportedPlayKey: String? = null
 
     private val _playerState = MutableStateFlow(PlayerState())
     override val playerState: StateFlow<PlayerState> = _playerState.asStateFlow()
@@ -88,6 +95,20 @@ class MusicControllerImpl @Inject constructor(
 
     init {
         connectToService()
+        scope.launch(Dispatchers.IO) {
+            downloadRepository.downloads.collect { tasks ->
+                val next = HashMap<Long, String>()
+                tasks.forEach { task ->
+                    if (task.status != DownloadStatus.COMPLETED) return@forEach
+                    val path = task.filePath ?: return@forEach
+                    if (File(path).exists()) {
+                        next[task.musicId] = "file://$path"
+                    }
+                }
+                localPlayUrls.keys.retainAll(next.keys)
+                localPlayUrls.putAll(next)
+            }
+        }
     }
 
     private fun connectToService() {
@@ -183,6 +204,11 @@ class MusicControllerImpl @Inject constructor(
                 updatePlayerState()
                 if (!isPlaying && !isRestoring) {
                     persistPlaybackState()
+                    // 用户主动暂停时上报当前收听时长（缓冲导致的短暂停顿不报）
+                    val player = controller
+                    if (player != null && !player.playWhenReady) {
+                        flushCurrentPlayRecord()
+                    }
                 }
             }
 
@@ -228,20 +254,17 @@ class MusicControllerImpl @Inject constructor(
                 updatePlayerState()
             }
 
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {}
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                timber.log.Timber.w(error, "Playback error")
+                val state = _playerState.value
+                _playerState.value = state.copy(
+                    isLoading = false,
+                    isPlaying = false,
+                )
+            }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                // 记录上一首的播放进度（fire-and-forget）
-                val prevId = lastTrackId
-                if (prevId != null && prevId > 0) {
-                    val durationSec = (lastTrackDurationMs / 1000).toInt().takeIf { it > 0 }
-                    val progress = if (lastTrackDurationMs > 0) {
-                        ((lastTrackPositionMs * 100) / lastTrackDurationMs).toInt().coerceIn(0, 100)
-                    } else null
-                    scope.launch {
-                        recordPlayUseCase(prevId, durationSec, progress)
-                    }
-                }
+                flushCurrentPlayRecord()
 
                 val player = controller
                 if (userPlaylistActive && player != null && !isApplyingPlaylist()) {
@@ -258,6 +281,7 @@ class MusicControllerImpl @Inject constructor(
                 lastTrackId = newId
                 lastTrackDurationMs = player?.duration?.takeIf { it > 0 } ?: 0L
                 lastTrackPositionMs = 0L
+                lastReportedPlayKey = null
 
                 updatePlayerState()
                 if (!isRestoring) {
@@ -286,13 +310,27 @@ class MusicControllerImpl @Inject constructor(
                     val uiIndex = resolveUiIndex(player.currentMediaItemIndex)
                     val timelineReady = canUseExoTimeline(player, uiIndex)
                     if (timelineReady) {
-                        _currentPosition.value = player.currentPosition
-                        lastTrackPositionMs = player.currentPosition
+                        val position = player.currentPosition
+                        if (_currentPosition.value != position) {
+                            _currentPosition.value = position
+                        }
+                        lastTrackPositionMs = position
                         if (player.duration > 0) {
                             lastTrackDurationMs = player.duration
                         }
+                        // 仅同步 position 到 PlayerState，避免每 500ms 整对象重建驱动全树重组
+                        val state = _playerState.value
+                        if (state.position != position ||
+                            (player.duration > 0 && state.duration != player.duration)
+                        ) {
+                            _playerState.value = state.copy(
+                                position = position,
+                                duration = if (player.duration > 0) player.duration else state.duration,
+                                isPlaying = player.isPlaying,
+                                isLoading = player.playbackState == Player.STATE_BUFFERING,
+                            )
+                        }
                     }
-                    updatePlayerState()
                     val positionForPersist = if (timelineReady) {
                         player.currentPosition
                     } else {
@@ -337,6 +375,28 @@ class MusicControllerImpl @Inject constructor(
     private fun isApplyingPlaylist(): Boolean =
         System.currentTimeMillis() < applyingPlaylistUntilMs
 
+    private fun flushCurrentPlayRecord() {
+        val trackId = lastTrackId ?: return
+        if (trackId <= 0) return
+        val listenedMs = when {
+            lastTrackPositionMs <= 0L -> 0L
+            lastTrackDurationMs > 0L -> lastTrackPositionMs.coerceAtMost(lastTrackDurationMs)
+            else -> lastTrackPositionMs
+        }
+        val durationSec = (listenedMs / 1000L).toInt().takeIf { it > 0 } ?: return
+        val progress = if (lastTrackDurationMs > 0) {
+            ((lastTrackPositionMs * 100) / lastTrackDurationMs).toInt().coerceIn(0, 100)
+        } else {
+            null
+        }
+        val reportKey = "$trackId:$durationSec:$progress"
+        if (reportKey == lastReportedPlayKey) return
+        lastReportedPlayKey = reportKey
+        scope.launch {
+            recordPlayUseCase(trackId, durationSec, progress)
+        }
+    }
+
     private fun persistPlaybackState(positionOverrideMs: Long? = null) {
         if (isApplyingPlaylist()) return
         val snapshot = buildSnapshot(positionOverrideMs) ?: return
@@ -347,21 +407,16 @@ class MusicControllerImpl @Inject constructor(
         }
     }
 
-    /** 持久化时仅保留当前曲目的歌词，其余条目去掉大字段，避免 OOM */
-    private fun snapshotForPersist(snapshot: PlaybackSnapshot): PlaybackSnapshot {
-        if (snapshot.playlist.isEmpty()) return snapshot
-        val currentIndex = snapshot.currentIndex.coerceIn(0, snapshot.playlist.lastIndex)
-        return snapshot.copy(
-            playlist = snapshot.playlist,
-        )
-    }
+    private fun snapshotForPersist(snapshot: PlaybackSnapshot): PlaybackSnapshot =
+        PlaybackSnapshotTrimmer.forPersist(snapshot)
 
     override fun flushPlaybackState() {
         val snapshot = buildSnapshot() ?: return
         lastPersistedPositionMs = snapshot.positionMs
         lastPersistTimeMs = System.currentTimeMillis()
-        runBlocking {
-            playbackStateStore.saveSnapshot(snapshotForPersist(snapshot))
+        val toSave = snapshotForPersist(snapshot)
+        scope.launch(Dispatchers.IO) {
+            playbackStateStore.saveSnapshot(toSave)
         }
     }
 
@@ -1033,24 +1088,45 @@ class MusicControllerImpl @Inject constructor(
     }
 
     override fun removeFromQueue(index: Int) {
-        if (index >= 0 && index < currentPlaylist.size) {
-            currentPlaylist = currentPlaylist.filterIndexed { i, _ -> i != index }
-            controller?.removeMediaItem(index)
+        if (index < 0 || index >= currentPlaylist.size) return
 
-            val currentIndex = _playerState.value.currentIndex
-            if (index == currentIndex && currentPlaylist.isNotEmpty()) {
-                if (currentIndex < currentPlaylist.size) {
-                    controller?.seekToDefaultPosition(currentIndex)
-                } else {
-                    controller?.seekToDefaultPosition(currentPlaylist.size - 1)
-                }
-            }
-            if (currentPlaylist.isEmpty()) {
-                playingKey = null
-            }
+        val wasPlaying = _playerState.value.isPlaying
+        val currentIndex = _playerState.value.currentIndex
+        val removingCurrent = index == currentIndex
+
+        currentPlaylist = currentPlaylist.filterIndexed { i, _ -> i != index }
+
+        if (currentPlaylist.isEmpty()) {
+            playingKey = null
+            userAnchorMusicId = null
+            expectedMediaItemIndex = null
+            controller?.setMediaItems(emptyList())
             updatePlayerState()
             persistPlaybackState()
+            return
         }
+
+        if (removingCurrent) {
+            // 删的是当前曲：切到原下一首（同 index 顶上来），末尾则回退到最后一首
+            val nextIndex = if (currentIndex < currentPlaylist.size) {
+                currentIndex
+            } else {
+                currentPlaylist.lastIndex
+            }
+            navigateToPlaylistIndex(nextIndex, autoPlay = wasPlaying)
+            persistPlaybackState()
+            return
+        }
+
+        if (userPlaylistActive) {
+            if (index < currentIndex) {
+                expectedMediaItemIndex = (currentIndex - 1).coerceAtLeast(0)
+            }
+        } else {
+            controller?.removeMediaItem(index)
+        }
+        updatePlayerState()
+        persistPlaybackState()
     }
 
     override fun clearQueue() {
@@ -1074,13 +1150,16 @@ class MusicControllerImpl @Inject constructor(
         }
     }
 
+    private fun Music.resolvePlayUrl(): String = localPlayUrls[id] ?: url
+
     private fun Music.toMediaItem(): MediaItem {
         // 队列 MediaItem 仅保留播放所需字段，避免歌词等大字段导致 Binder 事务失败
+        val playUrl = resolvePlayUrl()
         val builder = MediaItem.Builder()
             .setMediaId(id.toString())
             .apply {
                 // 本地文件勿复用在线 cache key，否则 seek 会走 HTTP 上游
-                if (!MediaUrlResolver.isLocalMedia(url)) {
+                if (!MediaUrlResolver.isLocalMedia(playUrl)) {
                     setCustomCacheKey("cache_$id")
                 }
             }
@@ -1094,7 +1173,7 @@ class MusicControllerImpl @Inject constructor(
                     }
                     .build(),
             )
-        val resolvedUrl = MediaUrlResolver.resolve(url)
+        val resolvedUrl = MediaUrlResolver.resolve(playUrl)
         if (!resolvedUrl.isNullOrBlank()) {
             val uri = resolvedUrl.toUri()
             // MediaController 跨进程时会剥离 localConfiguration，需同时写入 requestMetadata.mediaUri

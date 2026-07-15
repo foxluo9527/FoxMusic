@@ -54,7 +54,7 @@ class ChatRepositoryImpl @Inject constructor(
 ) : ChatRepository {
 
     override fun observeMessages(peerUserId: Long): Flow<List<Message>> =
-        messageDao.observeMessages(peerUserId).map { entities ->
+        messageDao.observeMessages(peerUserId, limit = MESSAGE_WINDOW_SIZE).map { entities ->
             entities.map { it.toDomainMessage() }
         }
 
@@ -625,5 +625,9 @@ class ChatRepositoryImpl @Inject constructor(
             }
         }
         else -> null
+    }
+
+    companion object {
+        private const val MESSAGE_WINDOW_SIZE = 120
     }
 }

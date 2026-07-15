@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
@@ -44,6 +46,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -58,6 +61,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
@@ -66,8 +70,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fox.music.core.common.R as CommonR
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.ListeningStats
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.AlbumListItem
 import com.fox.music.core.ui.component.ArtistListItem
@@ -77,6 +85,7 @@ import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PlaylistManageBottomSheet
 import com.fox.music.core.ui.component.SectionHeader
+import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.feature.profile.viewmodel.ProfileEffect
 import com.fox.music.feature.profile.viewmodel.ProfileIntent
 import com.fox.music.feature.profile.viewmodel.ProfileViewModel
@@ -91,6 +100,8 @@ private val ProfileCoverShape = RoundedCornerShape(12.dp)
 private val ProfileCoverSize = 56.dp
 
 private val ProfileTabs = listOf("我的", "歌单", "专辑", "艺术家")
+/** 避开悬浮 MiniPlayer + 底栏 */
+private val ProfileTabListContentPadding = PaddingValues(bottom = FoxSpacing.tabChromeBottom)
 
 @Composable
 fun ProfileScreen(
@@ -102,6 +113,7 @@ fun ProfileScreen(
     onFavoritePlaylistClick: (Playlist) -> Unit = {},
     onAlbumClick: (Long) -> Unit = {},
     onFavoriteTracksClick: () -> Unit = {},
+    onPlayHistoryClick: () -> Unit = {},
     onCreatePlaylistClick: () -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -109,6 +121,7 @@ fun ProfileScreen(
     onDownloadManagerClick: () -> Unit = {},
     onPlayAllPlaylist: (Long, List<Music>) -> Unit = { _, _ -> },
     onEditPlaylistClick: (Long) -> Unit = {},
+    onMusicClick: (Music, List<Music>) -> Unit = { _, _ -> },
     refreshKey: Int = 0,
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -129,6 +142,19 @@ fun ProfileScreen(
         if (isLogin && refreshKey > 0) {
             viewModel.refresh()
         }
+    }
+
+    // 切回「我的」Tab / 从子页返回时，轻量刷新听歌时长与历史播放数量
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, isLogin) {
+        if (!isLogin) return@DisposableEffect onDispose { }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.sendIntent(ProfileIntent.RefreshListeningSnapshot)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(Unit) {
@@ -205,7 +231,13 @@ fun ProfileScreen(
                 ) { tabIndex ->
                     when (tabIndex) {
                         0 -> {
-                            LazyColumn {
+                            LazyColumn(contentPadding = ProfileTabListContentPadding) {
+                                item {
+                                    state.listeningStats?.let { stats ->
+                                        ListeningStatsCard(stats = stats)
+                                    }
+                                }
+
                                 item {
                                     SectionHeader(
                                         title = "我的歌单",
@@ -214,6 +246,18 @@ fun ProfileScreen(
                                         moreIcon = Icons.Default.Add,
                                         onMoreClick = { viewModel.onCreatePlaylistClick() },
                                     )
+                                }
+
+                                item {
+                                    ProfilePlaylistListItem(
+                                        title = "历史播放",
+                                        trackCount = state.playHistoryTotal,
+                                        coverUrl = null,
+                                        placeholderIcon = Icons.Default.History,
+                                        showMoreButton = false,
+                                        onClick = onPlayHistoryClick,
+                                    )
+                                    ProfileListDivider()
                                 }
 
                                 item {
@@ -233,8 +277,12 @@ fun ProfileScreen(
                                 item {
                                     ProfilePlaylistListItem(
                                         title = "下载管理",
-                                        trackCount = 0,
-                                        subtitle = "查看与管理已下载歌曲",
+                                        trackCount = state.downloadedMusicTotal,
+                                        subtitle = if (state.downloadedMusicTotal > 0) {
+                                            null
+                                        } else {
+                                            "查看与管理已下载歌曲"
+                                        },
                                         coverUrl = null,
                                         placeholderIcon = Icons.Default.Download,
                                         showMoreButton = false,
@@ -265,7 +313,7 @@ fun ProfileScreen(
                         }
 
                         1 -> {
-                            LazyColumn {
+                            LazyColumn(contentPadding = ProfileTabListContentPadding) {
                                 item {
                                     SectionHeader(
                                         title = "收藏的歌单",
@@ -293,7 +341,7 @@ fun ProfileScreen(
                         }
 
                         2 -> {
-                            LazyColumn {
+                            LazyColumn(contentPadding = ProfileTabListContentPadding) {
                                 item {
                                     SectionHeader(
                                         title = "收藏的专辑",
@@ -316,7 +364,7 @@ fun ProfileScreen(
                         }
 
                         3 -> {
-                            LazyColumn {
+                            LazyColumn(contentPadding = ProfileTabListContentPadding) {
                                 item {
                                     SectionHeader(
                                         title = "收藏的艺术家",
@@ -398,9 +446,9 @@ private fun ProfilePageTopTitle(
     ) {
         Text(
             text = "个人主页",
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 22.sp,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
         )
         Box {
             IconButton(
@@ -657,6 +705,104 @@ private fun ProfileTab(
                     shape = RoundedCornerShape(2.dp),
                 ),
         )
+    }
+}
+
+@Composable
+private fun ListeningStatsCard(stats: ListeningStats) {
+    val scheme = MaterialTheme.colorScheme
+    val totalMinutes = stats.totalDurationMinutes
+    val hours = totalMinutes / 60
+    val remainMinutes = totalMinutes % 60
+    val topArtistsLabel = stats.topArtists
+        .take(3)
+        .joinToString(" · ") { it.name }
+        .takeIf { it.isNotBlank() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .clip(ProfileCardShape)
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        scheme.primary.copy(alpha = 0.22f),
+                        scheme.secondary.copy(alpha = 0.12f),
+                        scheme.surfaceVariant.copy(alpha = 0.6f),
+                    ),
+                ),
+            )
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "本周听歌",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = scheme.onSurface,
+            )
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (hours > 0) {
+                    Text(
+                        text = hours.toString(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = scheme.primary,
+                    )
+                    Text(
+                        text = "小时",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = scheme.primary.copy(alpha = 0.85f),
+                        modifier = Modifier.padding(bottom = 3.dp),
+                    )
+                    if (remainMinutes > 0) {
+                        Text(
+                            text = remainMinutes.toString(),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = scheme.primary,
+                        )
+                        Text(
+                            text = "分",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = scheme.primary.copy(alpha = 0.85f),
+                            modifier = Modifier.padding(bottom = 3.dp),
+                        )
+                    }
+                } else {
+                    Text(
+                        text = totalMinutes.toString(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = scheme.primary,
+                    )
+                    Text(
+                        text = "分钟",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = scheme.primary.copy(alpha = 0.85f),
+                        modifier = Modifier.padding(bottom = 3.dp),
+                    )
+                }
+            }
+        }
+        if (topArtistsLabel != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "常听 $topArtistsLabel",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

@@ -14,6 +14,12 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
+
 android {
     namespace = "com.fox.music"
     compileSdk = 37
@@ -22,11 +28,19 @@ android {
         applicationId = "com.fox.music"
         minSdk = 26
         targetSdk = 37
-        versionCode = 106
-        versionName = "1.0.6"
+        versionCode = 107
+        versionName = "1.0.7"
 
-        buildConfigField("String", "BUGLY_APP_ID", "\"79570062b4\"")
-        buildConfigField("String", "BUGLY_APP_KEY", "\"9d6fcb14-8250-4eb8-b053-17b21d0a3aa8\"")
+        val buglyAppId = localProperties.getProperty("BUGLY_APP_ID")
+            ?: (project.findProperty("BUGLY_APP_ID") as String?)
+            ?: System.getenv("BUGLY_APP_ID")
+            ?: ""
+        val buglyAppKey = localProperties.getProperty("BUGLY_APP_KEY")
+            ?: (project.findProperty("BUGLY_APP_KEY") as String?)
+            ?: System.getenv("BUGLY_APP_KEY")
+            ?: ""
+        buildConfigField("String", "BUGLY_APP_ID", "\"$buglyAppId\"")
+        buildConfigField("String", "BUGLY_APP_KEY", "\"$buglyAppKey\"")
 
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
@@ -92,7 +106,6 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:data"))
     implementation(project(":core:datastore"))
-    implementation(project(":core:common"))
     implementation(project(":core:player"))
     implementation(project(":core:network"))
     // Feature modules

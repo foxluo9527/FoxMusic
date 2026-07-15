@@ -5,6 +5,11 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+val apiBaseUrl = providers.gradleProperty("FOX_MUSIC_BASE_URL")
+    .orElse(providers.environmentVariable("FOX_MUSIC_BASE_URL"))
+    .orElse("http://39.106.30.151:9000/")
+    .get()
+
 android {
     namespace = "com.fox.music.core.network"
     compileSdk = 36
@@ -12,7 +17,7 @@ android {
     defaultConfig {
         minSdk = 26
         
-        buildConfigField("String", "BASE_URL", "\"http://39.106.30.151:9000/\"")
+        buildConfigField("String", "BASE_URL", "\"$apiBaseUrl\"")
     }
 
     compileOptions {

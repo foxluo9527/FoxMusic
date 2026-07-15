@@ -53,15 +53,6 @@ object ImageExt {
             .into(this)
     }
 
-    fun processUrl(url: String?): String? {
-        return if (!(url.isNullOrEmpty()) && ! url.startsWith("http")) {
-            "http://39.106.30.151:9000$url"
-        } else {
-            if (url.isNullOrEmpty()) {
-                null
-            } else {
-                url
-            }
-        }
-    }
+    fun processUrl(url: String?): String? =
+        com.fox.music.core.common.util.MediaUrlResolver.resolve(url)
 }

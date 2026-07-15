@@ -58,11 +58,14 @@ data class Music(
     val artists: List<Artist> = emptyList(),
     val album: Album? = null
 ) {
-    val lyricLines: List<LyricsParser.LyricLine> = LyricsParser.parseLrc(lyrics ?: "")
+    val lyricLines: List<LyricsParser.LyricLine> by lazy {
+        LyricsParser.parseLrc(lyrics ?: "")
+    }
 
     // 双语歌词
-    val bilingualLyricLines: List<LyricsParser.BilingualLyricLine> =
+    val bilingualLyricLines: List<LyricsParser.BilingualLyricLine> by lazy {
         LyricsParser.parseBilingualLrc(lyrics ?: "", lyricsTrans)
+    }
 
     fun getCurrentLyric(currentPosition: Long): String? =
         LyricsParser.findCurrentLyric(lyricLines, currentPosition)?.text

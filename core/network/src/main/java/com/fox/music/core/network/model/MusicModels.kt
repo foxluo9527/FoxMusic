@@ -79,7 +79,10 @@ data class TagDto(
 
 @Serializable
 data class PlayRecordRequest(
-    val progress: Int? = null
+    /** 本次实际收听时长（秒） */
+    val duration: Int? = null,
+    /** 播放进度百分比 0–100 */
+    val progress: Int? = null,
 )
 
 @Serializable
@@ -143,6 +146,24 @@ data class PlayHistoryDto(
     val playTime: String? = null,
     val progress: Long = 0,
     val duration: Long = 0
+)
+
+@Serializable
+data class ListeningStatsDto(
+    val days: Int = 7,
+    val totalDurationSec: Long = 0,
+    val playCount: Int = 0,
+    val uniqueTracks: Int = 0,
+    val topTracks: List<MusicDto> = emptyList(),
+    val topArtists: List<ListeningArtistDto> = emptyList(),
+)
+
+@Serializable
+data class ListeningArtistDto(
+    val id: Long = 0,
+    val name: String = "",
+    val avatar: String? = null,
+    val playCount: Int = 0,
 )
 
 @Serializable

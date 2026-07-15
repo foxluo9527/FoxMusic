@@ -13,8 +13,10 @@ import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.paging.CollectionDetailPagingSource
 import com.fox.music.core.domain.paging.FavoriteMusicPagingSource
+import com.fox.music.core.domain.paging.PlayHistoryPagingSource
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
+import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.UserPreferencesRepository
@@ -137,6 +139,7 @@ class PlaylistDetailViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val albumRepository: AlbumRepository,
     private val favoriteRepository: FavoriteRepository,
+    private val musicRepository: MusicRepository,
     private val toggleAlbumFavoriteUseCase: ToggleAlbumFavoriteUseCase,
     private val togglePlaylistFavoriteUseCase: TogglePlaylistFavoriteUseCase,
     private val getMusicListUseCase: GetMusicListUseCase,
@@ -171,6 +174,7 @@ class PlaylistDetailViewModel @Inject constructor(
         DetailType.RECOMMEND -> ""
         DetailType.NEW_MUSIC -> "collection_detail/${Long.MAX_VALUE - 1}"
         DetailType.FAVORITE_MUSIC -> "collection_detail/${DetailType.FAVORITE_MUSIC_ID}"
+        DetailType.PLAY_HISTORY -> "collection_detail/${DetailType.PLAY_HISTORY_ID}"
         else -> if (detailId > 0L) "collection_detail/$detailId" else ""
     }
 
@@ -211,6 +215,21 @@ class PlaylistDetailViewModel @Inject constructor(
                 ).flow.cachedIn(viewModelScope)
             }
 
+            DetailType.PLAY_HISTORY -> {
+                Pager(
+                    config = PagingConfig(
+                        pageSize = 20,
+                        enablePlaceholders = false,
+                        initialLoadSize = 20,
+                    ),
+                    pagingSourceFactory = {
+                        PlayHistoryPagingSource(
+                            musicRepository = musicRepository,
+                        )
+                    },
+                ).flow.cachedIn(viewModelScope)
+            }
+
             else -> {
                 Pager(
                     config = PagingConfig(
@@ -240,7 +259,10 @@ class PlaylistDetailViewModel @Inject constructor(
                 updateState { copy(currentUserId = userId) }
             }
         }
-        if (detailId > 0L || detailType == DetailType.FAVORITE_MUSIC) {
+        if (detailId > 0L ||
+            detailType == DetailType.FAVORITE_MUSIC ||
+            detailType == DetailType.PLAY_HISTORY
+        ) {
             viewModelScope.launch { sendIntent(PlaylistDetailIntent.LoadHeader) }
         }
         if (detailType == DetailType.RECOMMEND) {
@@ -483,6 +505,47 @@ class PlaylistDetailViewModel @Inject constructor(
                                         createdAt = null,
                                         isFavorite = false,
                                         detailType = DetailType.FAVORITE_MUSIC,
+                                    ),
+                                    isLoading = false,
+                                    error = msg,
+                                )
+                            }
+                        }
+                }
+
+                DetailType.PLAY_HISTORY -> {
+                    musicRepository.getPlayHistory(page = 1, limit = 1)
+                        .onSuccess { data ->
+                            updateState {
+                                copy(
+                                    headerInfo = HeaderInfo(
+                                        id = DetailType.PLAY_HISTORY_ID,
+                                        title = "历史播放",
+                                        coverImage = null,
+                                        description = "最近听过的歌曲",
+                                        trackCount = data.total,
+                                        creatorName = null,
+                                        createdAt = null,
+                                        isFavorite = false,
+                                        detailType = DetailType.PLAY_HISTORY,
+                                    ),
+                                    isLoading = false,
+                                )
+                            }
+                        }
+                        .onError { _, msg ->
+                            updateState {
+                                copy(
+                                    headerInfo = HeaderInfo(
+                                        id = DetailType.PLAY_HISTORY_ID,
+                                        title = "历史播放",
+                                        coverImage = null,
+                                        description = "最近听过的歌曲",
+                                        trackCount = 0,
+                                        creatorName = null,
+                                        createdAt = null,
+                                        isFavorite = false,
+                                        detailType = DetailType.PLAY_HISTORY,
                                     ),
                                     isLoading = false,
                                     error = msg,

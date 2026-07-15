@@ -31,3 +31,27 @@
 # Android Auto Car App
 -keep class com.fox.music.feature.automotive.** { *; }
 -keep interface com.fox.music.feature.automotive.CarEntryPoint { *; }
+
+# Kotlinx Serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
+-keepclasseswithmembers class * {
+    @kotlinx.serialization.Serializable <fields>;
+}
+-keep,includedescriptorclasses class com.fox.music.core.network.model.** { *; }
+-keep,includedescriptorclasses class com.fox.music.core.model.** { *; }
+
+# Retrofit / OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn retrofit2.**
+-keepattributes Signature, Exceptions
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+
+# Room
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-dontwarn androidx.room.paging.**

@@ -18,11 +18,15 @@ class ImportRepositoryImpl @Inject constructor(
                 ImportMusicRequest(url = url, platform = platform)
             )
             val data = response.data
-            ImportMusicResponse(
-                albumId = data?.albumId,
-                taskId = data?.taskId,
-                isImporting = data?.isImporting ?: false
-            )
+            if (response.isSuccess && data != null) {
+                ImportMusicResponse(
+                    albumId = data.albumId,
+                    taskId = data.taskId,
+                    isImporting = data.isImporting,
+                )
+            } else {
+                throw IllegalStateException(response.message)
+            }
         }
     }
 }

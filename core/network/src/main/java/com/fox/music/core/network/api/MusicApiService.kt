@@ -68,6 +68,11 @@ interface MusicApiService {
         @Query("limit") limit: Int = 20
     ): ApiResponse<PagedResponse<PlayHistoryDto>>
 
+    @GET("api/music-history/stats")
+    suspend fun getListeningStats(
+        @Query("days") days: Int = 7
+    ): ApiResponse<ListeningStatsDto>
+
     @HTTP(method = "DELETE", path = "api/music-history", hasBody = true)
     suspend fun deletePlayHistory(@Body request: DeleteHistoryRequest): ApiResponse<Unit>
 

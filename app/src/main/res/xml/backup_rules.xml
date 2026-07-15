@@ -1,13 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
--->
+<?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- DataStore contains session credentials and playback/chat preferences. -->
+    <exclude domain="file" path="datastore/" />
+    <!-- Offline music files without Room metadata would restore as orphans. -->
+    <exclude domain="file" path="downloads/" />
+    <!-- Local database can contain conversations and downloaded-media metadata. -->
+    <exclude domain="database" path="." />
 </full-backup-content>

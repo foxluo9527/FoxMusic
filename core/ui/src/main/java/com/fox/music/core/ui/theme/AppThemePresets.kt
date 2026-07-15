@@ -11,9 +11,15 @@ object AppThemePresets {
 
     val catalog: List<AppThemePreset> = listOf(
         AppThemePreset(
+            id = AppThemeIds.VINYL_NIGHT,
+            name = "黑胶夜场",
+            description = "深墨与暖琥珀 — FoxMusic 全新默认",
+            previewColors = listOf(0xFFE8A838, 0xFF0E0C0A, 0xFFF3EDE3),
+        ),
+        AppThemePreset(
             id = AppThemeIds.FOX_PURPLE,
             name = "紫韵经典",
-            description = "FoxMusic 默认配色",
+            description = "经典紫调（兼容旧版）",
             previewColors = listOf(0xFF6C63FF, 0xFFFF6584, 0xFF4ECDC4),
         ),
         AppThemePreset(
@@ -59,10 +65,33 @@ object AppThemePresets {
 
     fun colorScheme(themeId: String, darkTheme: Boolean): ColorScheme {
         val schemes = if (darkTheme) darkSchemes else lightSchemes
-        return schemes[themeId] ?: schemes.getValue(AppThemeIds.FOX_PURPLE)
+        return schemes[themeId] ?: schemes.getValue(AppThemeIds.VINYL_NIGHT)
     }
 
     private val lightSchemes: Map<String, ColorScheme> = mapOf(
+        AppThemeIds.VINYL_NIGHT to lightColorScheme(
+            primary = VinylAmberDeep,
+            onPrimary = Color.White,
+            primaryContainer = VinylAmberSoft,
+            onPrimaryContainer = Color(0xFF3D2A08),
+            secondary = VinylCopper,
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFF5DCC8),
+            onSecondaryContainer = Color(0xFF4A2814),
+            tertiary = VinylRose,
+            onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFF5D5D5),
+            onTertiaryContainer = Color(0xFF4A2020),
+            background = PaperBg,
+            onBackground = InkOnPaper,
+            surface = PaperSurface,
+            onSurface = InkOnPaper,
+            surfaceVariant = PaperVariant,
+            onSurfaceVariant = InkMuted,
+            outline = Color(0xFFB8A990),
+            error = ErrorRedLight,
+            onError = Color.White,
+        ),
         AppThemeIds.FOX_PURPLE to lightColorScheme(
             primary = Purple500,
             onPrimary = Color.White,
@@ -204,6 +233,29 @@ object AppThemePresets {
     )
 
     private val darkSchemes: Map<String, ColorScheme> = mapOf(
+        AppThemeIds.VINYL_NIGHT to darkColorScheme(
+            primary = VinylAmber,
+            onPrimary = Color(0xFF2A1C06),
+            primaryContainer = VinylAmberDeep,
+            onPrimaryContainer = VinylAmberSoft,
+            secondary = VinylCopper,
+            onSecondary = Color(0xFF2A1408),
+            secondaryContainer = Color(0xFF5C3020),
+            onSecondaryContainer = Color(0xFFF5DCC8),
+            tertiary = VinylRose,
+            onTertiary = Color(0xFF2A1010),
+            tertiaryContainer = Color(0xFF5C2828),
+            onTertiaryContainer = Color(0xFFF5D5D5),
+            background = VinylInk,
+            onBackground = VinylCream,
+            surface = VinylInkElevated,
+            onSurface = VinylCream,
+            surfaceVariant = VinylInkVariant,
+            onSurfaceVariant = VinylCreamMuted,
+            outline = Color(0xFF6B5E4E),
+            error = ErrorRed,
+            onError = Gray900,
+        ),
         AppThemeIds.FOX_PURPLE to DarkColorScheme,
         AppThemeIds.YOUTHFUL to darkColorScheme(
             primary = Color(0xFFFF8A80),
@@ -352,24 +404,24 @@ fun colorSchemeFromSeed(seedArgb: Long, darkTheme: Boolean): ColorScheme {
     return if (darkTheme) {
         darkColorScheme(
             primary = seed,
-            onPrimary = Color.White,
+            onPrimary = Color(0xFF2A1C06),
             primaryContainer = seed.copy(alpha = 0.35f),
-            onPrimaryContainer = Color.White,
+            onPrimaryContainer = VinylCream,
             secondary = seed.copy(alpha = 0.85f),
-            onSecondary = Color.White,
+            onSecondary = Color(0xFF2A1408),
             secondaryContainer = seed.copy(alpha = 0.25f),
-            onSecondaryContainer = Color.White,
+            onSecondaryContainer = VinylCream,
             tertiary = seed.copy(alpha = 0.7f),
-            onTertiary = Color.White,
+            onTertiary = Color(0xFF2A1010),
             tertiaryContainer = seed.copy(alpha = 0.2f),
-            onTertiaryContainer = Color.White,
-            background = DarkBackground,
-            onBackground = Gray200,
-            surface = DarkSurface,
-            onSurface = Gray200,
-            surfaceVariant = DarkSurfaceVariant,
-            onSurfaceVariant = Gray400,
-            outline = Gray500,
+            onTertiaryContainer = VinylCream,
+            background = VinylInk,
+            onBackground = VinylCream,
+            surface = VinylInkElevated,
+            onSurface = VinylCream,
+            surfaceVariant = VinylInkVariant,
+            onSurfaceVariant = VinylCreamMuted,
+            outline = Color(0xFF6B5E4E),
             error = ErrorRed,
             onError = Gray900,
         )
@@ -387,13 +439,13 @@ fun colorSchemeFromSeed(seedArgb: Long, darkTheme: Boolean): ColorScheme {
             onTertiary = Color.White,
             tertiaryContainer = seed.copy(alpha = 0.1f),
             onTertiaryContainer = seed,
-            background = Gray50,
-            onBackground = Gray900,
-            surface = Color.White,
-            onSurface = Gray900,
-            surfaceVariant = Gray100,
-            onSurfaceVariant = Gray700,
-            outline = Gray400,
+            background = PaperBg,
+            onBackground = InkOnPaper,
+            surface = PaperSurface,
+            onSurface = InkOnPaper,
+            surfaceVariant = PaperVariant,
+            onSurfaceVariant = InkMuted,
+            outline = Color(0xFFB8A990),
             error = ErrorRedLight,
             onError = Color.White,
         )

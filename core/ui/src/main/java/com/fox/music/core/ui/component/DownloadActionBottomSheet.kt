@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.download.DownloadTask
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,6 +38,8 @@ fun DownloadActionBottomSheet(
     onDismiss: () -> Unit,
     onPlayNext: () -> Unit,
     onDelete: () -> Unit,
+    onPause: () -> Unit = {},
+    onResume: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -80,14 +86,49 @@ fun DownloadActionBottomSheet(
 
             HorizontalDivider()
 
-            ActionRow(
-                icon = Icons.Default.SkipNext,
-                label = "下一首播放",
-                onClick = {
-                    onPlayNext()
-                    onDismiss()
-                },
-            )
+            when (task.status) {
+                DownloadStatus.DOWNLOADING, DownloadStatus.PENDING -> {
+                    ActionRow(
+                        icon = Icons.Default.Pause,
+                        label = "暂停下载",
+                        onClick = {
+                            onPause()
+                            onDismiss()
+                        },
+                    )
+                }
+                DownloadStatus.PAUSED -> {
+                    ActionRow(
+                        icon = Icons.Default.PlayArrow,
+                        label = "继续下载",
+                        onClick = {
+                            onResume()
+                            onDismiss()
+                        },
+                    )
+                }
+                DownloadStatus.FAILED -> {
+                    ActionRow(
+                        icon = Icons.Default.Refresh,
+                        label = "重新下载",
+                        onClick = {
+                            onResume()
+                            onDismiss()
+                        },
+                    )
+                }
+                DownloadStatus.COMPLETED -> {
+                    ActionRow(
+                        icon = Icons.Default.SkipNext,
+                        label = "下一首播放",
+                        onClick = {
+                            onPlayNext()
+                            onDismiss()
+                        },
+                    )
+                }
+            }
+
             ActionRow(
                 icon = Icons.Default.Delete,
                 label = "删除",

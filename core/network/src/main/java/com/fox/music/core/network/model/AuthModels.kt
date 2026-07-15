@@ -46,7 +46,9 @@ data class ResetPasswordRequest(
 @Serializable
 data class LoginResponse(
     val token: String,
-    val user: UserDto
+    val refreshToken: String? = null,
+    val expiresIn: String? = null,
+    val user: UserDto,
 )
 
 @Serializable

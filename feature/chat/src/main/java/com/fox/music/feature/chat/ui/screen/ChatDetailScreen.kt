@@ -601,6 +601,7 @@ fun ChatDetailScreen(
                 return@Scaffold
             }
 
+            val reversedMessages = remember(state.messages) { state.messages.asReversed() }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -608,7 +609,6 @@ fun ChatDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 reverseLayout = true,
             ) {
-            val reversedMessages = state.messages.reversed()
             itemsIndexed(
                 items = reversedMessages,
                 key = { _, message -> message.localId ?: message.id.toString() },

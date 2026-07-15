@@ -22,12 +22,12 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,6 +38,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,6 +85,7 @@ fun DownloadScreen(
     val completedDownloads by viewModel.completedDownloads.collectAsState()
     val actionTask by viewModel.actionTask.collectAsState()
     val showActionSheet by viewModel.showActionSheet.collectAsState()
+    val totalBytes by viewModel.totalBytes.collectAsState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -154,7 +156,7 @@ fun DownloadScreen(
                 }
                 item {
                     Text(
-                        text = "已用存储 ${viewModel.formatBytes(viewModel.totalBytes)}",
+                        text = "已用存储 ${viewModel.formatBytes(totalBytes)}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp),
@@ -165,8 +167,21 @@ fun DownloadScreen(
                         task = task,
                         statusLabel = viewModel.statusLabel(task),
                         onClick = {
-                            if (task.status == DownloadStatus.COMPLETED) {
-                                viewModel.playDownload(task)
+                            when (task.status) {
+                                DownloadStatus.COMPLETED -> viewModel.playDownload(task)
+                                DownloadStatus.PAUSED, DownloadStatus.FAILED ->
+                                    viewModel.resume(task.musicId)
+                                DownloadStatus.PENDING, DownloadStatus.DOWNLOADING ->
+                                    viewModel.pause(task.musicId)
+                            }
+                        },
+                        onActionClick = {
+                            when (task.status) {
+                                DownloadStatus.COMPLETED -> viewModel.playDownload(task)
+                                DownloadStatus.PAUSED, DownloadStatus.FAILED ->
+                                    viewModel.resume(task.musicId)
+                                DownloadStatus.PENDING, DownloadStatus.DOWNLOADING ->
+                                    viewModel.pause(task.musicId)
                             }
                         },
                         onMoreClick = { viewModel.showMoreActions(task) },
@@ -177,11 +192,14 @@ fun DownloadScreen(
     }
 
     if (showActionSheet && actionTask != null) {
+        val task = actionTask!!
         DownloadActionBottomSheet(
-            task = actionTask!!,
+            task = task,
             onDismiss = viewModel::dismissActionSheet,
-            onPlayNext = { viewModel.playNext(actionTask!!) },
-            onDelete = { viewModel.delete(actionTask!!.musicId) },
+            onPlayNext = { viewModel.playNext(task) },
+            onDelete = { viewModel.delete(task.musicId) },
+            onPause = { viewModel.pause(task.musicId) },
+            onResume = { viewModel.resume(task.musicId) },
         )
     }
 }
@@ -191,15 +209,28 @@ private fun DownloadTaskItem(
     task: DownloadTask,
     statusLabel: String,
     onClick: () -> Unit,
+    onActionClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
-    val isPlayable = task.status == DownloadStatus.COMPLETED
+    val actionIcon = when (task.status) {
+        DownloadStatus.COMPLETED -> Icons.Default.PlayArrow
+        DownloadStatus.PAUSED -> Icons.Default.PlayArrow
+        DownloadStatus.FAILED -> Icons.Default.Refresh
+        DownloadStatus.PENDING, DownloadStatus.DOWNLOADING -> Icons.Default.Pause
+    }
+    val actionDescription = when (task.status) {
+        DownloadStatus.COMPLETED -> "播放"
+        DownloadStatus.PAUSED -> "继续下载"
+        DownloadStatus.FAILED -> "重新下载"
+        DownloadStatus.PENDING, DownloadStatus.DOWNLOADING -> "暂停下载"
+    }
+    val showProgress = task.status == DownloadStatus.DOWNLOADING ||
+        (task.status == DownloadStatus.PAUSED && task.downloadedBytes > 0L)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (isPlayable) Modifier.clickable(onClick = onClick) else Modifier
-            )
+            .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -228,9 +259,13 @@ private fun DownloadTaskItem(
             Text(
                 text = statusLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (task.status == DownloadStatus.FAILED) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
             )
-            if (task.status == DownloadStatus.DOWNLOADING) {
+            if (showProgress) {
                 val progressFraction = when {
                     task.totalBytes > 0L ->
                         (task.downloadedBytes.toFloat() / task.totalBytes.toFloat()).coerceIn(0f, 1f)
@@ -246,7 +281,7 @@ private fun DownloadTaskItem(
                         strokeCap = StrokeCap.Butt,
                         drawStopIndicator = {},
                     )
-                } else {
+                } else if (task.status == DownloadStatus.DOWNLOADING) {
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -254,6 +289,9 @@ private fun DownloadTaskItem(
                     )
                 }
             }
+        }
+        IconButton(onClick = onActionClick) {
+            Icon(actionIcon, contentDescription = actionDescription)
         }
         IconButton(onClick = onMoreClick) {
             Icon(Icons.Default.MoreVert, contentDescription = "更多")

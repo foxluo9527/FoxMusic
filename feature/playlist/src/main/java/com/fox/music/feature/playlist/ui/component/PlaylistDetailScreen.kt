@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
@@ -336,7 +337,8 @@ private fun CollectionDetailContent(
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = 16.dp)
+        // 预留给底部悬浮 MiniPlayer + 手势条，避免最后几首无法滑出遮挡
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
         // 头部信息区域
         item {
@@ -353,7 +355,8 @@ private fun CollectionDetailContent(
                 ActionButtonRow(
                     showFavorite = state.detailType !== DetailType.RECOMMEND &&
                         state.detailType != DetailType.NEW_MUSIC &&
-                        state.detailType != DetailType.FAVORITE_MUSIC,
+                        state.detailType != DetailType.FAVORITE_MUSIC &&
+                        state.detailType != DetailType.PLAY_HISTORY,
                     trackCount = headerInfo.trackCount.takeIf {it > 0} ?: pagingItems.itemCount,
                     isFavorite = headerInfo.isFavorite,
                     isFavoriteLoading = state.isFavoriteLoading,
@@ -505,7 +508,9 @@ private fun CollectionDetailHeader(
                 shape = RoundedCornerShape(8.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
-        } else if (headerInfo.detailType == DetailType.FAVORITE_MUSIC) {
+        } else if (headerInfo.detailType == DetailType.FAVORITE_MUSIC ||
+            headerInfo.detailType == DetailType.PLAY_HISTORY
+        ) {
             Surface(
                 modifier = Modifier.size(120.dp),
                 shape = RoundedCornerShape(8.dp),
@@ -515,12 +520,21 @@ private fun CollectionDetailHeader(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        painter = painterResource(CommonR.drawable.ic_favorite),
-                        contentDescription = headerInfo.title,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(48.dp),
-                    )
+                    if (headerInfo.detailType == DetailType.FAVORITE_MUSIC) {
+                        Icon(
+                            painter = painterResource(CommonR.drawable.ic_favorite),
+                            contentDescription = headerInfo.title,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = headerInfo.title,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp),
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
@@ -688,6 +702,7 @@ private fun getTypeTitle(type: DetailType): String {
         DetailType.RECOMMEND -> "推荐歌曲"
         DetailType.NEW_MUSIC -> "新歌速递"
         DetailType.FAVORITE_MUSIC -> "我的收藏"
+        DetailType.PLAY_HISTORY -> "历史播放"
     }
 }
 
@@ -699,6 +714,7 @@ private fun getTypeLabel(type: DetailType): String {
         DetailType.RECOMMEND -> "推荐"
         DetailType.NEW_MUSIC -> "新歌"
         DetailType.FAVORITE_MUSIC -> "收藏"
+        DetailType.PLAY_HISTORY -> "历史"
     }
 }
 

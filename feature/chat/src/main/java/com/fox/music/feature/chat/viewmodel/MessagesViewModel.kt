@@ -43,6 +43,7 @@ sealed interface MessagesEffect : UiEffect {
     data object NavigateToCommentNotifications : MessagesEffect
     data object NavigateToLikeNotifications : MessagesEffect
     data object NavigateToSystemAnnouncements : MessagesEffect
+    data object NavigateToNotificationSettings : MessagesEffect
     data class NavigateToChat(val userId: Long) : MessagesEffect
     data object NavigateBack : MessagesEffect
 }
@@ -86,6 +87,10 @@ class MessagesViewModel @Inject constructor(
 
     fun onSystemAnnouncementsClick() {
         sendEffect(MessagesEffect.NavigateToSystemAnnouncements)
+    }
+
+    fun onNotificationSettingsClick() {
+        sendEffect(MessagesEffect.NavigateToNotificationSettings)
     }
 
     fun onConversationClick(userId: Long) {

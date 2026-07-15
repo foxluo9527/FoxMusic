@@ -2,6 +2,7 @@ package com.fox.music.core.data.repository
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
+import com.fox.music.core.data.cache.SearchMusicResultCache
 import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.database.dao.SearchHistoryDao
@@ -11,6 +12,7 @@ import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.music.SearchHistory
+import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.network.api.MusicApiService
 import com.fox.music.core.network.api.SearchApiService
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +27,8 @@ import javax.inject.Singleton
 class SearchRepositoryImpl @Inject constructor(
     private val musicApi: MusicApiService,
     private val searchApi: SearchApiService,
-    private val searchHistoryDao: SearchHistoryDao
+    private val searchHistoryDao: SearchHistoryDao,
+    private val searchMusicResultCache: SearchMusicResultCache,
 ) : SearchRepository {
 
     override suspend fun searchMusic(
@@ -34,19 +37,26 @@ class SearchRepositoryImpl @Inject constructor(
         limit: Int,
         platform: String?
     ): Result<PagedData<Music>> = suspendRunCatching {
+        val trimmed = keyword.trim()
+        searchMusicResultCache.get(trimmed, platform, page, limit)?.let { cached ->
+            return@suspendRunCatching cached
+        }
+
         val response = if (platform.isNullOrBlank()) {
-            musicApi.getMusicList(page, limit, keyword, null, null)
+            musicApi.getMusicList(page, limit, trimmed, null, null)
         } else {
             musicApi.searchThirdPartyMusic(
                 platform = platform,
-                keyword = keyword,
+                keyword = trimmed,
                 page = page,
                 limit = limit
             )
         }
         val data = response.data
         if (response.isSuccess && data != null) {
-            data.toPagedData { it.toMusic() }
+            val paged = data.toPagedData { it.toMusic() }
+            searchMusicResultCache.put(trimmed, platform, page, limit, paged)
+            paged
         } else throw Exception(response.message)
     }
 
@@ -57,7 +67,29 @@ class SearchRepositoryImpl @Inject constructor(
                 @Suppress("UNCHECKED_CAST")
                 (response.data?.map {HotKeyword(it.keyword, it.type, it.searchCount)})
                     ?: emptyList()
-            } else emptyList()
+            } else {
+                throw IllegalStateException(response.message)
+            }
+        }
+
+    override suspend fun getSuggest(keyword: String, limit: Int): Result<List<SearchSuggest>> =
+        suspendRunCatching {
+            val trimmed = keyword.trim()
+            if (trimmed.isEmpty()) return@suspendRunCatching emptyList()
+            val response = searchApi.getSuggest(trimmed, limit)
+            val data = response.data
+            if (response.isSuccess && data != null) {
+                data.suggestions.map {
+                    SearchSuggest(
+                        id = it.id,
+                        text = it.text,
+                        type = it.type,
+                        cover = it.cover,
+                    )
+                }
+            } else {
+                throw IllegalStateException(response.message)
+            }
         }
 
     override fun getSearchHistory(limit: Int): Flow<List<SearchHistory>> =
@@ -84,8 +116,11 @@ class SearchRepositoryImpl @Inject constructor(
     }
 
     override suspend fun clearSearchHistory(): Result<Unit> = suspendRunCatching {
+        val response = searchApi.clearSearchHistory(null)
+        if (!response.isSuccess) {
+            throw IllegalStateException(response.message)
+        }
         searchHistoryDao.deleteAllSearchHistory()
-        searchApi.clearSearchHistory(null)
         Unit
     }
 

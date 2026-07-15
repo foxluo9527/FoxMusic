@@ -47,18 +47,14 @@ class DownloadViewModel @Inject constructor(
     private val _showActionSheet = MutableStateFlow(false)
     val showActionSheet = _showActionSheet.asStateFlow()
 
-    var totalBytes: Long = 0L
-        private set
+    private val _totalBytes = MutableStateFlow(0L)
+    val totalBytes = _totalBytes.asStateFlow()
 
     init {
         viewModelScope.launch {
-            totalBytes = downloadRepository.getTotalDownloadedBytes()
-        }
-    }
-
-    fun refreshTotalBytes() {
-        viewModelScope.launch {
-            totalBytes = downloadRepository.getTotalDownloadedBytes()
+            downloadRepository.downloads.collect {
+                _totalBytes.value = downloadRepository.getTotalDownloadedBytes()
+            }
         }
     }
 
@@ -83,7 +79,6 @@ class DownloadViewModel @Inject constructor(
     fun delete(musicId: Long) {
         viewModelScope.launch {
             downloadRepository.delete(musicId)
-            refreshTotalBytes()
         }
     }
 

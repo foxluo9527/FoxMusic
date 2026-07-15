@@ -39,7 +39,14 @@ data class PagedResponse<T>(
 
 @Serializable
 data class TokenResponse(
-    val token: String
+    val token: String,
+    val refreshToken: String? = null,
+    val expiresIn: String? = null,
+)
+
+@Serializable
+data class RefreshTokenRequest(
+    val refreshToken: String,
 )
 
 @Serializable

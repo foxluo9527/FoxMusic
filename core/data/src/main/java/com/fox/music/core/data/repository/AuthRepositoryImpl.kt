@@ -2,6 +2,7 @@ package com.fox.music.core.data.repository
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatchingWithParser
+import com.fox.music.core.data.cache.SearchMusicResultCache
 import com.fox.music.core.data.mapper.toUser
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.repository.AuthRepository
@@ -10,7 +11,7 @@ import com.fox.music.core.model.user.User
 import com.fox.music.core.network.api.AuthApiService
 import com.fox.music.core.network.model.ForgotPasswordRequest
 import com.fox.music.core.network.model.ResetPasswordRequest
-import com.fox.music.core.network.token.TokenManager
+import com.fox.music.core.common.session.TokenManager
 import com.fox.music.core.network.util.ErrorParser
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,7 +20,8 @@ import javax.inject.Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val authApi: AuthApiService,
     private val tokenManager: TokenManager,
-    private val dataStore: FoxPreferencesDataStore
+    private val dataStore: FoxPreferencesDataStore,
+    private val searchMusicResultCache: SearchMusicResultCache,
 ) : AuthRepository {
 
     override suspend fun login(username: String, password: String): Result<LoginResult> =
@@ -32,7 +34,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             val data = response.data
             if (response.isSuccess && data != null) {
-                tokenManager.saveTokens(data.token, null)
+                tokenManager.saveTokens(data.token, data.refreshToken)
                 dataStore.saveUserInfo(data.user.id.toString(), data.user.username)
                 LoginResult(token = data.token, user = data.user.toUser())
             } else throw Exception(response.message)
@@ -52,7 +54,7 @@ class AuthRepositoryImpl @Inject constructor(
         )
         val data = response.data
         if (response.isSuccess && data != null) {
-            tokenManager.saveTokens(data.token, null)
+            tokenManager.saveTokens(data.token, data.refreshToken)
             dataStore.saveUserInfo(data.user.id.toString(), data.user.username)
             LoginResult(token = data.token, user = data.user.toUser())
         } else throw Exception(response.message)
@@ -60,10 +62,15 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun logout(): Result<Unit> =
         suspendRunCatchingWithParser(ErrorParser::parseError) {
-            authApi.logout()
-            tokenManager.clearTokens()
-            dataStore.clearUserInfo()
-            Unit
+            try {
+                authApi.logout()
+                Unit
+            } finally {
+                // 登出应始终结束本地会话，远端通知失败不应让用户卡在已登录状态。
+                tokenManager.clearTokens()
+                dataStore.clearUserInfo()
+                searchMusicResultCache.clear()
+            }
         }
 
     override suspend fun getProfile(): Result<User> =

@@ -20,7 +20,7 @@ import com.fox.music.core.model.chat.Notification
 import com.fox.music.core.model.chat.NotificationType
 import com.fox.music.core.network.model.MessageDto
 import com.fox.music.core.network.model.NotificationDto
-import com.fox.music.core.network.token.TokenManager
+import com.fox.music.core.common.session.TokenManager
 import com.fox.music.core.network.websocket.WebSocketManager
 import com.fox.music.core.network.websocket.WebSocketMessage
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -54,6 +54,7 @@ class RealtimeMessageCoordinator @Inject constructor(
     private val recentlyDispatchedIds = ConcurrentHashMap.newKeySet<Long>()
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     fun start() {
@@ -78,9 +79,17 @@ class RealtimeMessageCoordinator @Inject constructor(
             .launchIn(scope)
     }
 
+    fun stop() {
+        networkCallback?.let { callback ->
+            runCatching { connectivityManager.unregisterNetworkCallback(callback) }
+            networkCallback = null
+        }
+        started = false
+    }
+
     fun onAppForeground() {
         scope.launch {
-            webSocketManager.reconnect()
+            webSocketManager.ensureConnected()
             chatRepository.syncUnreadMessages(peerUserId = 0)
             EventViewModel.notifyNotificationsUpdated()
         }
@@ -94,16 +103,19 @@ class RealtimeMessageCoordinator @Inject constructor(
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun registerNetworkCallback() {
+        if (networkCallback != null) return
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
-        connectivityManager.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+        val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 scope.launch {
                     webSocketManager.ensureConnected()
                 }
             }
-        })
+        }
+        networkCallback = callback
+        connectivityManager.registerDefaultNetworkCallback(callback)
     }
 
     private suspend fun handleMessage(message: WebSocketMessage) {

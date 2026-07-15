@@ -5,6 +5,7 @@ import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.music.SearchHistory
+import com.fox.music.core.model.music.SearchSuggest
 import kotlinx.coroutines.flow.Flow
 
 interface SearchRepository {
@@ -17,6 +18,8 @@ interface SearchRepository {
     ): Result<PagedData<Music>>
 
     suspend fun getHotKeywords(type: String? = null, limit: Int = 10): Result<List<HotKeyword>>
+
+    suspend fun getSuggest(keyword: String, limit: Int = 8): Result<List<SearchSuggest>>
 
     fun getSearchHistory(limit: Int = 20): Flow<List<SearchHistory>>
 

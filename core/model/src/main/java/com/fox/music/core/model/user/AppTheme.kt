@@ -1,6 +1,7 @@
 package com.fox.music.core.model.user
 
 object AppThemeIds {
+    const val VINYL_NIGHT = "vinyl_night"
     const val FOX_PURPLE = "fox_purple"
     const val YOUTHFUL = "youthful"
     const val NOBLE_CLASSICAL = "noble_classical"
@@ -9,9 +10,11 @@ object AppThemeIds {
     const val SUNSET_WARM = "sunset_warm"
     const val CUSTOM = "custom"
 
-    const val DEFAULT = FOX_PURPLE
+    /** 默认主题：黑胶夜场 */
+    const val DEFAULT = VINYL_NIGHT
 
     val presetIds: List<String> = listOf(
+        VINYL_NIGHT,
         FOX_PURPLE,
         YOUTHFUL,
         NOBLE_CLASSICAL,

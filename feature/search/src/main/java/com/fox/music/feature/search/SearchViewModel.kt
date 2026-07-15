@@ -14,12 +14,16 @@ import com.fox.music.core.domain.usecase.GetSearchArtistPagingUseCase
 import com.fox.music.core.domain.usecase.GetSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.GetSearchMusicPagingUseCase
 import com.fox.music.core.domain.usecase.SaveSearchHistoryUseCase
+import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.SearchHistory
+import com.fox.music.core.model.music.SearchSuggest
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOf
@@ -50,6 +54,7 @@ data class SearchState(
     val hotKeywords: List<HotKeyword> = emptyList(),
     val hotKeywordsHasMore: Boolean = false,
     val isLoadingHotKeywords: Boolean = false,
+    val suggestions: List<SearchSuggest> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val hasSearched: Boolean = false,
@@ -82,10 +87,19 @@ class SearchViewModel @Inject constructor(
     private val saveSearchHistoryUseCase: SaveSearchHistoryUseCase,
     private val clearSearchHistoryUseCase: ClearSearchHistoryUseCase,
     private val getHotKeywordsUseCase: GetHotKeywordsUseCase,
+    private val searchRepository: SearchRepository,
 ) : MviViewModel<SearchState, SearchIntent, SearchEffect>(SearchState()) {
 
     private var currentMusicList: List<Music> = emptyList()
     private var hotKeywordPage: Int = 0
+    private var suggestJob: Job? = null
+
+    /** 当前搜索关键词下，按平台缓存的单曲 Paging（切换平台时复用，避免重复打接口） */
+    private var cachedMusicKeyword: String? = null
+    private val musicPagingByPlatform =
+        mutableMapOf<String, Flow<PagingData<Music>>>()
+    private var cachedArtistResults: Flow<PagingData<Artist>>? = null
+    private var cachedAlbumResults: Flow<PagingData<Album>>? = null
 
     init {
         viewModelScope.launch {
@@ -107,14 +121,20 @@ class SearchViewModel @Inject constructor(
 
     override fun handleIntent(intent: SearchIntent) {
         when (intent) {
-            is SearchIntent.QueryChange -> updateState { copy(query = intent.query) }
-            SearchIntent.Search -> performSearch()
+            is SearchIntent.QueryChange -> {
+                updateState { copy(query = intent.query) }
+                scheduleSuggest(intent.query)
+            }
+            SearchIntent.Search -> {
+                updateState { copy(suggestions = emptyList()) }
+                performSearch()
+            }
             is SearchIntent.SelectHistory -> {
-                updateState { copy(query = intent.keyword) }
+                updateState { copy(query = intent.keyword, suggestions = emptyList()) }
                 performSearch(keyword = intent.keyword)
             }
             is SearchIntent.SelectHotKeyword -> {
-                updateState { copy(query = intent.keyword) }
+                updateState { copy(query = intent.keyword, suggestions = emptyList()) }
                 performSearch(keyword = intent.keyword)
             }
             is SearchIntent.SelectTab -> updateState { copy(selectedTab = intent.tab) }
@@ -156,19 +176,43 @@ class SearchViewModel @Inject constructor(
         val q = keyword?.trim() ?: currentState.query.trim()
         if (q.isEmpty()) return
         val selectedPlatform = platform ?: currentState.selectedMusicPlatform
+        val platformKey = selectedPlatform.apiValue.orEmpty()
 
         viewModelScope.launch {
-            updateState { copy(hasSearched = true, selectedTab = SearchResultTab.MUSIC) }
+            updateState {
+                copy(
+                    hasSearched = true,
+                    selectedTab = SearchResultTab.MUSIC,
+                    selectedMusicPlatform = selectedPlatform,
+                )
+            }
             saveSearchHistoryUseCase(q)
+
+            if (cachedMusicKeyword != q) {
+                cachedMusicKeyword = q
+                musicPagingByPlatform.clear()
+                cachedArtistResults = null
+                cachedAlbumResults = null
+            }
+
+            val musicFlow = musicPagingByPlatform.getOrPut(platformKey) {
+                getSearchMusicPagingUseCase(
+                    keyword = q,
+                    platform = selectedPlatform.apiValue,
+                ).cachedIn(viewModelScope)
+            }
+            val artistFlow = cachedArtistResults ?: getSearchArtistPagingUseCase(q)
+                .cachedIn(viewModelScope)
+                .also { cachedArtistResults = it }
+            val albumFlow = cachedAlbumResults ?: getSearchAlbumPagingUseCase(q)
+                .cachedIn(viewModelScope)
+                .also { cachedAlbumResults = it }
 
             updateState {
                 copy(
-                    musicResults = getSearchMusicPagingUseCase(
-                        keyword = q,
-                        platform = selectedPlatform.apiValue
-                    ).cachedIn(viewModelScope),
-                    artistResults = getSearchArtistPagingUseCase(q).cachedIn(viewModelScope),
-                    albumResults = getSearchAlbumPagingUseCase(q).cachedIn(viewModelScope),
+                    musicResults = musicFlow,
+                    artistResults = artistFlow,
+                    albumResults = albumFlow,
                 )
             }
         }
@@ -217,6 +261,21 @@ class SearchViewModel @Inject constructor(
             .onError { _, _ ->
                 updateState { copy(isLoadingHotKeywords = false) }
             }
+    }
+
+    private fun scheduleSuggest(query: String) {
+        suggestJob?.cancel()
+        val trimmed = query.trim()
+        if (trimmed.length < 2) {
+            updateState { copy(suggestions = emptyList()) }
+            return
+        }
+        suggestJob = viewModelScope.launch {
+            delay(300)
+            searchRepository.getSuggest(trimmed, limit = 8)
+                .onSuccess { list -> updateState { copy(suggestions = list) } }
+                .onError { _, _ -> updateState { copy(suggestions = emptyList()) } }
+        }
     }
 
     companion object {

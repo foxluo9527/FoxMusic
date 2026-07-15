@@ -1,11 +1,15 @@
 package com.fox.music.feature.player.ui.component
 
 import android.widget.Toast
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.Favorite
@@ -18,6 +22,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -38,7 +45,13 @@ import com.fox.music.feature.player.viewmodel.MusicCommentDetailIntent
 import com.fox.music.feature.player.viewmodel.MusicCommentDetailViewModel
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
+/**
+ * 音乐评论底部工作表。
+ * 顶部间距与侧滑返回动画与 [PlaylistBottomSheet] 保持一致。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicCommentBottomSheet(
@@ -51,6 +64,20 @@ fun MusicCommentBottomSheet(
     val context = LocalContext.current
     var selectedCommentId by remember { mutableStateOf<Long?>(null) }
     var selectedCommentUserName by remember { mutableStateOf<String?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val backProgress = remember { Animatable(0f) }
+    var sheetHeightPx by remember { mutableFloatStateOf(0f) }
+
+    fun dismissSheet() {
+        scope.launch {
+            try {
+                sheetState.hide()
+            } finally {
+                onDismiss()
+            }
+        }
+    }
 
     LaunchedEffect(state.commentsRefreshTrigger) {
         if (state.commentsRefreshTrigger > 0) {
@@ -72,13 +99,41 @@ fun MusicCommentBottomSheet(
     }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.fillMaxSize(),
+        onDismissRequest = { dismissSheet() },
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .onSizeChanged { sheetHeightPx = it.height.toFloat() }
+            .graphicsLayer {
+                val h = sheetHeightPx.takeIf { it > 0f } ?: size.height
+                translationY = h * backProgress.value
+                scaleX = 1f
+                scaleY = 1f
+            },
         sheetMaxWidth = Dp.Unspecified,
-        sheetState = rememberModalBottomSheetState(
-            skipPartiallyExpanded = true
-        )
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrimColor = Color.Black.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        sheetState = sheetState,
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
+        PredictiveBackHandler { progress ->
+            try {
+                progress.collect { event ->
+                    backProgress.snapTo(event.progress)
+                }
+                backProgress.animateTo(1f, animationSpec = tween(180))
+                try {
+                    sheetState.hide()
+                } finally {
+                    onDismiss()
+                }
+            } catch (e: CancellationException) {
+                backProgress.animateTo(0f, animationSpec = tween(180))
+                throw e
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -98,7 +153,7 @@ fun MusicCommentBottomSheet(
                     modifier = Modifier.align(Alignment.CenterStart)
                 )
                 IconButton(
-                    onClick = onDismiss,
+                    onClick = { dismissSheet() },
                     modifier = Modifier.align(Alignment.CenterEnd)
                 ) {
                     Icon(

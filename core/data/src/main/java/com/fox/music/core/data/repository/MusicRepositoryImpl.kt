@@ -3,12 +3,14 @@ package com.fox.music.core.data.repository
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
 import com.fox.music.core.data.mapper.toComment
+import com.fox.music.core.data.mapper.toListeningStats
 import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.data.mapper.toPlayHistory
 import com.fox.music.core.data.mapper.toTag
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.model.social.Comment
+import com.fox.music.core.model.music.ListeningStats
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.MusicDetail
 import com.fox.music.core.model.PagedData
@@ -60,10 +62,16 @@ class MusicRepositoryImpl @Inject constructor(
         val response = musicApi.recordPlay(
             id,
             com.fox.music.core.network.model.PlayRecordRequest(
-                progress = progressPercent
+                duration = durationSeconds,
+                progress = progressPercent,
             )
         )
-        if (response.isSuccess) Unit else throw Exception(response.message)
+        if (!response.isSuccess) throw Exception(response.message)
+        // 有实际收听时长时再通知 UI，避免空上报触发无效刷新
+        if ((durationSeconds ?: 0) > 0) {
+            com.fox.music.core.common.EventViewModel.notifyListeningStatsUpdated()
+        }
+        Unit
     }
 
     override suspend fun getMusicComments(
@@ -124,6 +132,15 @@ class MusicRepositoryImpl @Inject constructor(
             val data = response.data
             if (response.isSuccess && data != null) {
                 data.toPagedData { it.toPlayHistory() }
+            } else throw Exception(response.message)
+        }
+
+    override suspend fun getListeningStats(days: Int): Result<ListeningStats> =
+        suspendRunCatching {
+            val response = musicApi.getListeningStats(days)
+            val data = response.data
+            if (response.isSuccess && data != null) {
+                data.toListeningStats()
             } else throw Exception(response.message)
         }
 

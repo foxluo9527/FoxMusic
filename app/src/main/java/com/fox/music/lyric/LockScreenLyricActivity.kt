@@ -19,7 +19,7 @@ import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.user.UserPreferences
 import com.fox.music.core.ui.theme.resolveDarkTheme
-import com.fox.music.core.network.token.TokenManager
+import com.fox.music.core.common.session.TokenManager
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.LockScreenLyricScreen
 import com.fox.music.core.ui.component.nextRepeatMode

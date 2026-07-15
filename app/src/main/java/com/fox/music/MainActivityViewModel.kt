@@ -11,7 +11,7 @@ import com.fox.music.core.domain.usecase.CheckAppUpdateUseCase
 import com.fox.music.core.model.app.ApkDownloadState
 import com.fox.music.core.model.app.AppUpdateInfo
 import com.fox.music.core.model.user.UserPreferences
-import com.fox.music.core.network.token.TokenManager
+import com.fox.music.core.common.session.TokenManager
 import com.fox.music.core.player.controller.MusicController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job

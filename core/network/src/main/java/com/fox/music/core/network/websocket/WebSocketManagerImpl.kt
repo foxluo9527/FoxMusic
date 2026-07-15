@@ -53,8 +53,8 @@ class WebSocketManagerImpl @Inject constructor(
 
     companion object {
         private const val MAX_RECONNECT_ATTEMPTS = 15
-        private const val RECONNECT_INTERVAL_MS = 2_000L
-        private const val PING_INTERVAL_MS = 25_000L
+        private const val RECONNECT_BASE_MS = 1_000L
+        private const val RECONNECT_MAX_MS = 30_000L
 
         private val NOTIFICATION_TYPES = setOf(
             "comment",
@@ -86,8 +86,8 @@ class WebSocketManagerImpl @Inject constructor(
                 return
             }
 
-            val rawToken = tokenManager.accessToken.first()
-            val token = rawToken
+            // 服务端只认 query token（见 WebsocketClient.md），不要走 Authorization header
+            val token = tokenManager.peekAccessToken()
                 ?.removePrefix("Bearer ")
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
@@ -131,16 +131,18 @@ class WebSocketManagerImpl @Inject constructor(
     }
 
     override suspend fun disconnect() {
-        intentionalDisconnect = true
-        reconnectJob?.cancel()
-        reconnectJob = null
-        pingJob?.cancel()
-        ++connectGeneration
-        _connectionState.value = ConnectionState.DISCONNECTING
-        webSocket?.close(1000, "User disconnected")
-        webSocket = null
-        reconnectAttempts = 0
-        _connectionState.value = ConnectionState.DISCONNECTED
+        connectMutex.withLock {
+            intentionalDisconnect = true
+            reconnectJob?.cancel()
+            reconnectJob = null
+            pingJob?.cancel()
+            ++connectGeneration
+            _connectionState.value = ConnectionState.DISCONNECTING
+            webSocket?.close(1000, "User disconnected")
+            webSocket = null
+            reconnectAttempts = 0
+            _connectionState.value = ConnectionState.DISCONNECTED
+        }
     }
 
     override suspend fun sendMessage(message: String) {
@@ -161,12 +163,16 @@ class WebSocketManagerImpl @Inject constructor(
             Timber.d("WebSocket connected")
             reconnectAttempts = 0
             _connectionState.value = ConnectionState.CONNECTED
-            startPingPong()
+            // OkHttp Client 已配置 pingInterval，不再叠加应用层 ping
+            pingJob?.cancel()
+            pingJob = null
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             if (isStale()) return
-            Timber.d("WebSocket message received: $text")
+            if (BuildConfig.DEBUG) {
+                Timber.d("WebSocket message received (%d bytes)", text.length)
+            }
             scope.launch {
                 parseMessage(text)?.let { _incomingMessages.emit(it) }
             }
@@ -261,16 +267,6 @@ class WebSocketManagerImpl @Inject constructor(
         return WebSocketMessage.ChatMessage(message)
     }
 
-    private fun startPingPong() {
-        pingJob?.cancel()
-        pingJob = scope.launch {
-            while (isActive && _connectionState.value == ConnectionState.CONNECTED) {
-                delay(PING_INTERVAL_MS)
-                webSocket?.send("ping")
-            }
-        }
-    }
-
     private fun scheduleReconnect() {
         if (intentionalDisconnect) return
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -280,8 +276,10 @@ class WebSocketManagerImpl @Inject constructor(
         if (reconnectJob?.isActive == true) return
         reconnectJob = scope.launch {
             reconnectAttempts++
-            val delayMs = if (reconnectAttempts <= 5) 0L else RECONNECT_INTERVAL_MS
-            if (delayMs > 0) delay(delayMs)
+            val exp = (RECONNECT_BASE_MS * (1L shl (reconnectAttempts - 1).coerceAtMost(5)))
+                .coerceAtMost(RECONNECT_MAX_MS)
+            val jitter = (0..250).random().toLong()
+            delay(exp + jitter)
             if (!intentionalDisconnect &&
                 _connectionState.value != ConnectionState.CONNECTED &&
                 _connectionState.value != ConnectionState.CONNECTING

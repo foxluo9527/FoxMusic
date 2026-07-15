@@ -163,9 +163,6 @@ fun CommunityPlazaScreen(
                             key = postPagingItems.itemKey { it.id },
                         ) { index ->
                             val post = postPagingItems[index] ?: return@items
-                            LaunchedEffect(post.id) {
-                                viewModel.sendIntent(CommunityPlazaIntent.LoadCommentPreview(post.id))
-                            }
                             val displayPost = viewModel.applyOverrides(post)
                             val isOwn = displayPost.userId == currentUserId
                             PostCard(

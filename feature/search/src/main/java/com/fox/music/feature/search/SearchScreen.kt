@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +61,7 @@ import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.SearchHistory
+import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.ui.component.AlbumListItem
 import com.fox.music.core.ui.component.ArtistListItem
 import com.fox.music.core.ui.component.ErrorView
@@ -127,7 +129,11 @@ fun SearchScreen(
     }
 
     with(sharedTransitionScope) {
-        Column(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
             TopAppBar(
                 title = {
                     SearchBar(
@@ -178,6 +184,7 @@ fun SearchScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
                     !state.hasSearched -> SearchSuggestionsContent(
+                        suggestions = state.suggestions,
                         hotKeywords = state.hotKeywords,
                         hotKeywordsHasMore = state.hotKeywordsHasMore,
                         isLoadingHotKeywords = state.isLoadingHotKeywords,
@@ -186,6 +193,7 @@ fun SearchScreen(
                         onHotKeywordClick = { viewModel.sendIntent(SearchIntent.SelectHotKeyword(it)) },
                         onRefreshHotKeywords = { viewModel.sendIntent(SearchIntent.RefreshHotKeywords) },
                         onHistoryClick = { viewModel.sendIntent(SearchIntent.SelectHistory(it)) },
+                        onSuggestClick = { viewModel.sendIntent(SearchIntent.SelectHistory(it)) },
                         onToggleHistoryExpanded = { viewModel.sendIntent(SearchIntent.ToggleHistoryExpanded) },
                         onClearHistory = { viewModel.sendIntent(SearchIntent.ClearHistory) },
                     )
@@ -236,6 +244,7 @@ private fun MusicPlatformSelector(
 
 @Composable
 private fun SearchSuggestionsContent(
+    suggestions: List<SearchSuggest>,
     hotKeywords: List<HotKeyword>,
     hotKeywordsHasMore: Boolean,
     isLoadingHotKeywords: Boolean,
@@ -244,6 +253,7 @@ private fun SearchSuggestionsContent(
     onHotKeywordClick: (String) -> Unit,
     onRefreshHotKeywords: () -> Unit,
     onHistoryClick: (String) -> Unit,
+    onSuggestClick: (String) -> Unit,
     onToggleHistoryExpanded: () -> Unit,
     onClearHistory: () -> Unit,
 ) {
@@ -262,6 +272,19 @@ private fun SearchSuggestionsContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
+        if (suggestions.isNotEmpty()) {
+            SearchSuggestionSection(
+                title = "猜你想搜",
+                trailingContent = {},
+            ) {
+                TwoColumnKeywordGrid(
+                    keywords = suggestions.map { it.text },
+                    maxRows = 4,
+                    onKeywordClick = onSuggestClick,
+                )
+            }
+        }
+
         if (searchHistory.isNotEmpty()) {
             SearchSuggestionSection(
                 title = "搜索历史",
@@ -542,7 +565,14 @@ private fun <T : Any> PagingResultList(
             ) {
                 items(
                     count = pagingItems.itemCount,
-                    key = { index -> "search_item_$index" },
+                    key = { index ->
+                        pagingItems.peek(index)?.let { item ->
+                            (item as? com.fox.music.core.model.music.Music)?.id?.toString()
+                                ?: (item as? com.fox.music.core.model.music.Artist)?.id?.toString()
+                                ?: (item as? com.fox.music.core.model.music.Album)?.id?.toString()
+                                ?: "search_item_$index"
+                        } ?: "search_placeholder_$index"
+                    },
                 ) { index ->
                     itemContent(index)
                 }

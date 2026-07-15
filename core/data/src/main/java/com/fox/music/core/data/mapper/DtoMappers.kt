@@ -10,6 +10,7 @@ import com.fox.music.core.model.music.Tag
 import com.fox.music.core.model.user.User
 import com.fox.music.core.model.music.AlbumDetail
 import com.fox.music.core.model.music.ArtistDetail
+import com.fox.music.core.model.music.ListeningStats
 import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.network.model.AlbumDto
 import com.fox.music.core.network.model.AlbumDetailDto
@@ -17,6 +18,7 @@ import com.fox.music.core.network.model.AppUpdateDto
 import com.fox.music.core.network.model.ArtistDetailDto
 import com.fox.music.core.network.model.ArtistDto
 import com.fox.music.core.network.model.CommentDto
+import com.fox.music.core.network.model.ListeningStatsDto
 import com.fox.music.core.network.model.MusicDto
 import com.fox.music.core.network.model.PagedResponse
 import com.fox.music.core.network.model.PlayHistoryDto
@@ -190,6 +192,21 @@ fun PlayHistoryDto.toPlayHistory(): PlayHistory = PlayHistory(
     playTime = playTime,
     progress = progress,
     duration = duration
+)
+
+fun ListeningStatsDto.toListeningStats(): ListeningStats = ListeningStats(
+    days = days,
+    totalDurationSec = totalDurationSec,
+    playCount = playCount,
+    uniqueTracks = uniqueTracks,
+    topTracks = topTracks.map { it.toMusic() },
+    topArtists = topArtists.map {
+        Artist(
+            id = it.id,
+            name = it.name,
+            avatar = it.avatar,
+        )
+    },
 )
 
 fun <T, R> PagedResponse<T>.toPagedData(transform: (T) -> R): PagedData<R> = PagedData(

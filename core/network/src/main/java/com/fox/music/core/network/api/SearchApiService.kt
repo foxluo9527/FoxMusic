@@ -2,6 +2,7 @@ package com.fox.music.core.network.api
 
 import com.fox.music.core.network.model.ApiResponse
 import com.fox.music.core.network.model.SearchKeywordDto
+import com.fox.music.core.network.model.SearchSuggestResponse
 import retrofit2.http.*
 
 interface SearchApiService {
@@ -22,4 +23,10 @@ interface SearchApiService {
     suspend fun clearSearchHistory(
         @Query("type") type: String? = null
     ): ApiResponse<Unit>
+
+    @GET("api/search/suggest")
+    suspend fun getSuggest(
+        @Query("keyword") keyword: String,
+        @Query("limit") limit: Int = 8
+    ): ApiResponse<SearchSuggestResponse>
 }

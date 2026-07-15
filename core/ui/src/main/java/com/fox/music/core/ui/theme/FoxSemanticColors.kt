@@ -3,16 +3,19 @@ package com.fox.music.core.ui.theme
 import androidx.compose.ui.graphics.Color
 
 object FoxSemanticColors {
-    val playerLightBackground = Color(0xFFF6F7F9)
-    val playerDarkBackground = Color(0xFF202122)
-    val playerOverlay = Color.White.copy(alpha = 0.3f)
+    val playerLightBackground = PaperBg
+    val playerDarkBackground = VinylInk
+    val playerOverlay = Color.Black.copy(alpha = 0.35f)
+    val glassSurface = Color.White.copy(alpha = 0.08f)
+    val glassBorder = Color.White.copy(alpha = 0.12f)
+    val amberGlow = VinylAmber.copy(alpha = 0.25f)
 
-    val chatMessage = Color(0xFF2196F3)
-    val chatComment = Color(0xFFFF5722)
-    val chatLike = Color(0xFFFF9800)
-    val chatSystem = Color(0xFF4CAF50)
+    val chatMessage = Color(0xFFE8A838)
+    val chatComment = Color(0xFFD4784A)
+    val chatLike = Color(0xFFE8A838)
+    val chatSystem = Color(0xFF7CB342)
 
-    val reportPending = Color(0xFFFF9800)
-    val reportResolved = Color(0xFF4CAF50)
-    val reportRejected = Color(0xFFF44336)
+    val reportPending = Color(0xFFE8A838)
+    val reportResolved = Color(0xFF7CB342)
+    val reportRejected = Color(0xFFC96B6B)
 }

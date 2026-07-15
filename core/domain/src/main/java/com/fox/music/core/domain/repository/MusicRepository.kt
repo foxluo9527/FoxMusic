@@ -5,6 +5,7 @@ import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.MusicDetail
 import com.fox.music.core.model.PagedData
+import com.fox.music.core.model.music.ListeningStats
 import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.model.music.Tag
 
@@ -45,6 +46,8 @@ interface MusicRepository {
     suspend fun likeMusicComment(commentId: Long): Result<Unit>
 
     suspend fun getPlayHistory(page: Int = 1, limit: Int = 20): Result<PagedData<PlayHistory>>
+
+    suspend fun getListeningStats(days: Int = 7): Result<ListeningStats>
 
     suspend fun deletePlayHistory(musicIds: List<Long>): Result<Unit>
 

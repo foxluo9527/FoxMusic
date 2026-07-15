@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 @HiltAndroidApp
 class FoxMusicApplication : Application(), Configuration.Provider {
@@ -71,6 +72,9 @@ class FoxMusicApplication : Application(), Configuration.Provider {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
         BuglyInitializer.init(this)
         LyricStyleChangeNotifier.onLyricStyleChanged = { context ->
             appScope.launch {

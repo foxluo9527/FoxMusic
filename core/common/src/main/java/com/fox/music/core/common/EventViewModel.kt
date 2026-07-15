@@ -36,6 +36,12 @@ object EventViewModel {
     )
     val notificationsUpdated = _notificationsUpdated.asSharedFlow()
 
+    /** 播放历史上报成功后发出，供「我的」页轻量刷新听歌统计 */
+    private val _listeningStatsUpdated = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 8,
+    )
+    val listeningStatsUpdated = _listeningStatsUpdated.asSharedFlow()
+
     suspend fun emitInAppNotification(event: RealtimeNotificationEvent) {
         _inAppNotificationEvents.emit(event)
     }
@@ -46,5 +52,9 @@ object EventViewModel {
 
     fun notifyNotificationsUpdated() {
         _notificationsUpdated.tryEmit(Unit)
+    }
+
+    fun notifyListeningStatsUpdated() {
+        _listeningStatsUpdated.tryEmit(Unit)
     }
 }

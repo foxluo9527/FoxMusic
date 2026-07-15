@@ -208,7 +208,10 @@ fun BilingualLyricComponent(
                 Spacer(modifier = Modifier.height(halfHeight.dp))
             }
 
-            itemsIndexed(lyrics) {index, lyricLine ->
+            itemsIndexed(
+                lyrics,
+                key = { index, lyricLine -> "${lyricLine.startTimeMs}_$index" },
+            ) { index, lyricLine ->
                 val isActive = index == currentHighlightIndex
                 BilingualLyricLineItem(
                     lyricLine = lyricLine,

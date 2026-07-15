@@ -42,11 +42,42 @@ interface DownloadDao {
         totalBytes: Long,
     )
 
+    @Query(
+        """
+        UPDATE downloads SET
+            status = :status,
+            filePath = :filePath,
+            progress = :progress,
+            downloadedBytes = :downloadedBytes,
+            totalBytes = :totalBytes
+        WHERE musicId = :musicId
+        """,
+    )
+    suspend fun updateDownloadResult(
+        musicId: Long,
+        status: String,
+        filePath: String?,
+        progress: Int,
+        downloadedBytes: Long,
+        totalBytes: Long,
+    )
+
     @Query("DELETE FROM downloads WHERE musicId = :musicId")
     suspend fun deleteByMusicId(musicId: Long)
 
     @Query("SELECT COUNT(*) FROM downloads WHERE status = 'DOWNLOADING'")
     suspend fun countDownloading(): Int
+
+    @Query("SELECT COUNT(*) FROM downloads WHERE status = 'COMPLETED'")
+    fun observeCompletedCount(): Flow<Int>
+
+    @Query(
+        """
+        SELECT filePath FROM downloads
+        WHERE musicId = :musicId AND status = 'COMPLETED' AND filePath IS NOT NULL
+        """,
+    )
+    suspend fun getCompletedFilePath(musicId: Long): String?
 
     @Query("SELECT * FROM downloads WHERE status = 'DOWNLOADING'")
     suspend fun getDownloadingDownloads(): List<DownloadEntity>

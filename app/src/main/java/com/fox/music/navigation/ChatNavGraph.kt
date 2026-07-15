@@ -18,6 +18,7 @@ import com.fox.music.feature.chat.CHAT_SETTINGS_ROUTE
 import com.fox.music.feature.chat.FRIENDS_ROUTE
 import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.chat.NOTIFICATION_CATEGORY_ROUTE
+import com.fox.music.feature.chat.NOTIFICATION_SETTINGS_ROUTE
 import com.fox.music.feature.chat.SEARCH_USER_ROUTE
 import com.fox.music.feature.chat.SELECT_FRIEND_ROUTE
 import com.fox.music.feature.chat.USER_CHAT_SEARCH_ROUTE
@@ -36,6 +37,7 @@ import com.fox.music.feature.chat.ui.screen.ChatSettingsScreen
 import com.fox.music.feature.chat.ui.screen.FriendsScreen
 import com.fox.music.feature.chat.ui.screen.MessagesScreen
 import com.fox.music.feature.chat.ui.screen.NotificationCategoryScreen
+import com.fox.music.feature.chat.ui.screen.NotificationSettingsScreen
 import com.fox.music.feature.chat.ui.screen.SearchUserScreen
 import com.fox.music.feature.chat.ui.screen.SelectFriendScreen
 import com.fox.music.feature.chat.ui.screen.UserChatSearchScreen
@@ -66,12 +68,22 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
             onNavigateToSystemAnnouncements = {
                 navController.navigate(notificationCategoryRoute("system"))
             },
+            onNavigateToNotificationSettings = {
+                navController.navigate(NOTIFICATION_SETTINGS_ROUTE)
+            },
             onNavigateToChat = { userId ->
                 navController.navigate(chatDetailRoute(userId))
             },
             onNavigateToSearch = {
                 navController.navigate(chatSearchRoute())
             },
+        )
+    }
+
+    composableStack(NOTIFICATION_SETTINGS_ROUTE) {
+        NotificationSettingsScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
         )
     }
 

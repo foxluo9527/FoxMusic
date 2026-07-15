@@ -5,7 +5,7 @@ import android.content.Intent
 import com.fox.music.MainActivity
 import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.model.music.RepeatMode
-import com.fox.music.core.network.token.TokenManager
+import com.fox.music.core.common.session.TokenManager
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.notification.FoxNotificationManager

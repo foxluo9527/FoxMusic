@@ -2,7 +2,9 @@ package com.fox.music.core.data.download
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import com.fox.music.core.common.constants.AppConstants
 import com.fox.music.core.common.util.MediaUrlResolver
 import com.fox.music.core.data.mapper.toDownloadTask
@@ -15,11 +17,13 @@ import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.download.DownloadTask
 import com.fox.music.core.model.music.Music
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -53,15 +57,28 @@ class MusicDownloadManager @Inject constructor(
     private val queueMutex = Mutex()
     private val activeJobs = ConcurrentHashMap<Long, Job>()
     private val cancelledIds = ConcurrentHashMap.newKeySet<Long>()
+    private val completedLocalPaths = ConcurrentHashMap<Long, String>()
+
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override val downloads: Flow<List<DownloadTask>> =
         downloadDao.observeAll().map { entities -> entities.map { it.toDownloadTask() } }
 
+    override val completedCount: Flow<Int> = downloadDao.observeCompletedCount()
+
     init {
         scope.launch {
+            warmCompletedLocalPathCache()
             recoverStaleDownloadingTasks()
             startNextDownloads()
         }
+        scope.launch {
+            userPreferencesRepository.userPreferences
+                .map { it.downloadOnWifiOnly }
+                .distinctUntilChanged()
+                .collect { startNextDownloads() }
+        }
+        registerNetworkCallback()
     }
 
     override suspend fun enqueue(musics: List<Music>) {
@@ -70,6 +87,9 @@ class MusicDownloadManager @Inject constructor(
             when {
                 existing?.status == DownloadStatus.COMPLETED.name -> {
                     backfillLyricsIfMissing(existing, music)
+                    existing.filePath?.takeIf { File(it).exists() }?.let {
+                        completedLocalPaths[music.id] = it
+                    }
                     continue
                 }
                 existing == null -> {
@@ -129,6 +149,7 @@ class MusicDownloadManager @Inject constructor(
         activeJobs.remove(musicId)
         val entity = downloadDao.getByMusicId(musicId) ?: return
         entity.filePath?.let { File(it).delete() }
+        completedLocalPaths.remove(musicId)
         downloadDao.deleteByMusicId(musicId)
     }
 
@@ -161,6 +182,28 @@ class MusicDownloadManager @Inject constructor(
             }
         }
         return total
+    }
+
+    override suspend fun getLocalPlayUrl(musicId: Long): String? {
+        completedLocalPaths[musicId]?.let { cached ->
+            if (File(cached).exists()) return "file://$cached"
+            completedLocalPaths.remove(musicId)
+        }
+        val path = downloadDao.getCompletedFilePath(musicId) ?: return null
+        if (!File(path).exists()) return null
+        completedLocalPaths[musicId] = path
+        return "file://$path"
+    }
+
+    private suspend fun warmCompletedLocalPathCache() {
+        downloadDao.observeAll().first()
+            .filter { it.status == DownloadStatus.COMPLETED.name && !it.filePath.isNullOrBlank() }
+            .forEach { entity ->
+                val path = entity.filePath ?: return@forEach
+                if (File(path).exists()) {
+                    completedLocalPaths[entity.musicId] = path
+                }
+            }
     }
 
     private suspend fun recoverStaleDownloadingTasks() {
@@ -213,13 +256,13 @@ class MusicDownloadManager @Inject constructor(
         val file = File(downloadDir, "${entity.musicId}.mp3")
         var downloadedBytes = if (file.exists()) file.length() else 0L
 
-        downloadDao.update(
-            entity.copy(
-                status = DownloadStatus.DOWNLOADING.name,
-                filePath = file.absolutePath,
-                downloadedBytes = downloadedBytes,
-                progress = 0,
-            ),
+        downloadDao.updateDownloadResult(
+            musicId = entity.musicId,
+            status = DownloadStatus.DOWNLOADING.name,
+            filePath = file.absolutePath,
+            progress = 0,
+            downloadedBytes = downloadedBytes,
+            totalBytes = entity.totalBytes,
         )
 
         try {
@@ -230,6 +273,12 @@ class MusicDownloadManager @Inject constructor(
             val response = downloadClient.newCall(requestBuilder.build()).execute()
             if (!response.isSuccessful && response.code != 206) {
                 throw IllegalStateException("下载失败: HTTP ${response.code}")
+            }
+
+            // 服务端忽略 Range 返回完整 200 时，必须清空后重写，避免拼接损坏
+            if (DownloadResumePolicy.shouldRestartFromBeginning(response.code, downloadedBytes)) {
+                RandomAccessFile(file, "rw").use { it.setLength(0) }
+                downloadedBytes = 0L
             }
 
             val body = response.body ?: throw IllegalStateException("响应体为空")
@@ -300,24 +349,31 @@ class MusicDownloadManager @Inject constructor(
                 }
             }
 
-            downloadDao.update(
-                entity.copy(
-                    status = DownloadStatus.COMPLETED.name,
-                    filePath = file.absolutePath,
-                    progress = 100,
-                    totalBytes = downloadedBytes,
-                    downloadedBytes = downloadedBytes,
-                ),
+            downloadDao.updateDownloadResult(
+                musicId = entity.musicId,
+                status = DownloadStatus.COMPLETED.name,
+                filePath = file.absolutePath,
+                progress = 100,
+                downloadedBytes = downloadedBytes,
+                totalBytes = downloadedBytes,
             )
+            completedLocalPaths[entity.musicId] = file.absolutePath
+        } catch (e: CancellationException) {
+            if (cancelledIds.contains(entity.musicId)) {
+                downloadDao.updateStatus(entity.musicId, DownloadStatus.PAUSED.name)
+            }
+            throw e
         } catch (_: Exception) {
             if (cancelledIds.contains(entity.musicId)) {
                 downloadDao.updateStatus(entity.musicId, DownloadStatus.PAUSED.name)
             } else {
-                downloadDao.update(
-                    entity.copy(
-                        status = DownloadStatus.FAILED.name,
-                        filePath = file.absolutePath,
-                    ),
+                downloadDao.updateDownloadResult(
+                    musicId = entity.musicId,
+                    status = DownloadStatus.FAILED.name,
+                    filePath = file.absolutePath,
+                    progress = calculateProgress(downloadedBytes, entity.totalBytes),
+                    downloadedBytes = downloadedBytes,
+                    totalBytes = entity.totalBytes,
                 )
             }
         }
@@ -358,6 +414,29 @@ class MusicDownloadManager @Inject constructor(
         val caps = cm.getNetworkCapabilities(network) ?: return false
         return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+    }
+
+    private fun registerNetworkCallback() {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                scope.launch { startNextDownloads() }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                val canUse = networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ||
+                    networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                if (canUse) {
+                    scope.launch { startNextDownloads() }
+                }
+            }
+        }
+        networkCallback = callback
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        runCatching { cm.registerNetworkCallback(request, callback) }
     }
 
     private fun downloadDir(): File = File(context.filesDir, "downloads")

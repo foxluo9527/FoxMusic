@@ -10,14 +10,21 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MessageDao {
 
+    /**
+     * 仅观察最近 [limit] 条消息（按时间升序），避免会话全量进内存。
+     */
     @Query(
         """
-        SELECT * FROM messages
-        WHERE conversationId = :conversationId
+        SELECT * FROM (
+            SELECT * FROM messages
+            WHERE conversationId = :conversationId
+            ORDER BY cachedAt DESC
+            LIMIT :limit
+        )
         ORDER BY cachedAt ASC
         """,
     )
-    fun observeMessages(conversationId: Long): Flow<List<MessageEntity>>
+    fun observeMessages(conversationId: Long, limit: Int = 120): Flow<List<MessageEntity>>
 
     @Query("SELECT * FROM messages WHERE localId = :localId LIMIT 1")
     suspend fun getMessageByLocalId(localId: String): MessageEntity?

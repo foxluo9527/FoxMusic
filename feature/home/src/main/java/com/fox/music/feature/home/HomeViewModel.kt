@@ -12,9 +12,11 @@ import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
+import com.fox.music.core.domain.usecase.GetPlayHistoryUseCase
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.model.music.Playlist
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +26,7 @@ import javax.inject.Inject
 
 data class HomeState(
     val hotKeywords: List<HotKeyword> = emptyList(),
+    val recentPlays: List<PlayHistory> = emptyList(),
     val recommendedPlaylists: List<Playlist> = emptyList(),
     val recommendedMusic: Flow<PagingData<Music>> = flowOf(),
     val recommendedAlbums: List<Album> = emptyList(),
@@ -51,10 +54,11 @@ sealed interface HomeEffect : UiEffect {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getMusicListUseCase: GetMusicListUseCase,
+    private val getPlayHistoryUseCase: GetPlayHistoryUseCase,
     private val searchRepository: SearchRepository,
     private val playlistRepository: PlaylistRepository,
     private val albumRepository: AlbumRepository,
-): MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState()) {
+) : MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState()) {
 
     private var currentMusicList: List<Music> = emptyList()
 
@@ -83,7 +87,13 @@ class HomeViewModel @Inject constructor(
 
     fun onMusicClick(music: Music) {
         val list = currentMusicList.takeIf { it.isNotEmpty() } ?: listOf(music)
-        sendEffect(HomeEffect.NavigateToMusic(music, list))
+        val fromRecent = uiState.value.recentPlays.map { it.music }
+        val playList = if (fromRecent.any { it.id == music.id }) {
+            fromRecent.ifEmpty { list }
+        } else {
+            list
+        }
+        sendEffect(HomeEffect.NavigateToMusic(music, playList))
     }
 
     fun onSearchClick() {
@@ -107,20 +117,18 @@ class HomeViewModel @Inject constructor(
             }
 
             when (val result = searchRepository.getHotKeywords(limit = 10)) {
-                is Result.Success -> {
-                    updateState { copy(hotKeywords = result.data) }
-                }
-                is Result.Error -> {}
+                is Result.Success -> updateState { copy(hotKeywords = result.data) }
+                else -> {}
+            }
+
+            when (val result = getPlayHistoryUseCase(page = 1, limit = 12)) {
+                is Result.Success -> updateState { copy(recentPlays = result.data.list) }
                 else -> {}
             }
 
             when (val result = playlistRepository.getRecommendedPlaylists(page = 1, limit = 8)) {
-                is Result.Success -> {
-                    updateState { copy(recommendedPlaylists = result.data.list) }
-                }
-                is Result.Error -> {
-                    updateState { copy(error = result.message) }
-                }
+                is Result.Success -> updateState { copy(recommendedPlaylists = result.data.list) }
+                is Result.Error -> updateState { copy(error = result.message) }
                 else -> {}
             }
 
@@ -128,16 +136,13 @@ class HomeViewModel @Inject constructor(
                 copy(
                     recommendedMusic = getMusicListUseCase.getPagingSource(
                         limit = 5,
-                        sort = "recommend"
-                    ).flow.cachedIn(viewModelScope)
+                        sort = "recommend",
+                    ).flow.cachedIn(viewModelScope),
                 )
             }
 
             when (val result = albumRepository.getAlbumList(page = 1, limit = 8, sort = "hot")) {
-                is Result.Success -> {
-                    updateState { copy(recommendedAlbums = result.data.list) }
-                }
-                is Result.Error -> {}
+                is Result.Success -> updateState { copy(recommendedAlbums = result.data.list) }
                 else -> {}
             }
 

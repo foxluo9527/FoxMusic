@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,6 +59,7 @@ fun MessagesScreen(
     onNavigateToCommentNotifications: () -> Unit = {},
     onNavigateToLikeNotifications: () -> Unit = {},
     onNavigateToSystemAnnouncements: () -> Unit = {},
+    onNavigateToNotificationSettings: () -> Unit = {},
     onNavigateToChat: (Long) -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
 ) {
@@ -78,6 +80,7 @@ fun MessagesScreen(
                 MessagesEffect.NavigateToCommentNotifications -> onNavigateToCommentNotifications()
                 MessagesEffect.NavigateToLikeNotifications -> onNavigateToLikeNotifications()
                 MessagesEffect.NavigateToSystemAnnouncements -> onNavigateToSystemAnnouncements()
+                MessagesEffect.NavigateToNotificationSettings -> onNavigateToNotificationSettings()
                 is MessagesEffect.NavigateToChat -> onNavigateToChat(effect.userId)
                 is MessagesEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
@@ -97,6 +100,9 @@ fun MessagesScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = viewModel::onNotificationSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "通知设置")
+                    }
                     IconButton(onClick = onNavigateToSearch) {
                         Icon(Icons.Default.Search, contentDescription = "搜索")
                     }

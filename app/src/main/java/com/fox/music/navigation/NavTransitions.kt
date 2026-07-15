@@ -8,9 +8,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 
 object FoxTransitions {
-    const val TAB_DURATION_MS = 150
-    const val STACK_DURATION_MS = 300
-    const val PLAYER_DURATION_MS = 700
+    const val TAB_DURATION_MS = 220
+    const val STACK_DURATION_MS = 320
+    const val PLAYER_DURATION_MS = 720
 }
 
 fun AnimatedContentTransitionScope<*>.tabEnter(): EnterTransition =

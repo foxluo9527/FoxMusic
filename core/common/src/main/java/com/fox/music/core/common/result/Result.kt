@@ -1,5 +1,7 @@
 package com.fox.music.core.common.result
 
+import kotlinx.coroutines.CancellationException
+
 sealed class Result<out T> {
     data class Success<T>(val data: T) : Result<T>()
     data class Error(val exception: Throwable, val message: String? = null) : Result<Nothing>()
@@ -55,12 +57,14 @@ sealed class Result<out T> {
 inline fun <T> runCatching(block: () -> T): Result<T> = try {
     Result.Success(block())
 } catch (e: Exception) {
+    if (e is CancellationException) throw e
     Result.Error(e, e.message)
 }
 
 suspend inline fun <T> suspendRunCatching(crossinline block: suspend () -> T): Result<T> = try {
     Result.Success(block())
 } catch (e: Exception) {
+    if (e is CancellationException) throw e
     Result.Error(e, e.message)
 }
 
@@ -73,5 +77,6 @@ suspend inline fun <T> suspendRunCatchingWithParser(
 ): Result<T> = try {
     Result.Success(block())
 } catch (e: Exception) {
+    if (e is CancellationException) throw e
     Result.Error(e, errorParser(e))
 }

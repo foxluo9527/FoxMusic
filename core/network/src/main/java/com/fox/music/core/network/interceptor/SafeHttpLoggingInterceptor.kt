@@ -11,6 +11,9 @@ import okhttp3.logging.HttpLoggingInterceptor
 class SafeHttpLoggingInterceptor : Interceptor {
 
     private val bodyLogger = HttpLoggingInterceptor().apply {
+        redactHeader("Authorization")
+        redactHeader("Cookie")
+        redactHeader("Set-Cookie")
         level = if (BuildConfig.DEBUG) {
             HttpLoggingInterceptor.Level.BODY
         } else {
@@ -19,6 +22,9 @@ class SafeHttpLoggingInterceptor : Interceptor {
     }
 
     private val headersLogger = HttpLoggingInterceptor().apply {
+        redactHeader("Authorization")
+        redactHeader("Cookie")
+        redactHeader("Set-Cookie")
         level = if (BuildConfig.DEBUG) {
             HttpLoggingInterceptor.Level.HEADERS
         } else {
@@ -34,6 +40,10 @@ class SafeHttpLoggingInterceptor : Interceptor {
 
     private fun shouldSkipBodyLogging(request: okhttp3.Request): Boolean {
         if (request.body?.contentType()?.type == "multipart") return true
-        return request.url.encodedPath.contains("/upload/")
+        val path = request.url.encodedPath
+        if (path.contains("/upload/")) return true
+        // 登录/注册等请求体含密码，仅记录 HEADERS
+        return isPublicAuthPath(path) ||
+            path.contains("/api/auth/")
     }
 }

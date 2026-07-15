@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fox.music.core.datastore.security.TokenCipher
 import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.model.user.NotificationPreferenceSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,10 +24,12 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 @Singleton
 class FoxPreferencesDataStore @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val tokenCipher: TokenCipher,
 ) {
 
     private object PreferencesKeys {
         val ACCESS_TOKEN = stringPreferencesKey("access_token")
+        val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val USER_ID = stringPreferencesKey("user_id")
         val USERNAME = stringPreferencesKey("username")
         val APPEARANCE_MODE = stringPreferencesKey("appearance_mode")
@@ -58,8 +61,13 @@ class FoxPreferencesDataStore @Inject constructor(
         val PLAYBACK_PLAYING_KEY = stringPreferencesKey("playback_playing_key")
     }
 
-    // Token flows
-    val accessToken: Flow<String?> = context.dataStore.data.map { it[PreferencesKeys.ACCESS_TOKEN] }
+    // Token flows（DataStore 中为密文，对外始终解密）
+    val accessToken: Flow<String?> = context.dataStore.data.map {
+        tokenCipher.decrypt(it[PreferencesKeys.ACCESS_TOKEN])
+    }
+    val refreshToken: Flow<String?> = context.dataStore.data.map {
+        tokenCipher.decrypt(it[PreferencesKeys.REFRESH_TOKEN])
+    }
     val isLoggedIn: Flow<Boolean> = accessToken.map { !it.isNullOrBlank() }
 
     // User info flows
@@ -101,13 +109,13 @@ class FoxPreferencesDataStore @Inject constructor(
     val themePresetId: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[PreferencesKeys.THEME_PRESET_ID]
             ?: if (prefs[PreferencesKeys.DYNAMIC_COLOR] == true) {
-                AppThemeIds.FOX_PURPLE
+                AppThemeIds.VINYL_NIGHT
             } else {
                 AppThemeIds.DEFAULT
             }
     }
     val customThemeSeed: Flow<Long> = context.dataStore.data.map {
-        it[PreferencesKeys.CUSTOM_THEME_SEED] ?: 0xFF6C63FF
+        it[PreferencesKeys.CUSTOM_THEME_SEED] ?: 0xFFE8A838
     }
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map {
         it[PreferencesKeys.DYNAMIC_COLOR] ?: false
@@ -127,17 +135,25 @@ class FoxPreferencesDataStore @Inject constructor(
     // Token operations
     suspend fun saveTokens(accessToken: String, refreshToken: String? = null) {
         context.dataStore.edit { prefs ->
-            prefs[PreferencesKeys.ACCESS_TOKEN] = accessToken
+            prefs[PreferencesKeys.ACCESS_TOKEN] = tokenCipher.encrypt(accessToken)
+            if (refreshToken.isNullOrBlank()) {
+                prefs.remove(PreferencesKeys.REFRESH_TOKEN)
+            } else {
+                prefs[PreferencesKeys.REFRESH_TOKEN] = tokenCipher.encrypt(refreshToken)
+            }
         }
     }
 
     suspend fun saveAccessToken(token: String) {
-        context.dataStore.edit { it[PreferencesKeys.ACCESS_TOKEN] = token }
+        context.dataStore.edit {
+            it[PreferencesKeys.ACCESS_TOKEN] = tokenCipher.encrypt(token)
+        }
     }
 
     suspend fun clearTokens() {
         context.dataStore.edit { prefs ->
             prefs.remove(PreferencesKeys.ACCESS_TOKEN)
+            prefs.remove(PreferencesKeys.REFRESH_TOKEN)
         }
     }
 
