@@ -20,4 +20,8 @@ interface UploadRepository {
     suspend fun uploadFile(uri: Uri, fileName: String? = null): Result<String>
 
     suspend fun uploadChatFile(uri: Uri, fileName: String? = null): Result<ChatUploadResult>
+
+    suspend fun uploadImageByUrl(url: String): Result<String>
+
+    suspend fun uploadAudioByUrl(url: String): Result<String>
 }

@@ -38,7 +38,11 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
-    
+
+    // Paging3
+    implementation(libs.paging)
+    implementation(libs.paging.compose)
+
     // Coroutines
     implementation(libs.bundles.coroutines)
     

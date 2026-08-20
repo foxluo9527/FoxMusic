@@ -1,5 +1,6 @@
 package com.fox.music.feature.search
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.LinearEasing
@@ -20,9 +21,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Autorenew
@@ -48,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,7 +58,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
-import com.fox.music.core.ui.component.SearchBar
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.HotKeyword
@@ -64,9 +66,11 @@ import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.ui.component.AlbumListItem
 import com.fox.music.core.ui.component.ArtistListItem
+import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.core.ui.component.SearchBar
 
 const val SEARCH_ROUTE = "search"
 
@@ -95,6 +99,20 @@ fun SearchScreen(
     val artistResults = state.artistResults.collectAsLazyPagingItems()
     val albumResults = state.albumResults.collectAsLazyPagingItems()
     val playlistKey = SEARCH_ROUTE + "-${state.query}"
+    val focusManager = LocalFocusManager.current
+    val showRecommendPanel = state.showRecommendPanel
+    val canDismissToResults = state.hasSearched && state.isSearchFocused
+
+    fun handleBack() {
+        if (canDismissToResults) {
+            focusManager.clearFocus()
+            viewModel.sendIntent(SearchIntent.FocusChanged(false))
+        } else {
+            onBack()
+        }
+    }
+
+    BackHandler(onBack = { handleBack() })
 
     LaunchedEffect(musicResults.itemCount) {
         if (state.hasSearched && state.selectedTab == SearchResultTab.MUSIC) {
@@ -112,6 +130,7 @@ fun SearchScreen(
 
                 is SearchEffect.NavigateToArtist -> onArtistClick(effect.artistId)
                 is SearchEffect.NavigateToAlbum -> onAlbumClick(effect.album)
+                SearchEffect.ClearSearchFocus -> focusManager.clearFocus()
             }
         }
     }
@@ -140,10 +159,13 @@ fun SearchScreen(
                         query = state.query,
                         onQueryChange = { viewModel.sendIntent(SearchIntent.QueryChange(it)) },
                         onSearch = { viewModel.sendIntent(SearchIntent.Search) },
+                        onFocusChanged = {
+                            viewModel.sendIntent(SearchIntent.FocusChanged(it))
+                        },
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { handleBack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
@@ -155,7 +177,9 @@ fun SearchScreen(
                 ),
             )
 
-            if (state.hasSearched) {
+            val showResultsChrome = state.hasSearched && !showRecommendPanel
+
+            if (showResultsChrome) {
                 ScrollableTabRow(
                     selectedTabIndex = searchTabs.indexOfFirst { it.first == state.selectedTab }
                         .coerceAtLeast(0),
@@ -173,7 +197,7 @@ fun SearchScreen(
                 }
             }
 
-            if (state.hasSearched && state.selectedTab == SearchResultTab.MUSIC) {
+            if (showResultsChrome && state.selectedTab == SearchResultTab.MUSIC) {
                 MusicPlatformSelector(
                     selected = state.selectedMusicPlatform,
                     onSelect = { viewModel.sendIntent(SearchIntent.SelectMusicPlatform(it)) },
@@ -183,19 +207,32 @@ fun SearchScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
-                    !state.hasSearched -> SearchSuggestionsContent(
+                    showRecommendPanel -> RecommendOrSuggestContent(
+                        query = state.query,
                         suggestions = state.suggestions,
                         hotKeywords = state.hotKeywords,
                         hotKeywordsHasMore = state.hotKeywordsHasMore,
                         isLoadingHotKeywords = state.isLoadingHotKeywords,
                         searchHistory = state.searchHistory,
                         isHistoryExpanded = state.isHistoryExpanded,
-                        onHotKeywordClick = { viewModel.sendIntent(SearchIntent.SelectHotKeyword(it)) },
-                        onRefreshHotKeywords = { viewModel.sendIntent(SearchIntent.RefreshHotKeywords) },
-                        onHistoryClick = { viewModel.sendIntent(SearchIntent.SelectHistory(it)) },
-                        onSuggestClick = { viewModel.sendIntent(SearchIntent.SelectHistory(it)) },
-                        onToggleHistoryExpanded = { viewModel.sendIntent(SearchIntent.ToggleHistoryExpanded) },
-                        onClearHistory = { viewModel.sendIntent(SearchIntent.ClearHistory) },
+                        onHotKeywordClick = {
+                            viewModel.sendIntent(SearchIntent.SelectHotKeyword(it))
+                        },
+                        onRefreshHotKeywords = {
+                            viewModel.sendIntent(SearchIntent.RefreshHotKeywords)
+                        },
+                        onHistoryClick = {
+                            viewModel.sendIntent(SearchIntent.SelectHistory(it))
+                        },
+                        onSuggestClick = {
+                            viewModel.sendIntent(SearchIntent.SelectSuggest(it))
+                        },
+                        onToggleHistoryExpanded = {
+                            viewModel.sendIntent(SearchIntent.ToggleHistoryExpanded)
+                        },
+                        onClearHistory = {
+                            viewModel.sendIntent(SearchIntent.ClearHistory)
+                        },
                     )
 
                     state.selectedTab == SearchResultTab.MUSIC -> MusicSearchResults(
@@ -243,7 +280,8 @@ private fun MusicPlatformSelector(
 }
 
 @Composable
-private fun SearchSuggestionsContent(
+private fun RecommendOrSuggestContent(
+    query: String,
     suggestions: List<SearchSuggest>,
     hotKeywords: List<HotKeyword>,
     hotKeywordsHasMore: Boolean,
@@ -253,7 +291,115 @@ private fun SearchSuggestionsContent(
     onHotKeywordClick: (String) -> Unit,
     onRefreshHotKeywords: () -> Unit,
     onHistoryClick: (String) -> Unit,
-    onSuggestClick: (String) -> Unit,
+    onSuggestClick: (SearchSuggest) -> Unit,
+    onToggleHistoryExpanded: () -> Unit,
+    onClearHistory: () -> Unit,
+) {
+    when {
+        suggestions.isNotEmpty() -> SearchSuggestList(
+            suggestions = suggestions,
+            onSuggestClick = onSuggestClick,
+        )
+
+        query.trim().length < 2 -> SearchRecommendContent(
+            hotKeywords = hotKeywords,
+            hotKeywordsHasMore = hotKeywordsHasMore,
+            isLoadingHotKeywords = isLoadingHotKeywords,
+            searchHistory = searchHistory,
+            isHistoryExpanded = isHistoryExpanded,
+            onHotKeywordClick = onHotKeywordClick,
+            onRefreshHotKeywords = onRefreshHotKeywords,
+            onHistoryClick = onHistoryClick,
+            onToggleHistoryExpanded = onToggleHistoryExpanded,
+            onClearHistory = onClearHistory,
+        )
+
+        else -> {
+            // 已触发建议请求但返回空：清空上一屏推荐内容
+            Box(modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+@Composable
+private fun SearchSuggestList(
+    suggestions: List<SearchSuggest>,
+    onSuggestClick: (SearchSuggest) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        items(
+            items = suggestions,
+            key = { "${it.type}_${it.id}_${it.text}" },
+        ) { suggest ->
+            SearchSuggestRow(
+                suggest = suggest,
+                onClick = { onSuggestClick(suggest) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchSuggestRow(
+    suggest: SearchSuggest,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CachedImage(
+            imageUrl = suggest.cover,
+            contentDescription = suggest.text,
+            modifier = Modifier.size(48.dp),
+            shape = MaterialTheme.shapes.small,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = suggest.text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = suggestTypeLabel(suggest.type),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun suggestTypeLabel(type: String): String = when (type.lowercase()) {
+    "music" -> "音乐"
+    "artist" -> "艺人"
+    "album" -> "专辑"
+    "video" -> "视频"
+    "novel" -> "小说"
+    "post" -> "动态"
+    else -> type.ifBlank { "搜索" }
+}
+
+@Composable
+private fun SearchRecommendContent(
+    hotKeywords: List<HotKeyword>,
+    hotKeywordsHasMore: Boolean,
+    isLoadingHotKeywords: Boolean,
+    searchHistory: List<SearchHistory>,
+    isHistoryExpanded: Boolean,
+    onHotKeywordClick: (String) -> Unit,
+    onRefreshHotKeywords: () -> Unit,
+    onHistoryClick: (String) -> Unit,
     onToggleHistoryExpanded: () -> Unit,
     onClearHistory: () -> Unit,
 ) {
@@ -272,19 +418,6 @@ private fun SearchSuggestionsContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        if (suggestions.isNotEmpty()) {
-            SearchSuggestionSection(
-                title = "猜你想搜",
-                trailingContent = {},
-            ) {
-                TwoColumnKeywordGrid(
-                    keywords = suggestions.map { it.text },
-                    maxRows = 4,
-                    onKeywordClick = onSuggestClick,
-                )
-            }
-        }
-
         if (searchHistory.isNotEmpty()) {
             SearchSuggestionSection(
                 title = "搜索历史",

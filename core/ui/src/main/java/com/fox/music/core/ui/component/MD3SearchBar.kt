@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.sp
  * @param placeholder 提示文本
  * @param suggestions 搜索建议列表
  * @param onSuggestionClick 建议项点击回调
+ * @param onFocusChanged 输入框焦点变化回调
  * @param variant 搜索框样式变体
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,12 +81,17 @@ fun SearchBar(
     placeholder: String = "搜索...",
     suggestions: List<SearchSuggestion> = emptyList(),
     onSuggestionClick: (SearchSuggestion) -> Unit = {},
+    onFocusChanged: (Boolean) -> Unit = {},
     variant: SearchBarVariant = SearchBarVariant.Filled,
 ) {
     val focusRequester = remember {FocusRequester()}
     val focusManager = LocalFocusManager.current
     val interactionSource = remember {MutableInteractionSource()}
     val isFocused by interactionSource.collectIsFocusedAsState()
+
+    LaunchedEffect(isFocused) {
+        onFocusChanged(isFocused)
+    }
 
     val showSuggestions by remember(
         query,

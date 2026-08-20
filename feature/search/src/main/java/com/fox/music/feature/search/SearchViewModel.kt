@@ -7,14 +7,15 @@ import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
+import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.usecase.ClearSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.GetHotKeywordsUseCase
+import com.fox.music.core.domain.usecase.GetMusicDetailUseCase
 import com.fox.music.core.domain.usecase.GetSearchAlbumPagingUseCase
 import com.fox.music.core.domain.usecase.GetSearchArtistPagingUseCase
 import com.fox.music.core.domain.usecase.GetSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.GetSearchMusicPagingUseCase
 import com.fox.music.core.domain.usecase.SaveSearchHistoryUseCase
-import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.HotKeyword
@@ -58,13 +59,20 @@ data class SearchState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val hasSearched: Boolean = false,
-) : UiState
+    val isSearchFocused: Boolean = false,
+) : UiState {
+    /** 聚焦或尚未搜索时展示推荐/建议面板；失焦且已搜索时展示结果 */
+    val showRecommendPanel: Boolean
+        get() = isSearchFocused || !hasSearched
+}
 
 sealed interface SearchIntent : UiIntent {
     data class QueryChange(val query: String) : SearchIntent
     data object Search : SearchIntent
     data class SelectHistory(val keyword: String) : SearchIntent
     data class SelectHotKeyword(val keyword: String) : SearchIntent
+    data class SelectSuggest(val suggest: SearchSuggest) : SearchIntent
+    data class FocusChanged(val focused: Boolean) : SearchIntent
     data class SelectTab(val tab: SearchResultTab) : SearchIntent
     data class SelectMusicPlatform(val platform: SearchMusicPlatform) : SearchIntent
     data object ToggleHistoryExpanded : SearchIntent
@@ -76,6 +84,8 @@ sealed interface SearchEffect : UiEffect {
     data class NavigateToMusic(val music: Music, val musicList: List<Music>) : SearchEffect
     data class NavigateToArtist(val artistId: Long) : SearchEffect
     data class NavigateToAlbum(val album: Album) : SearchEffect
+    /** 请求 UI 清除搜索框焦点（收起软键盘） */
+    data object ClearSearchFocus : SearchEffect
 }
 
 @HiltViewModel
@@ -87,6 +97,7 @@ class SearchViewModel @Inject constructor(
     private val saveSearchHistoryUseCase: SaveSearchHistoryUseCase,
     private val clearSearchHistoryUseCase: ClearSearchHistoryUseCase,
     private val getHotKeywordsUseCase: GetHotKeywordsUseCase,
+    private val getMusicDetailUseCase: GetMusicDetailUseCase,
     private val searchRepository: SearchRepository,
 ) : MviViewModel<SearchState, SearchIntent, SearchEffect>(SearchState()) {
 
@@ -126,16 +137,34 @@ class SearchViewModel @Inject constructor(
                 scheduleSuggest(intent.query)
             }
             SearchIntent.Search -> {
-                updateState { copy(suggestions = emptyList()) }
+                updateState { copy(suggestions = emptyList(), isSearchFocused = false) }
                 performSearch()
             }
             is SearchIntent.SelectHistory -> {
-                updateState { copy(query = intent.keyword, suggestions = emptyList()) }
+                updateState {
+                    copy(
+                        query = intent.keyword,
+                        suggestions = emptyList(),
+                        isSearchFocused = false,
+                    )
+                }
                 performSearch(keyword = intent.keyword)
+                sendEffect(SearchEffect.ClearSearchFocus)
             }
             is SearchIntent.SelectHotKeyword -> {
-                updateState { copy(query = intent.keyword, suggestions = emptyList()) }
+                updateState {
+                    copy(
+                        query = intent.keyword,
+                        suggestions = emptyList(),
+                        isSearchFocused = false,
+                    )
+                }
                 performSearch(keyword = intent.keyword)
+                sendEffect(SearchEffect.ClearSearchFocus)
+            }
+            is SearchIntent.SelectSuggest -> selectSuggest(intent.suggest)
+            is SearchIntent.FocusChanged -> {
+                updateState { copy(isSearchFocused = intent.focused) }
             }
             is SearchIntent.SelectTab -> updateState { copy(selectedTab = intent.tab) }
             is SearchIntent.SelectMusicPlatform -> {
@@ -169,6 +198,69 @@ class SearchViewModel @Inject constructor(
         sendEffect(SearchEffect.NavigateToAlbum(album))
     }
 
+    private fun selectSuggest(suggest: SearchSuggest) {
+        val type = suggest.type.lowercase()
+        when {
+            type == "artist" && suggest.id > 0 -> {
+                updateState { copy(isSearchFocused = false, suggestions = emptyList()) }
+                sendEffect(SearchEffect.ClearSearchFocus)
+                sendEffect(SearchEffect.NavigateToArtist(suggest.id))
+            }
+            type == "album" && suggest.id > 0 -> {
+                updateState { copy(isSearchFocused = false, suggestions = emptyList()) }
+                sendEffect(SearchEffect.ClearSearchFocus)
+                sendEffect(
+                    SearchEffect.NavigateToAlbum(
+                        Album(
+                            id = suggest.id,
+                            title = suggest.text,
+                            coverImage = suggest.cover,
+                        )
+                    )
+                )
+            }
+            (type == "music" || type.isBlank()) && suggest.id > 0 -> {
+                viewModelScope.launch {
+                    getMusicDetailUseCase(suggest.id)
+                        .onSuccess { detail ->
+                            updateState {
+                                copy(isSearchFocused = false, suggestions = emptyList())
+                            }
+                            sendEffect(SearchEffect.ClearSearchFocus)
+                            sendEffect(
+                                SearchEffect.NavigateToMusic(
+                                    music = detail.music,
+                                    musicList = listOf(detail.music),
+                                )
+                            )
+                        }
+                        .onError { _, _ ->
+                            updateState {
+                                copy(
+                                    query = suggest.text,
+                                    suggestions = emptyList(),
+                                    isSearchFocused = false,
+                                )
+                            }
+                            performSearch(keyword = suggest.text)
+                            sendEffect(SearchEffect.ClearSearchFocus)
+                        }
+                }
+            }
+            else -> {
+                updateState {
+                    copy(
+                        query = suggest.text,
+                        suggestions = emptyList(),
+                        isSearchFocused = false,
+                    )
+                }
+                performSearch(keyword = suggest.text)
+                sendEffect(SearchEffect.ClearSearchFocus)
+            }
+        }
+    }
+
     private fun performSearch(
         keyword: String? = null,
         platform: SearchMusicPlatform? = null
@@ -182,6 +274,7 @@ class SearchViewModel @Inject constructor(
             updateState {
                 copy(
                     hasSearched = true,
+                    isSearchFocused = false,
                     selectedTab = SearchResultTab.MUSIC,
                     selectedMusicPlatform = selectedPlatform,
                 )

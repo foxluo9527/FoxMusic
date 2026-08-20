@@ -5,6 +5,7 @@ import com.fox.music.core.network.model.ImportChartsBatchDto
 import com.fox.music.core.network.model.ImportChartsRequest
 import com.fox.music.core.network.model.ImportMusicRequest
 import com.fox.music.core.network.model.ImportMusicResponse
+import kotlinx.serialization.json.JsonElement
 import retrofit2.http.Body
 import retrofit2.http.POST
 
@@ -27,5 +28,14 @@ interface ImportApiService {
     suspend fun importNeteaseCharts(
         @Body body: ImportChartsRequest
     ): ApiResponse<ImportChartsBatchDto>
+
+    /**
+     * 同步热门歌单（后台任务）
+     * POST /api/import/hot-playlists
+     */
+    @POST("/api/import/hot-playlists")
+    suspend fun importHotPlaylists(
+        @Body body: ImportChartsRequest
+    ): ApiResponse<JsonElement?>
 }
 

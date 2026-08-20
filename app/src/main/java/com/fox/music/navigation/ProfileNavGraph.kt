@@ -16,7 +16,9 @@ import com.fox.music.feature.auth.ui.screen.LoginScreen
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
+import com.fox.music.feature.player.ui.screen.MANAGE_SEARCH_ROUTE
 import com.fox.music.feature.player.ui.screen.ManageScreen
+import com.fox.music.feature.player.ui.screen.ManageSearchScreen
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.profile.ui.screen.DESKTOP_LYRIC_SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.DESKTOP_WIDGET_ROUTE
@@ -163,9 +165,20 @@ fun NavGraphBuilder.profileNavGraph(
     }
 
     composableStack(MANAGE_ROUTER) {
-        ManageScreen(Modifier.fillMaxSize()) {
-            navController.popBackStack()
-        }
+        ManageScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+            onAddMusic = { navController.navigate(MANAGE_SEARCH_ROUTE) },
+            onLogin = { navController.navigate(LOGIN_ROUTE) },
+        )
+    }
+
+    composableStack(MANAGE_SEARCH_ROUTE) {
+        ManageSearchScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+            onLogin = { navController.navigate(LOGIN_ROUTE) },
+        )
     }
 
     composableStack(LOGIN_ROUTE) {

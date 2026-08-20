@@ -2,7 +2,10 @@ package com.fox.music.feature.player.ui.component
 
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +25,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,6 +41,7 @@ import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.RepeatMode
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.PostImagePreviewDialog
 import com.fox.music.feature.player.R
 
 /**
@@ -41,6 +49,7 @@ import com.fox.music.feature.player.R
  *    Date   : 2026/2/4
  *    Desc   :
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SharedTransitionScope.SongPage(
     modifier: Modifier,
@@ -51,6 +60,16 @@ fun SharedTransitionScope.SongPage(
     onFavoriteClick: (Long?) -> Unit = {},
     onClickLyric: () -> Unit = {}
 ) {
+    var previewCoverUrl by remember { mutableStateOf<String?>(null) }
+
+    previewCoverUrl?.let { url ->
+        PostImagePreviewDialog(
+            images = listOf(url),
+            initialIndex = 0,
+            onDismiss = { previewCoverUrl = null },
+        )
+    }
+
     Column(
         modifier
     ) {
@@ -62,19 +81,6 @@ fun SharedTransitionScope.SongPage(
         ) {
             playerState.currentMusic?.let {music ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CachedImage(
-                        imageUrl = music.coverImage,
-                        contentDescription = music.title,
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .aspectRatio(1f)
-                            .sharedElement(
-                                rememberSharedContentState(key = "music-image-${music.id}"),
-                                animatedVisibilityScope = animatedContentScope
-                            ),
-                        shape = MaterialTheme.shapes.large
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
                     Column(
                         Modifier.sharedElement(
                             rememberSharedContentState(key = "music-title-${music.id}"),
@@ -96,6 +102,29 @@ fun SharedTransitionScope.SongPage(
                             color = contrastColor
                         )
                     }
+                    Spacer(modifier = Modifier.height(20.dp))
+                    CachedImage(
+                        imageUrl = music.coverImage,
+                        contentDescription = music.title,
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .aspectRatio(1f)
+                            .sharedElement(
+                                rememberSharedContentState(key = "music-image-${music.id}"),
+                                animatedVisibilityScope = animatedContentScope
+                            )
+                            .combinedClickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {},
+                                onLongClick = {
+                                    music.coverImage.takeIf { it?.isNotBlank() == true }?.let {
+                                        previewCoverUrl = it
+                                    }
+                                },
+                            ),
+                        shape = MaterialTheme.shapes.large
+                    )
                     Column(
                         Modifier
                             .clickable {
@@ -115,7 +144,7 @@ fun SharedTransitionScope.SongPage(
                                 fontSize = 17.sp,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
-                                    .padding(top = 30.dp),
+                                    .padding(top = 24.dp),
                                 color = contrastColor
                             )
                         }

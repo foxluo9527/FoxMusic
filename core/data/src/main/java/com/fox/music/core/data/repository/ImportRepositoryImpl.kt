@@ -2,9 +2,11 @@ package com.fox.music.core.data.repository
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
+import com.fox.music.core.domain.repository.ImportChartsResult
 import com.fox.music.core.domain.repository.ImportMusicResponse
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.network.api.ImportApiService
+import com.fox.music.core.network.model.ImportChartsRequest
 import com.fox.music.core.network.model.ImportMusicRequest
 import javax.inject.Inject
 
@@ -26,6 +28,37 @@ class ImportRepositoryImpl @Inject constructor(
                 )
             } else {
                 throw IllegalStateException(response.message)
+            }
+        }
+    }
+
+    override suspend fun importNeteaseCharts(platform: String?): Result<ImportChartsResult> {
+        return suspendRunCatching {
+            val response = importApiService.importNeteaseCharts(
+                ImportChartsRequest(platform = platform)
+            )
+            val data = response.data
+            if (response.isSuccess && data != null) {
+                ImportChartsResult(
+                    total = data.total,
+                    successCount = data.successCount,
+                    failedCount = data.failedCount,
+                )
+            } else {
+                throw IllegalStateException(response.message.ifBlank { "更新排行榜失败" })
+            }
+        }
+    }
+
+    override suspend fun importHotPlaylists(platform: String?): Result<String> {
+        return suspendRunCatching {
+            val response = importApiService.importHotPlaylists(
+                ImportChartsRequest(platform = platform)
+            )
+            if (response.isSuccess) {
+                response.message.ifBlank { "热门歌单同步任务已启动，正在后台处理" }
+            } else {
+                throw IllegalStateException(response.message.ifBlank { "更新热门歌单失败" })
             }
         }
     }

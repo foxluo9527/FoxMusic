@@ -61,9 +61,9 @@ class AdminMusicRepositoryImpl @Inject constructor(
                     },
                 )
             )
-            val data = response.data
+            // Server may return a partial/non-MusicDto payload in data; treat isSuccess like the HTML client.
             if (response.isSuccess) {
-                data?.toMusic() ?: Music(
+                Music(
                     id = 0L,
                     title = input.title,
                     url = input.url,

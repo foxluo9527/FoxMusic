@@ -7,16 +7,19 @@ import com.fox.music.core.model.music.Music
 
 class PlayHistoryPagingSource(
     private val musicRepository: MusicRepository,
+    private val knownTotalProvider: () -> Int = { 0 },
 ) : PagingSource<Int, Music>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Music> {
         return try {
             val page = params.key ?: 1
-            val pageSize = params.loadSize
-
-            val result = musicRepository.getPlayHistory(page = page, limit = pageSize)
-            val pagedData = result.getOrNull()
-                ?: throw result.exceptionOrNull() ?: Exception("加载播放历史失败")
+            val pagedData = loadPagedPreferFull(
+                page = page,
+                requestedLimit = params.loadSize,
+                knownTotal = knownTotalProvider(),
+            ) { p, limit ->
+                musicRepository.getPlayHistory(page = p, limit = limit).getOrThrow()
+            }
 
             val prevKey = if (page > 1) page - 1 else null
             val nextKey = if (pagedData.hasMore) page + 1 else null

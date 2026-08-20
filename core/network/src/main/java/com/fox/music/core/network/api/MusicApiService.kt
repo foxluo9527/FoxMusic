@@ -1,7 +1,24 @@
 package com.fox.music.core.network.api
 
-import com.fox.music.core.network.model.*
-import retrofit2.http.*
+import com.fox.music.core.network.model.ApiResponse
+import com.fox.music.core.network.model.CommentDto
+import com.fox.music.core.network.model.CreateAdminMusicRequest
+import com.fox.music.core.network.model.DeleteHistoryRequest
+import com.fox.music.core.network.model.ListeningStatsDto
+import com.fox.music.core.network.model.MusicDto
+import com.fox.music.core.network.model.PagedResponse
+import com.fox.music.core.network.model.PlayHistoryDto
+import com.fox.music.core.network.model.PlayRecordRequest
+import com.fox.music.core.network.model.PostCommentRequest
+import com.fox.music.core.network.model.TagDto
+import kotlinx.serialization.json.JsonElement
+import retrofit2.http.Body
+import retrofit2.http.DELETE
+import retrofit2.http.GET
+import retrofit2.http.HTTP
+import retrofit2.http.POST
+import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface MusicApiService {
 
@@ -78,4 +95,19 @@ interface MusicApiService {
 
     @GET("api/tags/music")
     suspend fun getMusicTags(): ApiResponse<List<TagDto>>
+
+    @GET("api/admin/music")
+    suspend fun getAdminMusicList(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20,
+        @Query("keyword") keyword: String? = null,
+    ): ApiResponse<PagedResponse<MusicDto>>
+
+    @DELETE("api/admin/music/{id}")
+    suspend fun deleteAdminMusic(@Path("id") id: Long): ApiResponse<Unit>
+
+    @POST("api/admin/music")
+    suspend fun createAdminMusic(
+        @Body body: CreateAdminMusicRequest
+    ): ApiResponse<JsonElement?>
 }

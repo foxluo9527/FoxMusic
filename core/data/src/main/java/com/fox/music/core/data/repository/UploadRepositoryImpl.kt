@@ -79,6 +79,27 @@ class UploadRepositoryImpl @Inject constructor(
             }
         }
 
+    override suspend fun uploadImageByUrl(url: String): Result<String> =
+        uploadByUrl(url) { uploadApi.uploadImageByUrl(it) }
+
+    override suspend fun uploadAudioByUrl(url: String): Result<String> =
+        uploadByUrl(url) { uploadApi.uploadAudioByUrl(it) }
+
+    private suspend fun uploadByUrl(
+        url: String,
+        apiCall: suspend (com.fox.music.core.network.model.UploadByUrlRequest) ->
+        com.fox.music.core.network.model.ApiResponse<com.fox.music.core.network.model.UploadFileDto>,
+    ): Result<String> = suspendRunCatchingWithParser(ErrorParser::parseError) {
+        if (url.isBlank()) throw IllegalArgumentException("URL 为空")
+        val response = apiCall(com.fox.music.core.network.model.UploadByUrlRequest(url = url))
+        val uploaded = response.data?.url
+        if (response.isSuccess && !uploaded.isNullOrBlank()) {
+            uploaded
+        } else {
+            throw Exception(response.message.ifBlank { "上传失败" })
+        }
+    }
+
     private suspend fun upload(
         uri: Uri,
         compressImage: Boolean = false,

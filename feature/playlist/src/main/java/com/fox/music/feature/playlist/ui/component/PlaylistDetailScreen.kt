@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -262,28 +263,47 @@ fun PlaylistDetailScreen(
             }
 
             else -> {
-                CollectionDetailContent(
-                    state = state,
-                    pagingItems = pagingItems,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    onMusicClick = { music ->
-                        viewModel.onMusicClick(music, pagingItems.itemSnapshotList.items)
-                    },
-                    onPlayAll = { viewModel.sendIntent(PlaylistDetailIntent.PlayAll) },
-                    onToggleFavorite = { viewModel.sendIntent(PlaylistDetailIntent.ToggleFavorite) },
-                    onMusicMoreClick = onMusicMoreClick,
-                    onArtistClick = onArtistClick,
-                    onEnterSelectionMode = { musicId ->
-                        viewModel.sendIntent(PlaylistDetailIntent.EnterSelectionMode(musicId))
-                    },
-                    onToggleSelection = { musicId ->
-                        viewModel.sendIntent(PlaylistDetailIntent.ToggleSelection(musicId))
+                var isUserRefresh by remember { mutableStateOf(false) }
+                LaunchedEffect(pagingItems.loadState.refresh) {
+                    if (pagingItems.loadState.refresh !is LoadState.Loading) {
+                        isUserRefresh = false
+                    }
+                }
+                val isPagingRefreshing = pagingItems.loadState.refresh is LoadState.Loading &&
+                    (isUserRefresh || pagingItems.itemCount > 0)
+                PullToRefreshBox(
+                    isRefreshing = isPagingRefreshing,
+                    onRefresh = {
+                        isUserRefresh = true
+                        viewModel.sendIntent(PlaylistDetailIntent.Refresh)
+                        pagingItems.refresh()
                     },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                )
+                ) {
+                    CollectionDetailContent(
+                        state = state,
+                        pagingItems = pagingItems,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        onMusicClick = { music ->
+                            viewModel.onMusicClick(music, pagingItems.itemSnapshotList.items)
+                        },
+                        onPlayAll = { viewModel.sendIntent(PlaylistDetailIntent.PlayAll) },
+                        onToggleFavorite = { viewModel.sendIntent(PlaylistDetailIntent.ToggleFavorite) },
+                        onMusicMoreClick = onMusicMoreClick,
+                        onArtistClick = onArtistClick,
+                        onEnterSelectionMode = { musicId ->
+                            viewModel.sendIntent(PlaylistDetailIntent.EnterSelectionMode(musicId))
+                        },
+                        onToggleSelection = { musicId ->
+                            viewModel.sendIntent(PlaylistDetailIntent.ToggleSelection(musicId))
+                        },
+                        suppressRefreshIndicator = isPagingRefreshing,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }
@@ -333,6 +353,7 @@ private fun CollectionDetailContent(
     onArtistClick: (Long) -> Unit,
     onEnterSelectionMode: (Long) -> Unit,
     onToggleSelection: (Long) -> Unit,
+    suppressRefreshIndicator: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -412,9 +433,11 @@ private fun CollectionDetailContent(
             }
         }
 
-        // 加载状态处理
+        // 加载状态处理（下拉刷新时由 PullToRefreshBox 展示指示器）
         when {
-            pagingItems.loadState.refresh is LoadState.Loading -> {
+            pagingItems.loadState.refresh is LoadState.Loading &&
+                pagingItems.itemCount == 0 &&
+                !suppressRefreshIndicator -> {
                 item {
                     Box(
                         modifier = Modifier

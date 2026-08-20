@@ -7,6 +7,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.blankj.utilcode.util.TimeUtils
+import com.fox.music.core.common.constants.AppConstants
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
@@ -37,8 +38,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
 /**
@@ -106,6 +111,7 @@ data class PlaylistDetailState(
 
 sealed interface PlaylistDetailIntent : UiIntent {
     data object LoadHeader: PlaylistDetailIntent
+    data object Refresh : PlaylistDetailIntent
     data object PlayAll: PlaylistDetailIntent
     data object ToggleFavorite: PlaylistDetailIntent
     data object DeletePlaylist : PlaylistDetailIntent
@@ -185,7 +191,27 @@ class PlaylistDetailViewModel @Inject constructor(
         _playlistKey.value = recommendPlaylistKey(seed)
     }
 
-    // 歌曲列表分页数据
+    /** 详情头或首屏响应中已知的歌曲总数；用于尽量一次拉全列表 */
+    private val knownTrackCount = AtomicInteger(0)
+    private val _knownTrackCountFlow = MutableStateFlow<Int?>(null)
+
+    private fun updateKnownTrackCount(count: Int) {
+        if (count > 0) {
+            knownTrackCount.set(count)
+        }
+        _knownTrackCountFlow.value = count.coerceAtLeast(0)
+    }
+
+    private fun pagingConfigForKnownTotal(total: Int): PagingConfig {
+        val pageSize = total.takeIf { it > 0 } ?: AppConstants.PAGE_SIZE
+        return PagingConfig(
+            pageSize = pageSize,
+            enablePlaceholders = false,
+            initialLoadSize = pageSize,
+        )
+    }
+
+    // 歌曲列表分页数据：能拿到总数时按总数一次加载
     val tracks: Flow<PagingData<Music>> by lazy {
         when (detailType) {
             DetailType.NEW_MUSIC, DetailType.RECOMMEND -> {
@@ -201,51 +227,60 @@ class PlaylistDetailViewModel @Inject constructor(
             }
 
             DetailType.FAVORITE_MUSIC -> {
-                Pager(
-                    config = PagingConfig(
-                        pageSize = 20,
-                        enablePlaceholders = false,
-                        initialLoadSize = 20,
-                    ),
-                    pagingSourceFactory = {
-                        FavoriteMusicPagingSource(
-                            favoriteRepository = favoriteRepository,
-                        )
-                    },
-                ).flow.cachedIn(viewModelScope)
+                _knownTrackCountFlow
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .flatMapLatest { total ->
+                        Pager(
+                            config = pagingConfigForKnownTotal(total),
+                            pagingSourceFactory = {
+                                FavoriteMusicPagingSource(
+                                    favoriteRepository = favoriteRepository,
+                                    knownTotalProvider = { knownTrackCount.get() },
+                                )
+                            },
+                        ).flow
+                    }
+                    .cachedIn(viewModelScope)
             }
 
             DetailType.PLAY_HISTORY -> {
-                Pager(
-                    config = PagingConfig(
-                        pageSize = 20,
-                        enablePlaceholders = false,
-                        initialLoadSize = 20,
-                    ),
-                    pagingSourceFactory = {
-                        PlayHistoryPagingSource(
-                            musicRepository = musicRepository,
-                        )
-                    },
-                ).flow.cachedIn(viewModelScope)
+                _knownTrackCountFlow
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .flatMapLatest { total ->
+                        Pager(
+                            config = pagingConfigForKnownTotal(total),
+                            pagingSourceFactory = {
+                                PlayHistoryPagingSource(
+                                    musicRepository = musicRepository,
+                                    knownTotalProvider = { knownTrackCount.get() },
+                                )
+                            },
+                        ).flow
+                    }
+                    .cachedIn(viewModelScope)
             }
 
             else -> {
-                Pager(
-                    config = PagingConfig(
-                        pageSize = 20,
-                        enablePlaceholders = false,
-                        initialLoadSize = 20
-                    ),
-                    pagingSourceFactory = {
-                        CollectionDetailPagingSource(
-                            playlistRepository = playlistRepository,
-                            albumRepository = albumRepository,
-                            detailId = detailId,
-                            detailType = detailType
-                        )
+                _knownTrackCountFlow
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .flatMapLatest { total ->
+                        Pager(
+                            config = pagingConfigForKnownTotal(total),
+                            pagingSourceFactory = {
+                                CollectionDetailPagingSource(
+                                    playlistRepository = playlistRepository,
+                                    albumRepository = albumRepository,
+                                    detailId = detailId,
+                                    detailType = detailType,
+                                    knownTotalProvider = { knownTrackCount.get() },
+                                )
+                            },
+                        ).flow
                     }
-                ).flow.cachedIn(viewModelScope)
+                    .cachedIn(viewModelScope)
             }
         }
     }
@@ -277,6 +312,7 @@ class PlaylistDetailViewModel @Inject constructor(
     override fun handleIntent(intent: PlaylistDetailIntent) {
         when (intent) {
             PlaylistDetailIntent.LoadHeader -> loadHeader()
+            PlaylistDetailIntent.Refresh -> loadHeader(isRefresh = true)
             PlaylistDetailIntent.PlayAll -> playAll()
             PlaylistDetailIntent.ToggleFavorite -> toggleFavorite()
             PlaylistDetailIntent.DeletePlaylist -> deletePlaylist()
@@ -402,16 +438,25 @@ class PlaylistDetailViewModel @Inject constructor(
         currentTrackList = list
     }
 
-    private fun loadHeader() {
+    private fun loadHeader(isRefresh: Boolean = false) {
         viewModelScope.launch {
-            updateState { copy(isLoading = true, error = null) }
+            updateState {
+                copy(
+                    isLoading = if (isRefresh && headerInfo != null) isLoading else true,
+                    error = null,
+                )
+            }
             when(detailType) {
                 DetailType.PLAYLIST -> {
                     getPlaylistDetailUseCase(detailId, 1, 1).onSuccess {detail ->
                         val headerInfo =
                             HeaderInfo.fromPlaylist(detail.playlist, DetailType.PLAYLIST)
+                        updateKnownTrackCount(
+                            maxOf(detail.playlist.trackCount, detail.tracks.total)
+                        )
                         updateState {copy(headerInfo = headerInfo, isLoading = false)}
                     }.onError {_, msg ->
+                        updateKnownTrackCount(0)
                         updateState {copy(isLoading = false, error = msg ?: "加载失败")}
                     }
                 }
@@ -419,8 +464,12 @@ class PlaylistDetailViewModel @Inject constructor(
                 DetailType.ALBUM -> {
                     getAlbumDetailUseCase(detailId, 1, 1).onSuccess {detail ->
                         val headerInfo = HeaderInfo.fromAlbum(detail.album)
+                        updateKnownTrackCount(
+                            maxOf(detail.album.trackCount, detail.tracks.total)
+                        )
                         updateState {copy(headerInfo = headerInfo, isLoading = false)}
                     }.onError {_, msg ->
+                        updateKnownTrackCount(0)
                         updateState {copy(isLoading = false, error = msg ?: "加载失败")}
                     }
                 }
@@ -428,8 +477,12 @@ class PlaylistDetailViewModel @Inject constructor(
                 DetailType.RANK -> {
                     getRankDetailUseCase(detailId, 1, 1).onSuccess {detail ->
                         val headerInfo = HeaderInfo.fromPlaylist(detail.playlist, DetailType.RANK)
+                        updateKnownTrackCount(
+                            maxOf(detail.playlist.trackCount, detail.tracks.total)
+                        )
                         updateState {copy(headerInfo = headerInfo, isLoading = false)}
                     }.onError {_, msg ->
+                        updateKnownTrackCount(0)
                         updateState {copy(isLoading = false, error = msg ?: "加载失败")}
                     }
                 }
@@ -475,6 +528,7 @@ class PlaylistDetailViewModel @Inject constructor(
                 DetailType.FAVORITE_MUSIC -> {
                     favoriteRepository.getFavoriteMusics(page = 1, limit = 1)
                         .onSuccess { data ->
+                            updateKnownTrackCount(data.total)
                             updateState {
                                 copy(
                                     headerInfo = HeaderInfo(
@@ -493,6 +547,7 @@ class PlaylistDetailViewModel @Inject constructor(
                             }
                         }
                         .onError { _, msg ->
+                            updateKnownTrackCount(0)
                             updateState {
                                 copy(
                                     headerInfo = HeaderInfo(
@@ -516,6 +571,7 @@ class PlaylistDetailViewModel @Inject constructor(
                 DetailType.PLAY_HISTORY -> {
                     musicRepository.getPlayHistory(page = 1, limit = 1)
                         .onSuccess { data ->
+                            updateKnownTrackCount(data.total)
                             updateState {
                                 copy(
                                     headerInfo = HeaderInfo(
@@ -534,6 +590,7 @@ class PlaylistDetailViewModel @Inject constructor(
                             }
                         }
                         .onError { _, msg ->
+                            updateKnownTrackCount(0)
                             updateState {
                                 copy(
                                     headerInfo = HeaderInfo(
