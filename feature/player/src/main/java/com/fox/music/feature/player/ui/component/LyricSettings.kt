@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,7 +40,10 @@ import com.fox.music.feature.player.lyric.ui.LyricSettingsExt.setListener
  */
 @OptIn(UnstableApi::class)
 @Composable
-fun LyricSettings(modifier: Modifier = Modifier) {
+fun LyricSettings(
+    modifier: Modifier = Modifier,
+    onCustomLyricClick: () -> Unit = {},
+) {
     val lyricSyncManager = remember {LyricSyncManager.getInstance()}
     val isDesktopLyricEnabled by lyricSyncManager.isDesktopLyricEnabled.collectAsState()
     val isDesktopLyricLocked by lyricSyncManager.isDesktopLyricLocked.collectAsState()
@@ -51,6 +57,22 @@ fun LyricSettings(modifier: Modifier = Modifier) {
                 }
             }
         }, modifier = Modifier.fillMaxWidth())
+        Row(
+            Modifier
+                .padding(top = 10.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .clickable { onCustomLyricClick() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("歌词纠正")
+            Spacer(Modifier.weight(1f))
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+        }
         Row(
             Modifier
                 .padding(top = 10.dp)

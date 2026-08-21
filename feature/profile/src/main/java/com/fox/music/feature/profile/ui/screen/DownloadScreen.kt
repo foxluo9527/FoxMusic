@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,7 +37,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.StrokeCap
+import com.fox.music.core.ui.component.FoxIndeterminateLinearProgress
+import com.fox.music.core.ui.component.FoxLinearProgress
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -273,19 +273,13 @@ private fun DownloadTaskItem(
                     else -> null
                 }
                 if (progressFraction != null) {
-                    LinearProgressIndicator(
+                    FoxLinearProgress(
                         progress = { progressFraction },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        strokeCap = StrokeCap.Butt,
-                        drawStopIndicator = {},
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 } else if (task.status == DownloadStatus.DOWNLOADING) {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
+                    FoxIndeterminateLinearProgress(
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }

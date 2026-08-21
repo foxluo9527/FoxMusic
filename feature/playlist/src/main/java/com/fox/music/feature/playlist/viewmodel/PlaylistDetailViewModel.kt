@@ -18,6 +18,8 @@ import com.fox.music.core.domain.paging.PlayHistoryPagingSource
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
 import com.fox.music.core.domain.repository.MusicRepository
+import com.fox.music.core.domain.repository.PlaylistImportProgress
+import com.fox.music.core.domain.repository.PlaylistImportProgressRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.UserPreferencesRepository
@@ -107,6 +109,7 @@ data class PlaylistDetailState(
     val detailType: DetailType = DetailType.PLAYLIST,
     val isSelectionMode: Boolean = false,
     val selectedMusicIds: Set<Long> = emptySet(),
+    val importProgress: PlaylistImportProgress? = null,
 ) : UiState
 
 sealed interface PlaylistDetailIntent : UiIntent {
@@ -123,6 +126,10 @@ sealed interface PlaylistDetailIntent : UiIntent {
     data object RemoveSelectedFromPlaylist : PlaylistDetailIntent
     data object AddSelectedToPlaylist : PlaylistDetailIntent
     data object DownloadSelected : PlaylistDetailIntent
+    data object PauseImport : PlaylistDetailIntent
+    data object ResumeImport : PlaylistDetailIntent
+    data object RetryImport : PlaylistDetailIntent
+    data object CancelFailedImport : PlaylistDetailIntent
 }
 
 sealed interface PlaylistDetailEffect : UiEffect {
@@ -153,6 +160,7 @@ class PlaylistDetailViewModel @Inject constructor(
     private val removeTracksFromPlaylistUseCase: RemoveTracksFromPlaylistUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val recommendedMusicCacheManager: RecommendedMusicCacheManager,
+    private val playlistImportProgressRepository: PlaylistImportProgressRepository,
 ) : MviViewModel<PlaylistDetailState, PlaylistDetailIntent, PlaylistDetailEffect>(PlaylistDetailState()) {
 
     /** 仅当前用户创建的歌单展示管理菜单 */
@@ -307,6 +315,44 @@ class PlaylistDetailViewModel @Inject constructor(
                 }
             }
         }
+        if (detailType == DetailType.PLAYLIST && detailId > 0L) {
+            viewModelScope.launch {
+                var hadActiveImport = false
+                var lastDone = 0
+                playlistImportProgressRepository.observe(detailId).collect { progress ->
+                    if (progress != null) {
+                        hadActiveImport = true
+                        // 重试批次会把 done 清零，需重置基准
+                        if (progress.done < lastDone) {
+                            lastDone = progress.done
+                        }
+                        val doneDelta = progress.done - lastDone
+                        lastDone = progress.done
+                        updateState {
+                            val header = if (doneDelta > 0) {
+                                headerInfo?.copy(trackCount = headerInfo.trackCount + doneDelta)
+                            } else {
+                                headerInfo
+                            }
+                            copy(importProgress = progress, headerInfo = header)
+                        }
+                        if (doneDelta > 0) {
+                            val total = uiState.value.headerInfo?.trackCount ?: 0
+                            if (total > 0) updateKnownTrackCount(total)
+                            // 静默刷新列表，不触发下拉刷新动画
+                            sendEffect(PlaylistDetailEffect.RefreshTracks)
+                        }
+                    } else if (hadActiveImport) {
+                        hadActiveImport = false
+                        lastDone = 0
+                        updateState { copy(importProgress = null) }
+                        sendEffect(PlaylistDetailEffect.RefreshTracks)
+                    } else {
+                        updateState { copy(importProgress = null) }
+                    }
+                }
+            }
+        }
     }
 
     override fun handleIntent(intent: PlaylistDetailIntent) {
@@ -324,6 +370,22 @@ class PlaylistDetailViewModel @Inject constructor(
             PlaylistDetailIntent.RemoveSelectedFromPlaylist -> removeSelectedFromPlaylist()
             PlaylistDetailIntent.AddSelectedToPlaylist -> addSelectedToPlaylist()
             PlaylistDetailIntent.DownloadSelected -> downloadSelected()
+            PlaylistDetailIntent.PauseImport -> {
+                val jobId = uiState.value.importProgress?.jobId ?: return
+                viewModelScope.launch { playlistImportProgressRepository.pause(jobId) }
+            }
+            PlaylistDetailIntent.ResumeImport -> {
+                val jobId = uiState.value.importProgress?.jobId ?: return
+                viewModelScope.launch { playlistImportProgressRepository.resume(jobId) }
+            }
+            PlaylistDetailIntent.RetryImport -> {
+                val jobId = uiState.value.importProgress?.jobId ?: return
+                viewModelScope.launch { playlistImportProgressRepository.retryFailed(jobId) }
+            }
+            PlaylistDetailIntent.CancelFailedImport -> {
+                val jobId = uiState.value.importProgress?.jobId ?: return
+                viewModelScope.launch { playlistImportProgressRepository.cancelFailed(jobId) }
+            }
         }
     }
 

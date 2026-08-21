@@ -28,7 +28,9 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -68,6 +70,7 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.DeletePlaylistConfirmDialog
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxLinearProgress
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
 import com.fox.music.core.ui.component.MusicSelectionBottomBar
@@ -270,7 +273,7 @@ fun PlaylistDetailScreen(
                     }
                 }
                 val isPagingRefreshing = pagingItems.loadState.refresh is LoadState.Loading &&
-                    (isUserRefresh || pagingItems.itemCount > 0)
+                    isUserRefresh
                 PullToRefreshBox(
                     isRefreshing = isPagingRefreshing,
                     onRefresh = {
@@ -299,6 +302,18 @@ fun PlaylistDetailScreen(
                         },
                         onToggleSelection = { musicId ->
                             viewModel.sendIntent(PlaylistDetailIntent.ToggleSelection(musicId))
+                        },
+                        onPauseImport = {
+                            viewModel.sendIntent(PlaylistDetailIntent.PauseImport)
+                        },
+                        onResumeImport = {
+                            viewModel.sendIntent(PlaylistDetailIntent.ResumeImport)
+                        },
+                        onRetryImport = {
+                            viewModel.sendIntent(PlaylistDetailIntent.RetryImport)
+                        },
+                        onCancelFailedImport = {
+                            viewModel.sendIntent(PlaylistDetailIntent.CancelFailedImport)
                         },
                         suppressRefreshIndicator = isPagingRefreshing,
                         modifier = Modifier.fillMaxSize(),
@@ -353,6 +368,10 @@ private fun CollectionDetailContent(
     onArtistClick: (Long) -> Unit,
     onEnterSelectionMode: (Long) -> Unit,
     onToggleSelection: (Long) -> Unit,
+    onPauseImport: () -> Unit = {},
+    onResumeImport: () -> Unit = {},
+    onRetryImport: () -> Unit = {},
+    onCancelFailedImport: () -> Unit = {},
     suppressRefreshIndicator: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -385,6 +404,81 @@ private fun CollectionDetailContent(
                     onToggleFavorite = onToggleFavorite,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
+            }
+        }
+
+        state.importProgress?.takeIf {
+            it.status in listOf("queued", "running", "paused", "needs_retry")
+        }?.let { progress ->
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        val processed = (progress.done + progress.failed).coerceAtMost(progress.total)
+                        val fraction = if (progress.total > 0) {
+                            val inFlight = if (!progress.currentTitle.isNullOrBlank() &&
+                                progress.status == "running"
+                            ) {
+                                0.5f
+                            } else {
+                                0f
+                            }
+                            ((processed.toFloat() + inFlight) / progress.total.toFloat())
+                                .coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+                        val titleText = when (progress.status) {
+                            "paused" -> "导入已暂停 $processed/${progress.total}"
+                            "needs_retry" -> "剩余 ${progress.failed} 首导入失败"
+                            else -> "正在导入 $processed/${progress.total}"
+                        }
+                        Text(
+                            text = titleText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (progress.status == "needs_retry") {
+                            Text(
+                                text = "取消",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .clickable(onClick = onCancelFailedImport),
+                            )
+                        } else {
+                            progress.currentTitle?.takeIf { it.isNotBlank() }?.let { title ->
+                                Text(
+                                    text = "当前：$title",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            FoxLinearProgress(
+                                progress = fraction,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                    }
+                    when (progress.status) {
+                        "needs_retry" -> IconButton(onClick = onRetryImport) {
+                            Icon(Icons.Default.Refresh, contentDescription = "重试失败歌曲")
+                        }
+                        "paused" -> IconButton(onClick = onResumeImport) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "继续导入")
+                        }
+                        else -> IconButton(onClick = onPauseImport) {
+                            Icon(Icons.Default.Pause, contentDescription = "暂停导入")
+                        }
+                    }
+                }
             }
         }
 

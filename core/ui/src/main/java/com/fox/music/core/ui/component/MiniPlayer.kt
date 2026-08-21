@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -230,13 +229,12 @@ fun MiniPlayer(
                         )
                     }
                 }
-                LinearProgressIndicator(
+                FoxLinearProgress(
                     progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(2.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                    height = 2.dp,
                 )
             }
         }

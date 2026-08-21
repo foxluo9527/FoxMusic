@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fox.music.core.database.FoxMusicDatabase
 import com.fox.music.core.database.dao.ConversationDao
 import com.fox.music.core.database.dao.DownloadDao
+import com.fox.music.core.database.dao.ImportJobDao
 import com.fox.music.core.database.dao.MessageDao
 import com.fox.music.core.database.dao.MusicDao
 import com.fox.music.core.database.dao.PlaylistDao
@@ -121,7 +122,6 @@ object DatabaseModule {
         }
     }
 
-    /** v6→v7 schema 无表变更，保留空迁移以支持连续升级路径。 */
     private val MIGRATION_6_7 = object : Migration(6, 7) {
         override fun migrate(db: SupportSQLiteDatabase) = Unit
     }
@@ -138,6 +138,71 @@ object DatabaseModule {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `downloads` ADD COLUMN `lyrics` TEXT")
             db.execSQL("ALTER TABLE `downloads` ADD COLUMN `lyricsTrans` TEXT")
+        }
+    }
+
+    private val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `import_playlist_jobs` (
+                  `jobId` TEXT NOT NULL PRIMARY KEY,
+                  `playlistId` INTEGER NOT NULL,
+                  `playlistTitle` TEXT NOT NULL,
+                  `status` TEXT NOT NULL,
+                  `total` INTEGER NOT NULL,
+                  `done` INTEGER NOT NULL,
+                  `failed` INTEGER NOT NULL,
+                  `createdAt` INTEGER NOT NULL,
+                  `updatedAt` INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_import_playlist_jobs_status` ON `import_playlist_jobs` (`status`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_import_playlist_jobs_createdAt` ON `import_playlist_jobs` (`createdAt`)",
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `import_track_jobs` (
+                  `trackJobId` TEXT NOT NULL PRIMARY KEY,
+                  `jobId` TEXT NOT NULL,
+                  `playlistId` INTEGER NOT NULL,
+                  `trackIndex` INTEGER NOT NULL,
+                  `title` TEXT NOT NULL,
+                  `artistNames` TEXT NOT NULL,
+                  `durationMs` INTEGER NOT NULL,
+                  `coverUrl` TEXT,
+                  `externalId` TEXT,
+                  `status` TEXT NOT NULL,
+                  `detailUrl` TEXT,
+                  `matchScore` INTEGER NOT NULL,
+                  `titleRaw` TEXT,
+                  `errorMessage` TEXT,
+                  `musicId` INTEGER,
+                  `createdAt` INTEGER NOT NULL,
+                  `updatedAt` INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_import_track_jobs_jobId_trackIndex` ON `import_track_jobs` (`jobId`, `trackIndex`)",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_import_track_jobs_status` ON `import_track_jobs` (`status`)",
+            )
+        }
+    }
+
+    private val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `import_playlist_jobs` ADD COLUMN `platform` TEXT")
+            db.execSQL("ALTER TABLE `import_track_jobs` ADD COLUMN `albumName` TEXT")
+            db.execSQL("ALTER TABLE `import_track_jobs` ADD COLUMN `albumCover` TEXT")
+            db.execSQL("ALTER TABLE `import_track_jobs` ADD COLUMN `platform` TEXT")
+            db.execSQL("ALTER TABLE `import_track_jobs` ADD COLUMN `rejectedLinksJson` TEXT")
         }
     }
 
@@ -160,6 +225,8 @@ object DatabaseModule {
                 MIGRATION_6_7,
                 MIGRATION_7_8,
                 MIGRATION_8_9,
+                MIGRATION_9_10,
+                MIGRATION_10_11,
             )
             .build()
     }
@@ -184,4 +251,7 @@ object DatabaseModule {
 
     @Provides
     fun provideDownloadDao(database: FoxMusicDatabase): DownloadDao = database.downloadDao()
+
+    @Provides
+    fun provideImportJobDao(database: FoxMusicDatabase): ImportJobDao = database.importJobDao()
 }

@@ -6,6 +6,7 @@ import androidx.room.TypeConverters
 import com.fox.music.core.database.converter.Converters
 import com.fox.music.core.database.dao.ConversationDao
 import com.fox.music.core.database.dao.DownloadDao
+import com.fox.music.core.database.dao.ImportJobDao
 import com.fox.music.core.database.dao.MessageDao
 import com.fox.music.core.database.dao.MusicDao
 import com.fox.music.core.database.dao.PlaylistDao
@@ -13,6 +14,8 @@ import com.fox.music.core.database.dao.SearchHistoryDao
 import com.fox.music.core.database.dao.UserDao
 import com.fox.music.core.database.entity.ConversationEntity
 import com.fox.music.core.database.entity.DownloadEntity
+import com.fox.music.core.database.entity.ImportPlaylistJobEntity
+import com.fox.music.core.database.entity.ImportTrackJobEntity
 import com.fox.music.core.database.entity.MessageEntity
 import com.fox.music.core.database.entity.MusicEntity
 import com.fox.music.core.database.entity.PlaylistEntity
@@ -28,8 +31,10 @@ import com.fox.music.core.database.entity.UserEntity
         ConversationEntity::class,
         SearchHistoryEntity::class,
         DownloadEntity::class,
+        ImportPlaylistJobEntity::class,
+        ImportTrackJobEntity::class,
     ],
-    version = 9,
+    version = 11,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -42,4 +47,5 @@ abstract class FoxMusicDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
 
     abstract fun downloadDao(): DownloadDao
+    abstract fun importJobDao(): ImportJobDao
 }

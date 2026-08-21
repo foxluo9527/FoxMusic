@@ -1,6 +1,7 @@
 package com.fox.music.core.network.api
 
 import com.fox.music.core.network.model.*
+import kotlinx.serialization.json.JsonElement
 import retrofit2.http.*
 
 interface PlaylistApiService {
@@ -43,6 +44,12 @@ interface PlaylistApiService {
         @Path("id") id: Long,
         @Body request: AddTracksRequest
     ): ApiResponse<Unit>
+
+    @POST("api/playlists/{id}/import-session")
+    suspend fun updateImportSession(
+        @Path("id") id: Long,
+        @Body request: ImportSessionRequest,
+    ): ApiResponse<JsonElement?>
 
     @DELETE("api/playlists/{id}/tracks/{musicId}")
     suspend fun removeTrack(

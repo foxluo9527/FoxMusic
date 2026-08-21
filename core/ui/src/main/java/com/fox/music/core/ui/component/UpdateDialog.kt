@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,12 +73,9 @@ fun UpdateDialog(
                 if (isDownloading) {
                     Spacer(modifier = Modifier.height(12.dp))
                     if (downloadIndeterminate) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        FoxIndeterminateLinearProgress()
                     } else {
-                        LinearProgressIndicator(
-                            progress = { downloadProgress / 100f },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        FoxLinearProgress(progress = { downloadProgress / 100f })
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(

@@ -2,6 +2,7 @@ package com.fox.music.core.data.repository
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
+import com.fox.music.core.common.result.suspendRunCatchingWithParser
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.data.mapper.toPlaylist
 import com.fox.music.core.data.mapper.toPlaylistCategory
@@ -12,6 +13,7 @@ import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.PlaylistCategory
 import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.core.network.api.PlaylistApiService
+import com.fox.music.core.network.util.ErrorParser
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,7 +48,7 @@ class PlaylistRepositoryImpl @Inject constructor(
         coverImage: String?,
         isPublic: Boolean,
         tagIds: List<Long>?
-    ): Result<Playlist> = suspendRunCatching {
+    ): Result<Playlist> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         val response = playlistApi.createPlaylist(
             com.fox.music.core.network.model.CreatePlaylistRequest(
                 title = title,
@@ -59,7 +61,7 @@ class PlaylistRepositoryImpl @Inject constructor(
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPlaylist()
-        } else throw Exception(response.message)
+        } else throw Exception(response.message.ifBlank { "创建歌单失败" })
     }
 
     override suspend fun updatePlaylist(
@@ -69,7 +71,7 @@ class PlaylistRepositoryImpl @Inject constructor(
         coverImage: String?,
         isPublic: Boolean?,
         tagIds: List<Long>?
-    ): Result<Playlist> = suspendRunCatching {
+    ): Result<Playlist> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         val response = playlistApi.updatePlaylist(
             id,
             com.fox.music.core.network.model.UpdatePlaylistRequest(
@@ -83,7 +85,7 @@ class PlaylistRepositoryImpl @Inject constructor(
         val data = response.data
         if (response.isSuccess && data != null) {
             data.toPlaylist()
-        } else throw Exception(response.message)
+        } else throw Exception(response.message.ifBlank { "更新歌单失败" })
     }
 
     override suspend fun deletePlaylist(id: Long): Result<Unit> = suspendRunCatching {

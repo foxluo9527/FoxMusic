@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.source
 import java.io.File
@@ -82,16 +83,39 @@ class UploadRepositoryImpl @Inject constructor(
     override suspend fun uploadImageByUrl(url: String): Result<String> =
         uploadByUrl(url) { uploadApi.uploadImageByUrl(it) }
 
-    override suspend fun uploadAudioByUrl(url: String): Result<String> =
-        uploadByUrl(url) { uploadApi.uploadAudioByUrl(it) }
+    override suspend fun uploadAudioByUrl(url: String, referer: String?): Result<String> =
+        uploadByUrl(url, referer) { uploadApi.uploadAudioByUrl(it) }
+
+    override suspend fun uploadAudioFile(file: File, fileName: String?): Result<String> =
+        suspendRunCatchingWithParser(ErrorParser::parseError) {
+            val name = fileName?.takeIf { it.isNotBlank() } ?: file.name
+            val mime = when {
+                name.endsWith(".mp3", true) -> "audio/mpeg"
+                name.endsWith(".flac", true) -> "audio/flac"
+                name.endsWith(".wav", true) -> "audio/wav"
+                else -> "audio/mp4"
+            }
+            val body = file.asRequestBody(mime.toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("file", name, body)
+            val response = uploadApi.uploadAudio(part)
+            val url = response.data?.url
+            if (response.isSuccess && !url.isNullOrBlank()) {
+                url
+            } else {
+                throw Exception(response.message.ifBlank { "上传失败" })
+            }
+        }
 
     private suspend fun uploadByUrl(
         url: String,
+        referer: String? = null,
         apiCall: suspend (com.fox.music.core.network.model.UploadByUrlRequest) ->
         com.fox.music.core.network.model.ApiResponse<com.fox.music.core.network.model.UploadFileDto>,
     ): Result<String> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         if (url.isBlank()) throw IllegalArgumentException("URL 为空")
-        val response = apiCall(com.fox.music.core.network.model.UploadByUrlRequest(url = url))
+        val response = apiCall(
+            com.fox.music.core.network.model.UploadByUrlRequest(url = url, referer = referer),
+        )
         val uploaded = response.data?.url
         if (response.isSuccess && !uploaded.isNullOrBlank()) {
             uploaded

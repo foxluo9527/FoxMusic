@@ -533,6 +533,7 @@ class MusicControllerImpl @Inject constructor(
         } else if (state.playlist !== currentPlaylist) {
             _playerState.value = state.copy(playlist = currentPlaylist)
         }
+        persistPlaybackState()
     }
 
     private fun syncExoToAnchor(player: Player) {

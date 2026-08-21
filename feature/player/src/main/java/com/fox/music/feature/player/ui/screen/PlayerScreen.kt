@@ -51,6 +51,7 @@ import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.ImageWithPaletteColors
 import com.fox.music.core.ui.component.TabSwitch
 import com.fox.music.feature.player.lyric.manager.LyricStyleManager
+import com.fox.music.feature.player.ui.component.CustomLyricSelectorSheet
 import com.fox.music.feature.player.ui.component.LyricPage
 import com.fox.music.feature.player.ui.component.LyricSettings
 import com.fox.music.feature.player.ui.component.PlaylistBottomSheet
@@ -98,6 +99,7 @@ fun PlayerScreen(
     var showLyricSettings by remember {mutableStateOf(false)}
     var showPlaylistSheet by remember {mutableStateOf(false)}
     var showCommentSheet by remember {mutableStateOf(false)}
+    var showCustomLyricSelector by remember {mutableStateOf(false)}
 
     // 获取当前 Window 以控制状态栏
     val view = LocalView.current
@@ -127,7 +129,6 @@ fun PlayerScreen(
         Box(
             modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                 .background(MaterialTheme.colorScheme.background)
         ) {
             Box(
@@ -138,8 +139,7 @@ fun PlayerScreen(
                             key = "player-blur-bg-${playerState.currentMusic?.id}",
                         ),
                         animatedVisibilityScope = animatedContentScope,
-                    )
-                    .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)),
+                    ),
             ) {
                 ImageWithPaletteColors(
                     modifier = Modifier.fillMaxSize(),
@@ -243,7 +243,11 @@ fun PlayerScreen(
                         Modifier
                             .fillMaxWidth()
                             .background(Color.White.copy(alpha = 0.3f))
-                            .padding(vertical = 8.dp)
+                            .padding(vertical = 8.dp),
+                        onCustomLyricClick = {
+                            showLyricSettings = false
+                            showCustomLyricSelector = true
+                        }
                     )
                 }
             }
@@ -266,6 +270,22 @@ fun PlayerScreen(
                     showCommentSheet = false
                 }
             )
+        }
+
+        // 自定义歌词选择
+        if (showCustomLyricSelector) {
+            val music = playerState.currentMusic
+            if (music != null) {
+                val artistName = music.artists.joinToString(" / ") { it.name }
+                CustomLyricSelectorSheet(
+                    searchKeyword = music.title,
+                    musicTitle = music.title,
+                    artistName = artistName,
+                    style = currentStyle,
+                    musicController = musicController,
+                    onDismiss = { showCustomLyricSelector = false }
+                )
+            }
         }
     }
 }

@@ -575,14 +575,14 @@ private fun ReplyInputField(
             .fillMaxWidth()
             .padding(12.dp)
             .height(44.dp)
-            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
             .clickable { showInputDialog = true },
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
             text = if (replyToUserName != null) "回复: $replyToUserName" else "输入评论内容...",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 16.dp)
         )
     }

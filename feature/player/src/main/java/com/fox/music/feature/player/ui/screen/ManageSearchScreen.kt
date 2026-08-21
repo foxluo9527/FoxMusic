@@ -26,7 +26,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -53,6 +52,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxLinearProgress
 import com.fox.music.core.ui.component.InputDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.SearchBar
@@ -234,11 +234,10 @@ fun ManageSearchScreen(
                     Text(progress.message, style = MaterialTheme.typography.bodyMedium)
                     if (progress.total > 0) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        LinearProgressIndicator(
+                        FoxLinearProgress(
                             progress = {
                                 progress.current.toFloat() / progress.total.toFloat()
                             },
-                            modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -465,10 +464,7 @@ private fun PreviewMiniBar(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { progress.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            FoxLinearProgress(progress = { progress.coerceIn(0f, 1f) })
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${formatMs(preview.positionMs)} / ${formatMs(preview.durationMs)}",

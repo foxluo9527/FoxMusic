@@ -74,6 +74,13 @@
             android:stopWithTask="false"
             android:foregroundServiceType="remoteMessaging|dataSync" />
 
+        <!-- WorkManager 前台 Worker（歌单导入等）需声明 dataSync，否则 API 34+ 会崩溃 -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:exported="false"

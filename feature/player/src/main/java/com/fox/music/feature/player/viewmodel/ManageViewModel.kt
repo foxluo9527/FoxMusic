@@ -16,6 +16,7 @@ import com.fox.music.core.model.music.Music
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -72,16 +73,21 @@ class ManageViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            tokenManager.isLoggedIn.collectLatest { loggedIn ->
-                updateState { copy(isLoggedIn = loggedIn) }
-                if (loggedIn) {
-                    reloadPaging(currentState.appliedQuery)
-                } else {
-                    updateState {
-                        copy(musicPaging = flowOf(PagingData.empty()))
+            tokenManager.isLoggedIn
+                .distinctUntilChanged()
+                .collectLatest { loggedIn ->
+                    updateState { copy(isLoggedIn = loggedIn) }
+                    if (loggedIn) {
+                        reloadPaging(currentState.appliedQuery)
+                    } else {
+                        updateState {
+                            copy(
+                                musicPaging = flowOf(PagingData.empty()),
+                                listRefreshKey = listRefreshKey + 1,
+                            )
+                        }
                     }
                 }
-            }
         }
     }
 

@@ -14,6 +14,7 @@ import com.fox.music.core.network.api.PlaylistApiService
 import com.fox.music.core.network.api.ReportApiService
 import com.fox.music.core.network.api.SearchApiService
 import com.fox.music.core.network.api.SocialApiService
+import com.fox.music.core.network.api.SourceLinkApiService
 import com.fox.music.core.network.api.UploadApiService
 import com.fox.music.core.network.interceptor.AuthInterceptor
 import com.fox.music.core.network.interceptor.SafeHttpLoggingInterceptor
@@ -130,6 +131,11 @@ object NetworkModule {
     @Singleton
     fun provideImportApiService(retrofit: Retrofit): ImportApiService =
         retrofit.create(ImportApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideSourceLinkApiService(retrofit: Retrofit): SourceLinkApiService =
+        retrofit.create(SourceLinkApiService::class.java)
 
     @Provides
     @Singleton

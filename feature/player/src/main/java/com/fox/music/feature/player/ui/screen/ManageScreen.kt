@@ -385,69 +385,71 @@ private fun ManageMusicList(
     onDelete: (Music) -> Unit,
 ) {
     val musicItems = musicPaging.collectAsLazyPagingItems()
+    val refresh = musicItems.loadState.refresh
 
-    when (val refresh = musicItems.loadState.refresh) {
-        is LoadState.Loading -> {
+    when {
+        refresh is LoadState.Loading && musicItems.itemCount == 0 -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 LoadingIndicator()
             }
         }
-        is LoadState.Error -> {
+        refresh is LoadState.Error && musicItems.itemCount == 0 -> {
             ErrorView(
                 message = refresh.error.message ?: "加载失败",
                 onRetry = { musicItems.retry() },
                 modifier = Modifier.fillMaxSize(),
             )
         }
+        musicItems.itemCount == 0 -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "暂无音乐",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         else -> {
-            if (musicItems.itemCount == 0) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "暂无音乐",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(
+                    count = musicItems.itemCount,
+                    key = { index ->
+                        musicItems.peek(index)?.let { "${it.id}_${it.sourceId}" } ?: "idx_$index"
+                    },
+                ) { index ->
+                    val music = musicItems[index] ?: return@items
+                    ManageMusicRow(
+                        music = music,
+                        onDelete = { onDelete(music) },
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    items(
-                        count = musicItems.itemCount,
-                        key = { index -> musicItems.peek(index)?.id ?: index },
-                    ) { index ->
-                        val music = musicItems[index] ?: return@items
-                        ManageMusicRow(
-                            music = music,
-                            onDelete = { onDelete(music) },
-                        )
-                    }
-                    item {
-                        when (musicItems.loadState.append) {
-                            is LoadState.Loading -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                                }
+                item {
+                    when (musicItems.loadState.append) {
+                        is LoadState.Loading -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
                             }
-                            is LoadState.Error -> {
-                                TextButton(
-                                    onClick = { musicItems.retry() },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text("加载失败，点击重试")
-                                }
-                            }
-                            else -> Unit
                         }
+                        is LoadState.Error -> {
+                            TextButton(
+                                onClick = { musicItems.retry() },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("加载失败，点击重试")
+                            }
+                        }
+                        else -> Unit
                     }
                 }
             }

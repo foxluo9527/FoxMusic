@@ -238,7 +238,8 @@ fun MainScreen(
             if (inputDialogType == "create") {
                 viewModel.createPlaylist(inputValue)
             } else {
-                viewModel.importPlaylist(inputValue)
+                val encoded = java.net.URLEncoder.encode(inputValue.trim(), Charsets.UTF_8.name())
+                navController.navigate(com.fox.music.ui.importplaylist.importPlaylistSelectRoute(encoded))
             }
             showInputDialog = false
             inputValue = ""

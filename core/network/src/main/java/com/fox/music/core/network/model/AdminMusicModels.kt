@@ -32,4 +32,5 @@ data class CreateAdminArtistRequest(
 data class UploadByUrlRequest(
     val url: String,
     val filename: String? = null,
+    val referer: String? = null,
 )

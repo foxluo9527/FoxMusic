@@ -24,6 +24,10 @@ import com.fox.music.feature.playlist.ui.screen.playlistEditRoute
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
 import com.fox.music.core.model.music.DetailType
+import com.fox.music.feature.home.HOME_ROUTE
+import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
+import com.fox.music.ui.importplaylist.IMPORT_PLAYLIST_SELECT_ROUTE
+import com.fox.music.ui.importplaylist.ImportPlaylistSelectScreen
 
 fun NavGraphBuilder.musicNavGraph(
     context: NavGraphContext,
@@ -191,6 +195,26 @@ fun NavGraphBuilder.musicNavGraph(
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onSaved = context.onProfileRefreshKeyIncrement,
+        )
+    }
+
+    composableStack(
+        route = IMPORT_PLAYLIST_SELECT_ROUTE,
+        arguments = listOf(
+            navArgument("url") { type = NavType.StringType },
+        ),
+    ) {
+        ImportPlaylistSelectScreen(
+            onBack = { navController.popBackStack() },
+            onNavigateToPlaylist = { playlistId ->
+                navController.navigate(playlistDetailRoute(playlistId)) {
+                    popUpTo(HOME_ROUTE) { inclusive = false }
+                }
+            },
+            onMessage = { msg ->
+                // Toast via utilcodex if available in app
+                com.blankj.utilcode.util.ToastUtils.showShort(msg)
+            },
         )
     }
 }

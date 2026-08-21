@@ -10,6 +10,7 @@ import com.fox.music.core.data.repository.AuthRepositoryImpl
 import com.fox.music.core.data.repository.ChatRepositoryImpl
 import com.fox.music.core.data.repository.FavoriteRepositoryImpl
 import com.fox.music.core.data.repository.ImportRepositoryImpl
+import com.fox.music.core.data.repository.PlaylistImportProgressRepositoryImpl
 import com.fox.music.core.data.repository.MusicRepositoryImpl
 import com.fox.music.core.data.repository.PostDraftRepositoryImpl
 import com.fox.music.core.data.repository.PlaylistRepositoryImpl
@@ -27,6 +28,7 @@ import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
 import com.fox.music.core.domain.repository.ImportRepository
+import com.fox.music.core.domain.repository.PlaylistImportProgressRepository
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PostDraftRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
@@ -105,6 +107,12 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindImportRepository(impl: ImportRepositoryImpl): ImportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistImportProgressRepository(
+        impl: PlaylistImportProgressRepositoryImpl,
+    ): PlaylistImportProgressRepository
 
     @Binds
     @Singleton

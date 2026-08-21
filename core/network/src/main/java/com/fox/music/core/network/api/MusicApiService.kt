@@ -4,6 +4,9 @@ import com.fox.music.core.network.model.ApiResponse
 import com.fox.music.core.network.model.CommentDto
 import com.fox.music.core.network.model.CreateAdminMusicRequest
 import com.fox.music.core.network.model.DeleteHistoryRequest
+import com.fox.music.core.network.model.FindMusicDto
+import com.fox.music.core.network.model.FindOrCreateMusicDto
+import com.fox.music.core.network.model.FindOrCreateMusicRequest
 import com.fox.music.core.network.model.ListeningStatsDto
 import com.fox.music.core.network.model.MusicDto
 import com.fox.music.core.network.model.PagedResponse
@@ -110,4 +113,15 @@ interface MusicApiService {
     suspend fun createAdminMusic(
         @Body body: CreateAdminMusicRequest
     ): ApiResponse<JsonElement?>
+
+    @GET("api/music/find")
+    suspend fun findMusic(
+        @Query("title") title: String,
+        @Query("artist") artist: String = "",
+    ): ApiResponse<FindMusicDto>
+
+    @POST("api/music/find-or-create")
+    suspend fun findOrCreateMusic(
+        @Body body: FindOrCreateMusicRequest,
+    ): ApiResponse<FindOrCreateMusicDto>
 }

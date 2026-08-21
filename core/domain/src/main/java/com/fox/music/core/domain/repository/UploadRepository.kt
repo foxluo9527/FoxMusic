@@ -2,6 +2,7 @@ package com.fox.music.core.domain.repository
 
 import android.net.Uri
 import com.fox.music.core.common.result.Result
+import java.io.File
 
 data class ChatUploadResult(
     val url: String,
@@ -23,5 +24,7 @@ interface UploadRepository {
 
     suspend fun uploadImageByUrl(url: String): Result<String>
 
-    suspend fun uploadAudioByUrl(url: String): Result<String>
+    suspend fun uploadAudioByUrl(url: String, referer: String? = null): Result<String>
+
+    suspend fun uploadAudioFile(file: File, fileName: String? = null): Result<String>
 }

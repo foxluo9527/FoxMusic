@@ -46,6 +46,7 @@ import com.fox.music.core.player.controller.MusicController
 import com.fox.music.feature.player.R
 import com.fox.music.feature.player.lyric.data.LyricStyle
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LyricPage(
@@ -160,10 +161,13 @@ fun BilingualLyricComponent(
     lyrics: List<LyricsParser.BilingualLyricLine>,
     currentTimeMs: Long,
     onSeek: (Long) -> Unit,
+    delay:Long=2000,
     activeLineColor: Color = Color(0xFF4CAF50),
     inactiveLineColor: Color = Color.Gray,
     activeLineFontSize: Int = 20,
     inactiveLineFontSize: Int = 16,
+    userScrollEnabled: Boolean = true,
+    autoScrollToCurrent: Boolean = true,
 ) {
     val listState = rememberLazyListState()
 
@@ -185,7 +189,7 @@ fun BilingualLyricComponent(
         val halfHeight = px2dp(maxHeight / 2f).toFloat()
         // 自动滚动到高亮行居中
         LaunchedEffect(currentHighlightIndex, nextAutoScrollableTime) {
-            if (currentHighlightIndex != - 1 && ! listState.isScrollInProgress && System.currentTimeMillis() >= nextAutoScrollableTime) {
+            if (autoScrollToCurrent && currentHighlightIndex != - 1 && ! listState.isScrollInProgress && System.currentTimeMillis() >= nextAutoScrollableTime) {
                 listState.animateScrollToItem(
                     currentHighlightIndex + 1,
                     - (maxHeight / 2f - (linesHeight[currentHighlightIndex] ?: 0f)).toInt()
@@ -194,13 +198,14 @@ fun BilingualLyricComponent(
         }
         LaunchedEffect(listState.isScrollInProgress) {
             if (! listState.isScrollInProgress) {
-                delay(2000)
+                delay(delay.milliseconds)
                 nextAutoScrollableTime = System.currentTimeMillis() - 100
             }
         }
         LazyColumn(
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally,
+            userScrollEnabled = userScrollEnabled,
             modifier = Modifier.fillMaxSize()
         ) {
             // 顶部留白
