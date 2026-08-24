@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -104,6 +105,10 @@ fun DownloadScreen(
         topBar = {
             TopAppBar(
                 title = { Text("下载管理") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -171,6 +176,7 @@ fun DownloadScreen(
                                 DownloadStatus.COMPLETED -> viewModel.playDownload(task)
                                 DownloadStatus.PAUSED, DownloadStatus.FAILED ->
                                     viewModel.resume(task.musicId)
+
                                 DownloadStatus.PENDING, DownloadStatus.DOWNLOADING ->
                                     viewModel.pause(task.musicId)
                             }
@@ -180,6 +186,7 @@ fun DownloadScreen(
                                 DownloadStatus.COMPLETED -> viewModel.playDownload(task)
                                 DownloadStatus.PAUSED, DownloadStatus.FAILED ->
                                     viewModel.resume(task.musicId)
+
                                 DownloadStatus.PENDING, DownloadStatus.DOWNLOADING ->
                                     viewModel.pause(task.musicId)
                             }
@@ -225,7 +232,7 @@ private fun DownloadTaskItem(
         DownloadStatus.PENDING, DownloadStatus.DOWNLOADING -> "暂停下载"
     }
     val showProgress = task.status == DownloadStatus.DOWNLOADING ||
-        (task.status == DownloadStatus.PAUSED && task.downloadedBytes > 0L)
+            (task.status == DownloadStatus.PAUSED && task.downloadedBytes > 0L)
 
     Row(
         modifier = Modifier
@@ -268,7 +275,11 @@ private fun DownloadTaskItem(
             if (showProgress) {
                 val progressFraction = when {
                     task.totalBytes > 0L ->
-                        (task.downloadedBytes.toFloat() / task.totalBytes.toFloat()).coerceIn(0f, 1f)
+                        (task.downloadedBytes.toFloat() / task.totalBytes.toFloat()).coerceIn(
+                            0f,
+                            1f
+                        )
+
                     task.progress > 0 -> task.progress / 100f
                     else -> null
                 }

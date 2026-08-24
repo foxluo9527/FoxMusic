@@ -61,6 +61,7 @@ import com.hjq.permissions.XXPermissions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Size
+import androidx.compose.material3.TopAppBarDefaults
 
 @Composable
 fun ChatMediaSelectorScreen(
@@ -107,6 +108,10 @@ private fun ChatMediaSelectorContent(
                     }
                 },
                 modifier = Modifier.statusBarsPadding(),
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
         },
     ) { paddingValues ->
@@ -242,7 +247,10 @@ private fun MediaGridItem(
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
-    val thumbnailBitmap by produceState<android.graphics.Bitmap?>(initialValue = null, key1 = item.uri) {
+    val thumbnailBitmap by produceState<android.graphics.Bitmap?>(
+        initialValue = null,
+        key1 = item.uri
+    ) {
         value = if (item.type == ChatMediaPreviewType.VIDEO) {
             extractVideoFrameBitmap(context, item.uri, Size(512, 512))
         } else {
@@ -299,64 +307,68 @@ private fun MediaGridItem(
     }
 }
 
-private suspend fun loadMediaItems(context: Context): List<ChatMediaItem> = withContext(Dispatchers.IO) {
-    val projection = arrayOf(
-        MediaStore.Files.FileColumns._ID,
-        MediaStore.Files.FileColumns.MEDIA_TYPE,
-        MediaStore.Files.FileColumns.DISPLAY_NAME,
-        MediaStore.Files.FileColumns.SIZE,
-        MediaStore.Files.FileColumns.MIME_TYPE,
-        MediaStore.Files.FileColumns.DATE_ADDED,
-    )
-    val selection = "${MediaStore.Files.FileColumns.MEDIA_TYPE}=? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE}=?"
-    val selectionArgs = arrayOf(
-        MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
-        MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
-    )
-    val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
+private suspend fun loadMediaItems(context: Context): List<ChatMediaItem> =
+    withContext(Dispatchers.IO) {
+        val projection = arrayOf(
+            MediaStore.Files.FileColumns._ID,
+            MediaStore.Files.FileColumns.MEDIA_TYPE,
+            MediaStore.Files.FileColumns.DISPLAY_NAME,
+            MediaStore.Files.FileColumns.SIZE,
+            MediaStore.Files.FileColumns.MIME_TYPE,
+            MediaStore.Files.FileColumns.DATE_ADDED,
+        )
+        val selection =
+            "${MediaStore.Files.FileColumns.MEDIA_TYPE}=? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE}=?"
+        val selectionArgs = arrayOf(
+            MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
+            MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
+        )
+        val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
 
-    val result = mutableListOf<ChatMediaItem>()
-    context.contentResolver.query(
-        MediaStore.Files.getContentUri("external"),
-        projection,
-        selection,
-        selectionArgs,
-        sortOrder,
-    )?.use { cursor ->
-        val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-        val mediaTypeIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
-        val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-        val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-        val mimeTypeIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-        val dateAddedIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
+        val result = mutableListOf<ChatMediaItem>()
+        context.contentResolver.query(
+            MediaStore.Files.getContentUri("external"),
+            projection,
+            selection,
+            selectionArgs,
+            sortOrder,
+        )?.use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+            val mediaTypeIndex =
+                cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
+            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+            val mimeTypeIndex = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
+            val dateAddedIndex =
+                cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
 
-        while (cursor.moveToNext()) {
-            val id = cursor.getLong(idIndex)
-            val mediaType = cursor.getInt(mediaTypeIndex)
-            val type = when (mediaType) {
-                MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO -> ChatMediaPreviewType.VIDEO
-                MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE -> ChatMediaPreviewType.IMAGE
-                else -> continue
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idIndex)
+                val mediaType = cursor.getInt(mediaTypeIndex)
+                val type = when (mediaType) {
+                    MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO -> ChatMediaPreviewType.VIDEO
+                    MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE -> ChatMediaPreviewType.IMAGE
+                    else -> continue
+                }
+                val baseUri = if (type == ChatMediaPreviewType.VIDEO) {
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                } else {
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                }
+                result.add(
+                    ChatMediaItem(
+                        uri = ContentUris.withAppendedId(baseUri, id),
+                        type = type,
+                        displayName = cursor.getString(nameIndex).orEmpty(),
+                        sizeBytes = cursor.getLong(sizeIndex),
+                        mimeType = cursor.getString(mimeTypeIndex),
+                        dateAddedSec = cursor.getLong(dateAddedIndex),
+                    ),
+                )
             }
-            val baseUri = if (type == ChatMediaPreviewType.VIDEO) {
-                MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-            } else {
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-            }
-            result.add(
-                ChatMediaItem(
-                    uri = ContentUris.withAppendedId(baseUri, id),
-                    type = type,
-                    displayName = cursor.getString(nameIndex).orEmpty(),
-                    sizeBytes = cursor.getLong(sizeIndex),
-                    mimeType = cursor.getString(mimeTypeIndex),
-                    dateAddedSec = cursor.getLong(dateAddedIndex),
-                ),
-            )
         }
+        result
     }
-    result
-}
 
 private suspend fun extractVideoFrameBitmap(
     context: Context,
@@ -377,9 +389,12 @@ private suspend fun extractVideoFrameBitmap(
 
 private fun Context.hasMediaReadPermission(): Boolean {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-        val hasImages = checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
-        val hasVideos = checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
-        val hasSelected = checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
+        val hasImages =
+            checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+        val hasVideos =
+            checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+        val hasSelected =
+            checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
         return hasImages || hasVideos || hasSelected
     }
     val permissions = requiredMediaPermissions()
@@ -388,8 +403,9 @@ private fun Context.hasMediaReadPermission(): Boolean {
     }
 }
 
-private fun requiredMediaPermissions(): Array<String> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-    arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-} else {
-    arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-}
+private fun requiredMediaPermissions(): Array<String> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
+    } else {
+        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }

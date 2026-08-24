@@ -25,6 +25,17 @@ import com.fox.music.widget.WidgetBootstrapper
 import com.fox.music.widget.WidgetLyricHelper
 import com.fox.music.widget.WidgetStateWriter
 import com.fox.music.widget.WidgetThemeStore
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import okhttp3.Cache
+import okhttp3.CacheControl
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.Response
+import java.io.File
+import java.util.concurrent.TimeUnit
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -38,7 +49,7 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 
 @HiltAndroidApp
-class FoxMusicApplication : Application(), Configuration.Provider {
+class FoxMusicApplication : Application(), Configuration.Provider, ImageLoaderFactory {
 
     @Inject
     lateinit var musicController: MusicController
@@ -182,4 +193,46 @@ class FoxMusicApplication : Application(), Configuration.Provider {
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
+
+    override fun newImageLoader(): ImageLoader {
+        val imageCacheDir = File(cacheDir, "image_cache")
+
+        val okHttpClient = OkHttpClient.Builder()
+            .cache(Cache(imageCacheDir.resolve("http_cache"), 2L * 1024 * 1024 * 1024))
+            .addInterceptor(ForceCacheInterceptor())
+            .build()
+
+        return ImageLoader.Builder(this)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(imageCacheDir.resolve("coil_cache"))
+                    .maxSizeBytes(2L * 1024 * 1024 * 1024) // 2GB
+                    .build()
+            }
+            .okHttpClient(okHttpClient)
+            .crossfade(true)
+            .build()
+    }
+}
+
+/**
+ * 强制缓存拦截器：覆盖服务器返回的禁止缓存头，确保图片能被缓存
+ */
+private class ForceCacheInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val response = chain.proceed(chain.request())
+        val cacheControl = CacheControl.Builder()
+            .maxAge(30, TimeUnit.DAYS)
+            .build()
+        return response.newBuilder()
+            .removeHeader("Pragma")
+            .removeHeader("Cache-Control")
+            .header("Cache-Control", cacheControl.toString())
+            .build()
+    }
 }

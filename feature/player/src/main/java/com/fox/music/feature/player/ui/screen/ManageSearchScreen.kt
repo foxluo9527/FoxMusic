@@ -32,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -100,6 +101,10 @@ fun ManageSearchScreen(
                         Text("导入歌单")
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
         },
         bottomBar = {
@@ -182,7 +187,12 @@ fun ManageSearchScreen(
                                 viewModel.sendIntent(ManageSearchIntent.ToggleSelect(it))
                             },
                             onSelectAll = { checked, visible ->
-                                viewModel.sendIntent(ManageSearchIntent.SetSelectAll(checked, visible))
+                                viewModel.sendIntent(
+                                    ManageSearchIntent.SetSelectAll(
+                                        checked,
+                                        visible
+                                    )
+                                )
                             },
                             onPreview = {
                                 viewModel.sendIntent(ManageSearchIntent.Preview(it))
@@ -276,6 +286,7 @@ private fun ManageSearchResultList(
                 LoadingIndicator()
             }
         }
+
         is LoadState.Error -> {
             ErrorView(
                 message = refresh.error.message ?: "搜索失败",
@@ -283,6 +294,7 @@ private fun ManageSearchResultList(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+
         else -> {
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
@@ -349,6 +361,7 @@ private fun ManageSearchResultList(
                                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                                     }
                                 }
+
                                 is LoadState.Error -> {
                                     TextButton(
                                         onClick = { musicItems.retry() },
@@ -357,6 +370,7 @@ private fun ManageSearchResultList(
                                         Text("加载失败，点击重试")
                                     }
                                 }
+
                                 else -> Unit
                             }
                         }

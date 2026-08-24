@@ -47,11 +47,14 @@ class CustomLyricSelectorViewModel @Inject constructor(
                 updateState { copy(currentPage = intent.page) }
             }
             is CustomLyricSelectorIntent.ApplyLyrics -> {
-                musicController.updateMusicLyrics(
-                    intent.music.id,
-                    intent.lyrics,
-                    intent.lyricsTrans
-                )
+                val currentMusicId = musicController.playerState.value.currentMusic?.id
+                if (currentMusicId != null) {
+                    musicController.updateMusicLyrics(
+                        currentMusicId,
+                        intent.lyrics,
+                        intent.lyricsTrans
+                    )
+                }
                 sendEffect(CustomLyricSelectorEffect.ShowToast("歌词已更换"))
                 sendEffect(CustomLyricSelectorEffect.Dismiss)
             }

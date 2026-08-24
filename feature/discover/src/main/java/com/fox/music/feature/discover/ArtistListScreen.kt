@@ -72,6 +72,10 @@ fun ArtistListScreen(
                 }
             },
             scrollBehavior = scrollBehavior,
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface,
+            ),
         )
 
         when {
@@ -83,6 +87,7 @@ fun ArtistListScreen(
                     onRetry = { viewModel.sendIntent(ArtistListIntent.Load) },
                 )
             }
+
             state.sections.isEmpty() -> {
                 ErrorView(
                     modifier = Modifier.fillMaxSize(),
@@ -90,6 +95,7 @@ fun ArtistListScreen(
                     showIcon = false,
                 )
             }
+
             else -> {
                 Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(

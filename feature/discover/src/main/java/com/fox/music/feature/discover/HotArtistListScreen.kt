@@ -88,6 +88,10 @@ fun HotArtistListScreen(
                 }
             },
             scrollBehavior = scrollBehavior,
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface,
+            ),
         )
 
         when {
@@ -215,6 +219,7 @@ private fun HotArtistGridItem(
         ) {
             CachedImage(
                 imageUrl = artist.avatar,
+                errorImageUrl = artist.coverImage,
                 contentDescription = artist.name,
                 modifier = Modifier.fillMaxSize(),
                 shape = CircleShape,

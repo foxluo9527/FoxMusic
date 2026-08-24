@@ -80,7 +80,8 @@ fun LyricPage(
             activeLineColor = Color(style.highlightColor),
             inactiveLineColor = Color(style.textColor),
             activeLineFontSize = style.fontSize + 4,
-            inactiveLineFontSize = style.fontSize
+            inactiveLineFontSize = style.fontSize,
+            showTranslation = style.showTranslation
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -168,6 +169,7 @@ fun BilingualLyricComponent(
     inactiveLineFontSize: Int = 16,
     userScrollEnabled: Boolean = true,
     autoScrollToCurrent: Boolean = true,
+    showTranslation: Boolean = true,
 ) {
     val listState = rememberLazyListState()
 
@@ -225,6 +227,7 @@ fun BilingualLyricComponent(
                     inactiveColor = inactiveLineColor,
                     activeFontSize = activeLineFontSize,
                     inactiveFontSize = inactiveLineFontSize,
+                    showTranslation = showTranslation,
                     onClick = {
                         onSeek(lyricLine.startTimeMs)
                     },
@@ -259,6 +262,7 @@ private fun BilingualLyricLineItem(
     inactiveColor: Color,
     activeFontSize: Int,
     inactiveFontSize: Int,
+    showTranslation: Boolean = true,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -277,8 +281,8 @@ private fun BilingualLyricLineItem(
             lineHeight = activeFontSize.sp * 1.2f
         )
 
-        // 翻译歌词（如果存在）
-        if (! lyricLine.translatedText.isNullOrBlank()) {
+        // 翻译歌词（如果存在且开启）
+        if (showTranslation && ! lyricLine.translatedText.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = lyricLine.translatedText ?: "",

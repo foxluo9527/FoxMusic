@@ -124,6 +124,7 @@ fun UserProfileScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
         },

@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,13 +67,19 @@ fun ImportPlaylistSelectScreen(
                     TextButton(onClick = { viewModel.selectAll(true) }) { Text("全选") }
                     TextButton(onClick = { viewModel.selectAll(false) }) { Text("清空") }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
         },
     ) { padding ->
         when {
             state.loading -> {
                 Column(
-                    Modifier.fillMaxSize().padding(padding),
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -81,9 +88,13 @@ fun ImportPlaylistSelectScreen(
                     Text("正在解析歌单…")
                 }
             }
+
             state.error != null && state.tracks.isEmpty() -> {
                 Column(
-                    Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(24.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -92,8 +103,11 @@ fun ImportPlaylistSelectScreen(
                     Button(onClick = onBack) { Text("返回") }
                 }
             }
+
             else -> {
-                Column(Modifier.fillMaxSize().padding(padding)) {
+                Column(Modifier
+                    .fillMaxSize()
+                    .padding(padding)) {
                     OutlinedTextField(
                         value = state.title,
                         onValueChange = viewModel::updateTitle,
@@ -121,7 +135,9 @@ fun ImportPlaylistSelectScreen(
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                     LazyColumn(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
                     ) {
                         itemsIndexed(state.tracks) { index, track ->
                             Row(
@@ -154,8 +170,8 @@ fun ImportPlaylistSelectScreen(
                     Button(
                         onClick = viewModel::confirm,
                         enabled = !state.confirming &&
-                            state.selectedIndexes.isNotEmpty() &&
-                            state.title.isNotBlank(),
+                                state.selectedIndexes.isNotEmpty() &&
+                                state.title.isNotBlank(),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),

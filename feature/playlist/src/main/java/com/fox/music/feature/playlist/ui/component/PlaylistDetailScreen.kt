@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,14 +47,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -88,8 +94,8 @@ fun PlaylistDetailScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>, String) -> Unit = {_, _, _ ->},
-    updateMusicList: (List<Music>, String) -> Unit = {_, _ ->},
+    onMusicClick: (Music, List<Music>, String) -> Unit = { _, _, _ -> },
+    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onBack: () -> Unit = {},
     onPlaylistDeleted: () -> Unit = {},
     onEditPlaylist: (Long) -> Unit = {},
@@ -106,6 +112,19 @@ fun PlaylistDetailScreen(
     val playlistKey by viewModel.playlistKey.collectAsState()
     var showManageSheet by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    var headerHeightPx by remember { mutableStateOf(0f) }
+    val showToolbarTitle by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 ||
+                    listState.firstVisibleItemScrollOffset > headerHeightPx
+        }
+    }
+    val showToolbarActions by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex >= 2
+        }
+    }
 
     LaunchedEffect(state.isSelectionMode) {
         onSelectionModeChanged(state.isSelectionMode)
@@ -128,8 +147,8 @@ fun PlaylistDetailScreen(
         }
     }
     LaunchedEffect(Unit) {
-        viewModel.effect.collect {effect ->
-            when(effect) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
                 is PlaylistDetailEffect.NavigateToMusic -> {
                     if (playlistKey.isNotEmpty()) {
                         onMusicClick(effect.music, effect.musicList, playlistKey)
@@ -200,16 +219,36 @@ fun PlaylistDetailScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
                     ),
                 )
             } else {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = getTypeTitle(state.detailType),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        if (state.headerInfo != null && showToolbarTitle) {
+                            Row(
+                                Modifier.height(60.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                state.headerInfo?.coverImage?.let { url ->
+                                    CachedImage(
+                                        imageUrl = url,
+                                        contentDescription = state.headerInfo?.title,
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        shape = RoundedCornerShape(8.dp),
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                }
+                                Text(
+                                    text = state.headerInfo?.title
+                                        ?: getTypeTitle(state.detailType),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
@@ -220,7 +259,37 @@ fun PlaylistDetailScreen(
                         }
                     },
                     actions = {
-                        if (viewModel.canManagePlaylist) {
+                        if (state.headerInfo != null && showToolbarActions) {
+                            val headerInfo = state.headerInfo!!
+                            val trackCount =
+                                headerInfo.trackCount.takeIf { it > 0 } ?: pagingItems.itemCount
+                            IconButton(onClick = { viewModel.sendIntent(PlaylistDetailIntent.PlayAll) }) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "播放全部($trackCount)",
+                                )
+                            }
+                            val showFavorite = state.detailType != DetailType.RECOMMEND &&
+                                    state.detailType != DetailType.NEW_MUSIC &&
+                                    state.detailType != DetailType.FAVORITE_MUSIC &&
+                                    state.detailType != DetailType.PLAY_HISTORY
+                            if (showFavorite) {
+                                IconButton(
+                                    onClick = { viewModel.sendIntent(PlaylistDetailIntent.ToggleFavorite) },
+                                    enabled = !state.isFavoriteLoading,
+                                ) {
+                                    if (state.isFavoriteLoading) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                    } else {
+                                        Icon(
+                                            imageVector = if (headerInfo.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                            contentDescription = if (headerInfo.isFavorite) "已收藏" else "收藏",
+                                            tint = if (headerInfo.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (viewModel.canManagePlaylist) {
                             IconButton(onClick = { showManageSheet = true }) {
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
@@ -231,6 +300,7 @@ fun PlaylistDetailScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
                     ),
                 )
             }
@@ -262,7 +332,7 @@ fun PlaylistDetailScreen(
             }
 
             state.error != null && state.headerInfo == null -> {
-                ErrorView(message = state.error !!)
+                ErrorView(message = state.error!!)
             }
 
             else -> {
@@ -273,7 +343,7 @@ fun PlaylistDetailScreen(
                     }
                 }
                 val isPagingRefreshing = pagingItems.loadState.refresh is LoadState.Loading &&
-                    isUserRefresh
+                        isUserRefresh
                 PullToRefreshBox(
                     isRefreshing = isPagingRefreshing,
                     onRefresh = {
@@ -288,6 +358,9 @@ fun PlaylistDetailScreen(
                     CollectionDetailContent(
                         state = state,
                         pagingItems = pagingItems,
+                        listState = listState,
+                        showToolbarTitle = showToolbarTitle,
+                        showToolbarActions = showToolbarActions,
                         sharedTransitionScope = sharedTransitionScope,
                         animatedContentScope = animatedContentScope,
                         onMusicClick = { music ->
@@ -316,6 +389,7 @@ fun PlaylistDetailScreen(
                             viewModel.sendIntent(PlaylistDetailIntent.CancelFailedImport)
                         },
                         suppressRefreshIndicator = isPagingRefreshing,
+                        onMeasureHeight = { headerHeightPx = it },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -359,6 +433,9 @@ fun PlaylistDetailScreen(
 private fun CollectionDetailContent(
     state: PlaylistDetailState,
     pagingItems: LazyPagingItems<Music>,
+    listState: LazyListState,
+    showToolbarTitle: Boolean = false,
+    showToolbarActions: Boolean = false,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     onMusicClick: (Music) -> Unit,
@@ -373,36 +450,44 @@ private fun CollectionDetailContent(
     onRetryImport: () -> Unit = {},
     onCancelFailedImport: () -> Unit = {},
     suppressRefreshIndicator: Boolean = false,
+    onMeasureHeight: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
+        state = listState,
         modifier = modifier,
         // 预留给底部悬浮 MiniPlayer + 手势条，避免最后几首无法滑出遮挡
         contentPadding = PaddingValues(bottom = 120.dp)
     ) {
         // 头部信息区域
         item {
-            state.headerInfo?.let {info ->
+            state.headerInfo?.let { info ->
                 CollectionDetailHeader(
                     headerInfo = info,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        onMeasureHeight(coordinates.size.height.toFloat())
+                    }
                 )
             }
         }
 
         item {
-            state.headerInfo?.let {headerInfo->
+            val actionAlpha = if (showToolbarActions) 0f else 1f
+            state.headerInfo?.let { headerInfo ->
                 ActionButtonRow(
                     showFavorite = state.detailType !== DetailType.RECOMMEND &&
-                        state.detailType != DetailType.NEW_MUSIC &&
-                        state.detailType != DetailType.FAVORITE_MUSIC &&
-                        state.detailType != DetailType.PLAY_HISTORY,
-                    trackCount = headerInfo.trackCount.takeIf {it > 0} ?: pagingItems.itemCount,
+                            state.detailType != DetailType.NEW_MUSIC &&
+                            state.detailType != DetailType.FAVORITE_MUSIC &&
+                            state.detailType != DetailType.PLAY_HISTORY,
+                    trackCount = headerInfo.trackCount.takeIf { it > 0 } ?: pagingItems.itemCount,
                     isFavorite = headerInfo.isFavorite,
                     isFavoriteLoading = state.isFavoriteLoading,
                     onPlayAll = onPlayAll,
                     onToggleFavorite = onToggleFavorite,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .graphicsLayer { alpha = actionAlpha }
+                        .animateContentSize()
                 )
             }
         }
@@ -419,7 +504,8 @@ private fun CollectionDetailContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        val processed = (progress.done + progress.failed).coerceAtMost(progress.total)
+                        val processed =
+                            (progress.done + progress.failed).coerceAtMost(progress.total)
                         val fraction = if (progress.total > 0) {
                             val inFlight = if (!progress.currentTitle.isNullOrBlank() &&
                                 progress.status == "running"
@@ -471,9 +557,11 @@ private fun CollectionDetailContent(
                         "needs_retry" -> IconButton(onClick = onRetryImport) {
                             Icon(Icons.Default.Refresh, contentDescription = "重试失败歌曲")
                         }
+
                         "paused" -> IconButton(onClick = onResumeImport) {
                             Icon(Icons.Default.PlayArrow, contentDescription = "继续导入")
                         }
+
                         else -> IconButton(onClick = onPauseImport) {
                             Icon(Icons.Default.Pause, contentDescription = "暂停导入")
                         }
@@ -489,7 +577,7 @@ private fun CollectionDetailContent(
                 val musicId = pagingItems.peek(index)?.id
                 musicId?.let { "music_$it" } ?: "placeholder_$index"
             }
-        ) {index ->
+        ) { index ->
             val music = pagingItems[index]
             if (music == null) {
                 Row(
@@ -530,8 +618,8 @@ private fun CollectionDetailContent(
         // 加载状态处理（下拉刷新时由 PullToRefreshBox 展示指示器）
         when {
             pagingItems.loadState.refresh is LoadState.Loading &&
-                pagingItems.itemCount == 0 &&
-                !suppressRefreshIndicator -> {
+                    pagingItems.itemCount == 0 &&
+                    !suppressRefreshIndicator -> {
                 item {
                     Box(
                         modifier = Modifier
@@ -562,7 +650,7 @@ private fun CollectionDetailContent(
                     val error = (pagingItems.loadState.refresh as LoadState.Error).error
                     ErrorView(
                         message = error.localizedMessage ?: "加载失败",
-                        onRetry = {pagingItems.retry()}
+                        onRetry = { pagingItems.retry() }
                     )
                 }
             }
@@ -578,7 +666,7 @@ private fun CollectionDetailContent(
                         Text(
                             text = "加载更多失败，点击重试",
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.clickable {pagingItems.retry()}
+                            modifier = Modifier.clickable { pagingItems.retry() }
                         )
                     }
                 }
@@ -612,7 +700,10 @@ private fun CollectionDetailHeader(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(16.dp),
         verticalAlignment = Alignment.Top
     ) {
         if (headerInfo.coverImage != null) {// 封面图
@@ -674,14 +765,16 @@ private fun CollectionDetailHeader(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
-                headerInfo.createdAt?.let {date ->
-                    Text(
-                        text = " · ${formatDate(date)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                if (headerInfo.detailType == DetailType.PLAYLIST){
+                    headerInfo.createdAt?.let { date ->
+                        Text(
+                            text = " · ${formatDate(date)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                headerInfo.releaseDate?.let {date ->
+                headerInfo.releaseDate?.let { date ->
                     Text(
                         text = " · $date",
                         style = MaterialTheme.typography.labelSmall,
@@ -707,21 +800,21 @@ private fun CollectionDetailHeader(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                headerInfo.trackCount.takeIf {it > 0}?.let {
+                headerInfo.trackCount.takeIf { it > 0 }?.let {
                     Text(
                         text = "${headerInfo.trackCount}首",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                headerInfo.creatorName?.let {creator ->
+                headerInfo.creatorName?.let { creator ->
                     Text(
                         text = " · 创建者: $creator",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                headerInfo.artists?.let {artists ->
+                headerInfo.artists?.let { artists ->
                     Text(
                         text = " · $artists",
                         style = MaterialTheme.typography.bodyMedium,
@@ -733,7 +826,7 @@ private fun CollectionDetailHeader(
             }
 
             // 描述
-            headerInfo.description?.takeIf {it.isNotBlank()}?.let {desc ->
+            headerInfo.description?.takeIf { it.isNotBlank() }?.let { desc ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = desc,
@@ -812,7 +905,7 @@ private fun RowScope.ActionButton(
 }
 
 private fun getTypeTitle(type: DetailType): String {
-    return when(type) {
+    return when (type) {
         DetailType.PLAYLIST -> "歌单详情"
         DetailType.ALBUM -> "专辑详情"
         DetailType.RANK -> "排行榜"
@@ -824,7 +917,7 @@ private fun getTypeTitle(type: DetailType): String {
 }
 
 private fun getTypeLabel(type: DetailType): String {
-    return when(type) {
+    return when (type) {
         DetailType.PLAYLIST -> "歌单"
         DetailType.ALBUM -> "专辑"
         DetailType.RANK -> "榜单"

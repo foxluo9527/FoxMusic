@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -47,6 +48,7 @@ fun LyricSettings(
     val lyricSyncManager = remember {LyricSyncManager.getInstance()}
     val isDesktopLyricEnabled by lyricSyncManager.isDesktopLyricEnabled.collectAsState()
     val isDesktopLyricLocked by lyricSyncManager.isDesktopLyricLocked.collectAsState()
+    val currentStyle by LyricStyleManager.getInstance().styleFlow.collectAsState()
     val context = LocalContext.current
     Column(modifier) {
         AndroidView(factory = {
@@ -61,6 +63,7 @@ fun LyricSettings(
             Modifier
                 .padding(top = 10.dp)
                 .fillMaxWidth()
+                .height(48.dp)
                 .padding(horizontal = 20.dp)
                 .clickable { onCustomLyricClick() },
             verticalAlignment = Alignment.CenterVertically
@@ -77,40 +80,60 @@ fun LyricSettings(
             Modifier
                 .padding(top = 10.dp)
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+                .height(48.dp)
+                .padding(horizontal = 20.dp)
+                .clickable {
+                    LyricStyleManager.getInstance().setShowTranslation(!currentStyle.showTranslation)
+                },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                Modifier.clickable {
-                    lyricSyncManager.toggleLock()
-                },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("桌面歌词")
-                if (isDesktopLyricEnabled) {
-                    if (isDesktopLyricLocked) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_lock),
-                            contentDescription = null,
-                            Modifier.size(14.dp)
-                        )
+            Text("歌词翻译")
+            Spacer(Modifier.weight(1f))
+            Switch(
+                checked = currentStyle.showTranslation,
+                onCheckedChange = { LyricStyleManager.getInstance().setShowTranslation(it) }
+            )
+        }
+        Row(
+            Modifier
+                .padding(top = 10.dp)
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 20.dp)
+                .clickable {
+                    if (isDesktopLyricEnabled) {
+                        lyricSyncManager.disableDesktopLyric()
                     } else {
-                        Image(
-                            painter = painterResource(R.drawable.ic_unlock),
-                            contentDescription = null,
-                            Modifier.size(14.dp)
-                        )
+                        lyricSyncManager.openDesktopLyric(context) {
+                            lyricSyncManager.enableDesktopLyric()
+                        }
                     }
-                }
+                },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("桌面歌词")
+            if (isDesktopLyricEnabled) {
+                Image(
+                    painter = painterResource(
+                        if (isDesktopLyricLocked) R.drawable.ic_lock else R.drawable.ic_unlock
+                    ),
+                    contentDescription = null,
+                    Modifier
+                        .padding(start = 4.dp)
+                        .size(14.dp)
+                        .clickable { lyricSyncManager.toggleLock() }
+                )
             }
             Spacer(Modifier.weight(1f))
             Switch(
                 checked = isDesktopLyricEnabled,
                 onCheckedChange = {
                     if (it) {
-                        lyricSyncManager.openDesktopLyric(context)
+                        lyricSyncManager.openDesktopLyric(context) {
+                            lyricSyncManager.enableDesktopLyric()
+                        }
                     } else {
-                        lyricSyncManager.toggleDesktopLyric()
+                        lyricSyncManager.disableDesktopLyric()
                     }
                 }
             )

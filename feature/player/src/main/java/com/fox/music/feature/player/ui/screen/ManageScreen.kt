@@ -41,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -123,6 +124,10 @@ fun ManageScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
                 actions = {
                     IconButton(
                         onClick = { viewModel.sendIntent(ManageIntent.Refresh) },
@@ -334,25 +339,25 @@ private fun ManageActionsPopup(
         AnimatedVisibility(
             visible = menuVisible,
             enter = fadeIn(ManageMenuFloatSpec) +
-                expandVertically(
-                    animationSpec = tween(ManageMenuAnimMs, easing = FastOutSlowInEasing),
-                    expandFrom = Alignment.Top,
-                ) +
-                scaleIn(
-                    animationSpec = ManageMenuFloatSpec,
-                    initialScale = 0.92f,
-                    transformOrigin = TransformOrigin(1f, 0f),
-                ),
+                    expandVertically(
+                        animationSpec = tween(ManageMenuAnimMs, easing = FastOutSlowInEasing),
+                        expandFrom = Alignment.Top,
+                    ) +
+                    scaleIn(
+                        animationSpec = ManageMenuFloatSpec,
+                        initialScale = 0.92f,
+                        transformOrigin = TransformOrigin(1f, 0f),
+                    ),
             exit = fadeOut(ManageMenuFloatSpec) +
-                shrinkVertically(
-                    animationSpec = tween(ManageMenuAnimMs, easing = FastOutSlowInEasing),
-                    shrinkTowards = Alignment.Top,
-                ) +
-                scaleOut(
-                    animationSpec = ManageMenuFloatSpec,
-                    targetScale = 0.92f,
-                    transformOrigin = TransformOrigin(1f, 0f),
-                ),
+                    shrinkVertically(
+                        animationSpec = tween(ManageMenuAnimMs, easing = FastOutSlowInEasing),
+                        shrinkTowards = Alignment.Top,
+                    ) +
+                    scaleOut(
+                        animationSpec = ManageMenuFloatSpec,
+                        targetScale = 0.92f,
+                        transformOrigin = TransformOrigin(1f, 0f),
+                    ),
         ) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
@@ -393,6 +398,7 @@ private fun ManageMusicList(
                 LoadingIndicator()
             }
         }
+
         refresh is LoadState.Error && musicItems.itemCount == 0 -> {
             ErrorView(
                 message = refresh.error.message ?: "加载失败",
@@ -400,6 +406,7 @@ private fun ManageMusicList(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+
         musicItems.itemCount == 0 -> {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -411,6 +418,7 @@ private fun ManageMusicList(
                 )
             }
         }
+
         else -> {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -441,6 +449,7 @@ private fun ManageMusicList(
                                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
                             }
                         }
+
                         is LoadState.Error -> {
                             TextButton(
                                 onClick = { musicItems.retry() },
@@ -449,6 +458,7 @@ private fun ManageMusicList(
                                 Text("加载失败，点击重试")
                             }
                         }
+
                         else -> Unit
                     }
                 }

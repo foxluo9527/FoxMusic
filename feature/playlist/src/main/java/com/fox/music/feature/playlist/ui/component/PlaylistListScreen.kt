@@ -72,8 +72,8 @@ fun PlaylistListScreen(
     // Effect handlers
     LaunchedEffect(Unit) {
         viewModel.sendIntent(PlaylistListIntent.Load)
-        viewModel.effect.collect {effect ->
-            when(effect) {
+        viewModel.effect.collect { effect ->
+            when (effect) {
                 is PlaylistListEffect.NavigateToPlaylist -> onPlaylistClick(effect.playlist)
                 is PlaylistListEffect.NavigateBack -> onBackClick()
             }
@@ -95,12 +95,12 @@ fun PlaylistListScreen(
                         // Fixed first tab: 推荐歌单
                         Tab(
                             selected = state.selectedCategoryIndex == 0,
-                            onClick = {viewModel.sendIntent(PlaylistListIntent.SelectCategory(0))},
-                            text = {Text("推荐歌单")}
+                            onClick = { viewModel.sendIntent(PlaylistListIntent.SelectCategory(0)) },
+                            text = { Text("推荐歌单") }
                         )
 
                         // Dynamic category tabs
-                        state.categories.forEachIndexed {index, category ->
+                        state.categories.forEachIndexed { index, category ->
                             Tab(
                                 selected = state.selectedCategoryIndex == index + 1,
                                 onClick = {
@@ -110,20 +110,23 @@ fun PlaylistListScreen(
                                         )
                                     )
                                 },
-                                text = {Text(category.name)}
+                                text = { Text(category.name) }
                             )
                         }
                     }
                 }
             },
             navigationIcon = {
-                IconButton(onClick = {viewModel.onBackClick()}) {
+                IconButton(onClick = { viewModel.onBackClick() }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
                         contentDescription = "返回"
                     )
                 }
-            },
+            }, colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface,
+            ),
             scrollBehavior = scrollBehavior
         )
 
@@ -138,7 +141,7 @@ fun PlaylistListScreen(
                     modifier = Modifier.fillMaxSize(),
                     message = (playlistPagingItems.loadState.refresh as LoadState.Error).error.message
                         ?: "加载失败",
-                    onRetry = {viewModel.sendIntent(PlaylistListIntent.Load)}
+                    onRetry = { viewModel.sendIntent(PlaylistListIntent.Load) }
                 )
             }
 
@@ -163,15 +166,15 @@ fun PlaylistListScreen(
                     ) {
                         items(
                             count = playlistPagingItems.itemCount,
-                            key = {index -> playlistPagingItems[index]?.id ?: index},
-                            contentType = {"playlist_item"}
-                        ) {index ->
-                            playlistPagingItems[index]?.let {playlist ->
+                            key = { index -> playlistPagingItems[index]?.id ?: index },
+                            contentType = { "playlist_item" }
+                        ) { index ->
+                            playlistPagingItems[index]?.let { playlist ->
                                 PlaylistGridItem(
                                     playlist = playlist,
                                     sharedTransitionScope = sharedTransitionScope,
                                     animatedContentScope = animatedContentScope,
-                                    onClick = {viewModel.onPlaylistClick(playlist)},
+                                    onClick = { viewModel.onPlaylistClick(playlist) },
                                 )
                             }
                         }

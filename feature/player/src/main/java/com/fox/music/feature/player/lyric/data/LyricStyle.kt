@@ -11,5 +11,6 @@ data class LyricStyle(
     val alignment: Int = Gravity.CENTER,
     val isScrollEnabled: Boolean = true,
     val fadeDuration: Int = 300,
-    val lineSpacing: Float = 1.5f
+    val lineSpacing: Float = 1.5f,
+    val showTranslation: Boolean = true
 )

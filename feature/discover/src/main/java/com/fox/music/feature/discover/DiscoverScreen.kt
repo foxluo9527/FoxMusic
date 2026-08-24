@@ -494,6 +494,7 @@ private fun ArtistGridItem(
         ) {
             CachedImage(
                 imageUrl = artist.avatar,
+                errorImageUrl = artist.coverImage,
                 contentDescription = artist.name,
                 modifier = Modifier.fillMaxSize(),
                 shape = CircleShape,

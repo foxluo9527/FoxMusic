@@ -3,11 +3,12 @@ package com.fox.music.feature.discover
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,8 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
@@ -40,11 +44,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -82,6 +90,14 @@ fun ArtistDetailScreen(
     val context = LocalContext.current
     val artist = state.artist
     val playlistKey = "artist_detail/${artist?.id ?: 0}"
+    val listState = rememberLazyListState()
+    var headerHeightPx by remember { mutableStateOf(0f) }
+    val showCollapsedTitle by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 ||
+                listState.firstVisibleItemScrollOffset > headerHeightPx
+        }
+    }
 
     LaunchedEffect(state.hotMusics, artist?.id) {
         if (state.hotMusics.isNotEmpty()) {
@@ -95,6 +111,7 @@ fun ArtistDetailScreen(
                 is ArtistDetailEffect.NavigateToMusic -> {
                     onMusicClick(effect.music, effect.musicList, playlistKey)
                 }
+
                 is ArtistDetailEffect.NavigateToAlbum -> onAlbumClick(effect.album)
                 is ArtistDetailEffect.ShowToast -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
@@ -108,11 +125,28 @@ fun ArtistDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = artist?.name ?: "歌手详情",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (artist != null && showCollapsedTitle) {
+                        Row(
+                            Modifier.height(60.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CachedImage(
+                                imageUrl = artist.avatar,
+                                errorImageUrl = artist.coverImage,
+                                contentDescription = artist.name,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape),
+                                placeholderIcon = Icons.Filled.Person,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = artist.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -128,28 +162,31 @@ fun ArtistDetailScreen(
                             onClick = { viewModel.sendIntent(ArtistDetailIntent.ToggleFavorite) },
                             enabled = !state.isFavoriteLoading,
                         ) {
-                            if (state.isFavoriteLoading) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                            } else {
-                                Icon(
-                                    imageVector = if (artist.isFavorite) {
-                                        Icons.Filled.Favorite
-                                    } else {
-                                        Icons.Filled.FavoriteBorder
-                                    },
-                                    contentDescription = "收藏",
-                                    tint = if (artist.isFavorite) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                                )
+                            if (showCollapsedTitle) {
+                                if (state.isFavoriteLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                } else {
+                                    Icon(
+                                        imageVector = if (artist.isFavorite) {
+                                            Icons.Filled.Favorite
+                                        } else {
+                                            Icons.Filled.FavoriteBorder
+                                        },
+                                        contentDescription = "收藏",
+                                        tint = if (artist.isFavorite) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
         },
@@ -158,6 +195,7 @@ fun ArtistDetailScreen(
             state.isLoading && artist == null -> {
                 LoadingIndicator(useLottie = false)
             }
+
             state.error != null && artist == null -> {
                 ErrorView(
                     modifier = Modifier
@@ -167,17 +205,23 @@ fun ArtistDetailScreen(
                     onRetry = { viewModel.sendIntent(ArtistDetailIntent.Load) },
                 )
             }
+
             artist != null -> {
-                ArtistDetailContent(
+                ArtistDetailBody(
                     artist = artist,
                     hotMusics = state.hotMusics,
                     albums = state.albums,
+                    listState = listState,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     onMusicClick = viewModel::onMusicClick,
                     onAlbumClick = viewModel::onAlbumClick,
                     onMusicMoreClick = onMusicMoreClick,
-                    onArtistClick = onArtistClick,
+                    onFavoriteClick = {
+                        viewModel.sendIntent(ArtistDetailIntent.ToggleFavorite)
+                    },
+                    onHeaderHeightMeasured = { headerHeightPx = it },
+                    isFavoriteLoading = state.isFavoriteLoading,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -188,24 +232,35 @@ fun ArtistDetailScreen(
 }
 
 @Composable
-private fun ArtistDetailContent(
+private fun ArtistDetailBody(
     artist: Artist,
     hotMusics: List<Music>,
     albums: List<Album>,
+    listState: LazyListState,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     onMusicClick: (Music) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onMusicMoreClick: (Music) -> Unit,
-    onArtistClick: (Long) -> Unit,
+    onFavoriteClick: () -> Unit,
+    onHeaderHeightMeasured: (Float) -> Unit,
     modifier: Modifier = Modifier,
+    isFavoriteLoading: Boolean,
 ) {
     LazyColumn(
+        state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
-        item {
-            ArtistDetailHeader(artist = artist)
+        item(key = "header") {
+            ArtistDetailHeader(
+                artist = artist,
+                onFavoriteClick = onFavoriteClick,
+                isFavoriteLoading = isFavoriteLoading,
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    onHeaderHeightMeasured(coordinates.size.height.toFloat())
+                }
+            )
         }
 
         if (hotMusics.isNotEmpty()) {
@@ -213,7 +268,7 @@ private fun ArtistDetailContent(
                 SectionHeader(
                     title = "热门歌曲",
                     onMoreClick = null,
-                    modifier = Modifier.padding(horizontal = 8.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
             items(hotMusics, key = { it.id }) { music ->
@@ -221,7 +276,7 @@ private fun ArtistDetailContent(
                     music = music,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
-                    modifier = Modifier.padding(horizontal = 8.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp),
                     onClick = { onMusicClick(music) },
                     onMoreClick = { onMusicMoreClick(music) },
                 )
@@ -233,7 +288,7 @@ private fun ArtistDetailContent(
                 SectionHeader(
                     title = "专辑",
                     onMoreClick = null,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
             item {
@@ -252,6 +307,10 @@ private fun ArtistDetailContent(
                 }
             }
         }
+
+        item {
+            Spacer(Modifier.height(68.dp))
+        }
     }
 }
 
@@ -259,85 +318,102 @@ private fun ArtistDetailContent(
 private fun ArtistDetailHeader(
     artist: Artist,
     modifier: Modifier = Modifier,
+    onFavoriteClick: () -> Unit,
+    isFavoriteLoading: Boolean
 ) {
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(8.dp)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        CachedImage(
+            imageUrl = artist.avatar,
+            errorImageUrl = artist.coverImage,
+            contentDescription = artist.name,
             modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .clip(MaterialTheme.shapes.large),
-        ) {
-            CachedImage(
-                imageUrl = artist.coverImage ?: artist.avatar,
-                contentDescription = artist.name,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                placeholderIcon = Icons.Filled.Person,
-            )
-            CachedImage(
-                imageUrl = artist.avatar,
-                contentDescription = artist.name,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(16.dp)
-                    .size(80.dp)
-                    .clip(CircleShape),
-                shape = CircleShape,
-                placeholderIcon = Icons.Filled.Person,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = artist.name,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+                .size(100.dp)
+                .clip(RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp),
+            placeholderIcon = Icons.Filled.Person,
         )
 
-        artist.alias?.takeIf { it.isNotBlank() }?.let { alias ->
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             Text(
-                text = alias,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                text = artist.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
             )
+
+            artist.alias?.takeIf { it.isNotBlank() }?.let { alias ->
+                Text(
+                    text = alias,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+
+            val meta = buildList {
+                artist.region?.takeIf { it.isNotBlank() }?.let { add(it) }
+                if (artist.musicCount > 0) add("${artist.musicCount} 首歌曲")
+                if (artist.albumCount > 0) add("${artist.albumCount} 张专辑")
+            }
+            if (meta.isNotEmpty()) {
+                Text(
+                    text = meta.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            if (artist.tags.isNotEmpty()) {
+                Text(
+                    text = artist.tags.joinToString(" · ") { it.name },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+
+            artist.description?.takeIf { it.isNotBlank() }?.let { description ->
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
         }
 
-        val meta = buildList {
-            artist.region?.takeIf { it.isNotBlank() }?.let { add(it) }
-            if (artist.musicCount > 0) add("${artist.musicCount} 首歌曲")
-            if (artist.albumCount > 0) add("${artist.albumCount} 张专辑")
-        }
-        if (meta.isNotEmpty()) {
-            Text(
-                text = meta.joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-
-        if (artist.tags.isNotEmpty()) {
-            Text(
-                text = artist.tags.joinToString(" · ") { it.name },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-
-        artist.description?.takeIf { it.isNotBlank() }?.let { description ->
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 12.dp),
-            )
+        IconButton(
+            onClick = { onFavoriteClick() },
+            enabled = !isFavoriteLoading,
+        ) {
+            if (isFavoriteLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+            } else {
+                Icon(
+                    imageVector = if (artist.isFavorite) {
+                        Icons.Filled.Favorite
+                    } else {
+                        Icons.Filled.FavoriteBorder
+                    },
+                    contentDescription = "收藏",
+                    tint = if (artist.isFavorite) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+            }
         }
     }
 }

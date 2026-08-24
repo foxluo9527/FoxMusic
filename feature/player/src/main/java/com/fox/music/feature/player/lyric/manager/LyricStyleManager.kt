@@ -28,6 +28,7 @@ class LyricStyleManager private constructor() {
         private const val KEY_SCROLL_ENABLED = "scroll_enabled"
         private const val KEY_FADE_DURATION = "fade_duration"
         private const val KEY_LINE_SPACING = "line_spacing"
+        private const val KEY_SHOW_TRANSLATION = "show_translation"
 
         private const val DEFAULT_FONT_SIZE = 18
         private const val DEFAULT_TEXT_COLOR = Color.WHITE
@@ -70,7 +71,8 @@ class LyricStyleManager private constructor() {
             alignment = prefs.getInt(KEY_ALIGNMENT, Gravity.CENTER),
             isScrollEnabled = prefs.getBoolean(KEY_SCROLL_ENABLED, true),
             fadeDuration = prefs.getInt(KEY_FADE_DURATION, 300),
-            lineSpacing = prefs.getFloat(KEY_LINE_SPACING, 1.5f)
+            lineSpacing = prefs.getFloat(KEY_LINE_SPACING, 1.5f),
+            showTranslation = prefs.getBoolean(KEY_SHOW_TRANSLATION, true)
         )
     }
 
@@ -88,6 +90,7 @@ class LyricStyleManager private constructor() {
                 putBoolean(KEY_SCROLL_ENABLED, style.isScrollEnabled)
                 putInt(KEY_FADE_DURATION, style.fadeDuration)
                 putFloat(KEY_LINE_SPACING, style.lineSpacing)
+                putBoolean(KEY_SHOW_TRANSLATION, style.showTranslation)
             }
             _styleFlow.value = style
             LyricStyleChangeNotifier.notifyChanged(Utils.getApp())
@@ -130,6 +133,10 @@ class LyricStyleManager private constructor() {
         updateStyle(currentStyle.copy(lineSpacing = spacing.coerceIn(1.0f, 3.0f)))
     }
 
+    fun setShowTranslation(show: Boolean) {
+        updateStyle(currentStyle.copy(showTranslation = show))
+    }
+
     fun resetToDefault() {
         updateStyle(getDefaultStyle())
     }
@@ -149,31 +156,31 @@ class LyricStyleManager private constructor() {
     enum class LyricPreset(val displayName: String, val style: LyricStyle) {
         CLASSIC("经典", LyricStyle(
             fontSize = 18,
-            textColor = Color.WHITE,
+            textColor = "#FFB3B3".toColorInt(),
             highlightColor = "#FF6B6B".toColorInt(),
             backgroundColor = "#99000000".toColorInt()
         )),
         NEON("霓虹", LyricStyle(
             fontSize = 18,
-            textColor = "#00FFFF".toColorInt(),
+            textColor = "#D98CD9".toColorInt(),
             highlightColor = "#FF00FF".toColorInt(),
             backgroundColor = "#CC000000".toColorInt()
         )),
         WARM("暖阳", LyricStyle(
             fontSize = 18,
-            textColor = "#FFF8DC".toColorInt(),
+            textColor = "#FFD699".toColorInt(),
             highlightColor = "#FFA500".toColorInt(),
             backgroundColor = "#B0843C30".toColorInt()
         )),
         COOL("清凉", LyricStyle(
             fontSize = 18,
-            textColor = "#E0FFFF".toColorInt(),
+            textColor = "#80E8EA".toColorInt(),
             highlightColor = "#00CED1".toColorInt(),
             backgroundColor = "#B03A4A4E".toColorInt()
         )),
         DARK("暗黑", LyricStyle(
             fontSize = 18,
-            textColor = "#CCCCCC".toColorInt(),
+            textColor = "#C8C8C8".toColorInt(),
             highlightColor = "#FFFFFF".toColorInt(),
             backgroundColor = "#FF1A1A1A".toColorInt()
         ))

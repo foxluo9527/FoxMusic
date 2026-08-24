@@ -188,7 +188,7 @@ class MusicControllerImpl @Inject constructor(
         expectedMediaItemIndex = safeIndex
         userPlaylistActive = true
         applyRepeatModeToPlayer(snapshot.repeatMode)
-        // 冷启动仅恢复 UI/内存状态，不加载 ExoPlayer，避免与用户点播争用队列
+        // 冷启动仅恢复 UI/内存状态，不加载 ExoPlayer 音频，避免与用户点播争用队列
         pendingRestorePositionMs = snapshot.positionMs.coerceAtLeast(0L)
         publishOptimisticPlayerState(
             musics = snapshot.playlist,
@@ -196,6 +196,14 @@ class MusicControllerImpl @Inject constructor(
             positionMs = pendingRestorePositionMs!!,
         )
         _currentPosition.value = pendingRestorePositionMs!!
+
+        // 将当前曲目元数据写入 ExoPlayer → MediaSession，使系统（通知栏、蓝牙、锁屏）
+        // 在冷启动未播放时即可看到音乐信息；不调用 prepare()，不加载音频。
+        val music = snapshot.playlist.getOrNull(safeIndex) ?: return
+        controller?.run {
+            playWhenReady = false
+            setMediaItem(music.toMediaItem())
+        }
     }
 
     private fun setupPlayerListener() {
@@ -562,7 +570,7 @@ class MusicControllerImpl @Inject constructor(
         controller?.let { player ->
             val uiIndex = resolveUiIndex(player.currentMediaItemIndex)
             if (currentPlaylist.isNotEmpty() &&
-                (player.mediaItemCount == 0 || !isCurrentTrackAligned(player))
+                (player.mediaItemCount == 0 || !isCurrentTrackAligned(player) || pendingRestorePositionMs != null)
             ) {
                 if (!isApplyingPlaylist()) {
                     val hadPendingRestore = pendingRestorePositionMs != null

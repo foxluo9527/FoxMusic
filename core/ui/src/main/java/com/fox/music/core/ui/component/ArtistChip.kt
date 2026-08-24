@@ -41,6 +41,7 @@ fun ArtistChip(
         ) {
             CachedImage(
                 imageUrl = artist.avatar,
+                errorImageUrl = artist.coverImage,
                 contentDescription = artist.name,
                 modifier = Modifier
                     .size(32.dp)

@@ -9,6 +9,11 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +27,7 @@ import coil.compose.SubcomposeAsyncImage
 @Composable
 fun CachedImage(
     imageUrl: String?,
+    errorImageUrl:String?=null,
     contentDescription: String?,
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.small,
@@ -32,8 +38,12 @@ fun CachedImage(
         PlaceholderBox(modifier.clip(shape),icon = placeholderIcon)
         return
     }
+    var model by remember { mutableStateOf(imageUrl) }
+    LaunchedEffect(imageUrl) {
+        model = imageUrl
+    }
     SubcomposeAsyncImage(
-        model = processUrl(imageUrl),
+        model = processUrl(model),
         contentDescription = contentDescription,
         modifier = modifier.clip(shape),
         contentScale = contentScale,
@@ -43,6 +53,11 @@ fun CachedImage(
         error = {
             PlaceholderBox(icon = Icons.Filled.BrokenImage)
         },
+        onError = {
+            errorImageUrl?.let {
+                model = it
+            }
+        }
     )
 }
 

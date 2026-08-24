@@ -37,7 +37,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#ffffff" />
+                        android:background="#ffb3b3" />
 
                     <View
                         android:layout_width="match_parent"
@@ -70,7 +70,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#00FFFF" />
+                        android:background="#d98cd9" />
 
                     <View
                         android:layout_width="match_parent"
@@ -103,7 +103,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#FFF8DC" />
+                        android:background="#ffd699" />
 
                     <View
                         android:layout_width="match_parent"
@@ -136,7 +136,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#E0FFFF" />
+                        android:background="#80e8ea" />
 
                     <View
                         android:layout_width="match_parent"
@@ -169,7 +169,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#CCCCCC" />
+                        android:background="#c8c8c8" />
 
                     <View
                         android:layout_width="match_parent"

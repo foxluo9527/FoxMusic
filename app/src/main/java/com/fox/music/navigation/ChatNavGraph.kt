@@ -89,9 +89,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
 
     composableStack(FRIENDS_ROUTE) {
         FriendsScreen(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onNavigateToSearch = { navController.navigate(searchUserRoute()) },
             onNavigateToUserProfile = { userId, nickname, avatar, signature, isFriend, isRequested ->
@@ -160,9 +158,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
             .getStateFlow("friendRequestSent", false)
             .collectAsStateWithLifecycle()
         UserProfileScreen(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             friendRequestSent = friendRequestSent,
             onFriendRequestSentHandled = {
                 backStackEntry.savedStateHandle["friendRequestSent"] = false
@@ -232,9 +228,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
         ),
     ) {
         ChatDetailScreen(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onNavigateToSettings = { userId, nickname, avatar ->
                 navController.navigate(chatSettingsRoute(userId, nickname, avatar))
@@ -329,9 +323,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
         ),
     ) {
         ChatSettingsScreen(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onNavigateToUserProfile = { userId, nickname, avatar, signature, isFriend, isRequested ->
                 navController.navigate(
@@ -353,9 +345,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
 
     composableStack(CHAT_SEARCH_ROUTE) {
         ChatSearchScreen(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onNavigateToUserSearch = { userId, nickname, avatar, query ->
                 navController.navigate(userChatSearchRoute(userId, nickname, avatar, query))
@@ -388,9 +378,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
         ),
     ) {
         UserChatSearchScreen(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onNavigateToChatDetail = { userId, messageId ->
                 navController.navigate(chatDetailRoute(userId))

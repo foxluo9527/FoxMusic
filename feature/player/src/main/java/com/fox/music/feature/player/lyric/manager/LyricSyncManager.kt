@@ -82,6 +82,7 @@ class LyricSyncManager private constructor() {
     private val styleManager by lazy {LyricStyleManager.getInstance()}
 
     private var currentMusicId: String? = null
+    private var currentLyrics: String? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -289,8 +290,10 @@ class LyricSyncManager private constructor() {
         progress: Long,
     ) {
         if (EventViewModel.appInForeground.value == true) return
-        if (musicId != currentMusicId || ! isShowing) {
+        val lyricsChanged = lyricContent != currentLyrics
+        if (musicId != currentMusicId || !isShowing || lyricsChanged) {
             currentMusicId = musicId
+            currentLyrics = lyricContent
             lyricView.getLyricContentView().let {lyricView ->
                 if (lyricTrans.isNullOrEmpty()) {
                     lyricView.loadLyric(lyricContent)

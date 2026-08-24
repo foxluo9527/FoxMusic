@@ -128,6 +128,7 @@ fun ChatMediaPreviewDialog(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Black,
                         titleContentColor = Color.White,
+                        scrolledContainerColor = Color.Black
                     ),
                     modifier = Modifier.statusBarsPadding(),
                 )
