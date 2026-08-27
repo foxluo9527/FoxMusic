@@ -11,6 +11,7 @@ import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.AlbumRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SearchRepository
+import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
 import com.fox.music.core.domain.usecase.GetPlayHistoryUseCase
 import com.fox.music.core.model.music.Album
@@ -58,13 +59,21 @@ class HomeViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val playlistRepository: PlaylistRepository,
     private val albumRepository: AlbumRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) : MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState()) {
 
     private var currentMusicList: List<Music> = emptyList()
+    private var currentUserId: Long? = null
 
     init {
         viewModelScope.launch {
             sendIntent(HomeIntent.Load)
+            userPreferencesRepository.userPreferences.collect { prefs ->
+                if (prefs.userId != currentUserId) {
+                    currentUserId = prefs.userId
+                    sendIntent(HomeIntent.Refresh)
+                }
+            }
         }
     }
 

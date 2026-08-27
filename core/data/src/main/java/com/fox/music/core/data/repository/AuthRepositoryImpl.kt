@@ -7,6 +7,7 @@ import com.fox.music.core.data.mapper.toUser
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.LoginResult
+import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.model.user.User
 import com.fox.music.core.network.api.AuthApiService
 import com.fox.music.core.network.model.ForgotPasswordRequest
@@ -22,6 +23,7 @@ class AuthRepositoryImpl @Inject constructor(
     private val tokenManager: TokenManager,
     private val dataStore: FoxPreferencesDataStore,
     private val searchMusicResultCache: SearchMusicResultCache,
+    private val recommendedMusicCacheManager: RecommendedMusicCacheManager,
 ) : AuthRepository {
 
     override suspend fun login(username: String, password: String): Result<LoginResult> =
@@ -70,6 +72,7 @@ class AuthRepositoryImpl @Inject constructor(
                 tokenManager.clearTokens()
                 dataStore.clearUserInfo()
                 searchMusicResultCache.clear()
+                recommendedMusicCacheManager.clear()
             }
         }
 

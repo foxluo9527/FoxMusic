@@ -51,6 +51,12 @@ class RecommendedMusicCacheManagerImpl @Inject constructor(
         }
     }
 
+    override suspend fun clear() {
+        memoryCache = null
+        loadedFromDisk = false
+        cacheStore.clear()
+    }
+
     private suspend fun ensureLoadedFromDisk() {
         if (loadedFromDisk) return
         memoryCache = cacheStore.load()

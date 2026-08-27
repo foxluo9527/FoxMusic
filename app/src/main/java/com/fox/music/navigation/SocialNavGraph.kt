@@ -53,6 +53,7 @@ fun NavGraphBuilder.socialNavGraph(context: NavGraphContext) {
             },
             onReportPost = context.postActionsViewModel::showReportSheet,
             onDeletePost = context.postActionsViewModel::showDeleteDialog,
+            onCommentDeleted = { context.onPlazaRefreshTriggerIncrement() },
         )
     }
 

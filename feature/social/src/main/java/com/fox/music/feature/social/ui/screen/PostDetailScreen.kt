@@ -1,7 +1,9 @@
 package com.fox.music.feature.social.ui.screen
 
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -24,6 +27,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +52,7 @@ import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.social.displayAuthorAvatar
 import com.fox.music.core.model.social.displayAuthorName
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.CommentMoreBottomSheet
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.core.ui.component.LoadingIndicator
@@ -74,6 +79,7 @@ fun PostDetailScreen(
     onEditPost: (Long) -> Unit = {},
     onReportPost: (Post) -> Unit = {},
     onDeletePost: (Post) -> Unit = {},
+    onCommentDeleted: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val commentsPaging = state.comments.collectAsLazyPagingItems()
@@ -81,6 +87,9 @@ fun PostDetailScreen(
     var previewImages by remember { mutableStateOf<List<String>?>(null) }
     var previewIndex by remember { mutableIntStateOf(0) }
     var showMoreSheet by remember { mutableStateOf(false) }
+    var showCommentMoreSheet by remember { mutableStateOf(false) }
+    var selectedComment by remember { mutableStateOf<Comment?>(null) }
+    var showDeleteCommentDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.commentsRefreshTrigger) {
         if (state.commentsRefreshTrigger > 0) {
@@ -96,6 +105,9 @@ fun PostDetailScreen(
                 }
                 is PostDetailEffect.CommentSent -> {
                     commentsPaging.refresh()
+                }
+                is PostDetailEffect.CommentDeleted -> {
+                    onCommentDeleted()
                 }
             }
         }
@@ -118,6 +130,49 @@ fun PostDetailScreen(
             onEdit = { onEditPost(post.id) },
             onDelete = { onDeletePost(post) },
             onReport = { onReportPost(post) },
+        )
+    }
+
+    val commentForSheet = selectedComment
+    if (showCommentMoreSheet && commentForSheet != null) {
+        val isOwnComment = commentForSheet.userId == currentUserId
+        CommentMoreBottomSheet(
+            isOwnComment = isOwnComment,
+            onDismiss = { showCommentMoreSheet = false },
+            onDelete = {
+                showDeleteCommentDialog = true
+            },
+            onReport = {
+                viewModel.sendIntent(
+                    PostDetailIntent.ReportComment(
+                        commentId = commentForSheet.id,
+                        reason = "违规内容",
+                        description = null,
+                    )
+                )
+            },
+        )
+    }
+
+    if (showDeleteCommentDialog && commentForSheet != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteCommentDialog = false },
+            title = { Text("删除评论") },
+            text = { Text("确定要删除这条评论吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteCommentDialog = false
+                    showCommentMoreSheet = false
+                    viewModel.sendIntent(PostDetailIntent.DeleteComment(commentForSheet.id))
+                }) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteCommentDialog = false }) {
+                    Text("取消")
+                }
+            },
         )
     }
 
@@ -211,6 +266,10 @@ fun PostDetailScreen(
                                             ),
                                         )
                                     },
+                                    onLongClick = {
+                                        selectedComment = comment
+                                        showCommentMoreSheet = true
+                                    },
                                     repliesContent = if (comment.id in state.expandedCommentIds) {
                                         {
                                             PostRepliesList(
@@ -223,6 +282,10 @@ fun PostDetailScreen(
                                                             userName = reply.displayAuthorName,
                                                         ),
                                                     )
+                                                },
+                                                onCommentLongClick = { reply ->
+                                                    selectedComment = reply
+                                                    showCommentMoreSheet = true
                                                 },
                                             )
                                         }
@@ -250,6 +313,10 @@ fun PostDetailScreen(
                                         ),
                                     )
                                 },
+                                onLongClick = {
+                                    selectedComment = comment
+                                    showCommentMoreSheet = true
+                                },
                                 repliesContent = if (comment.id in state.expandedCommentIds) {
                                     {
                                         PostRepliesList(
@@ -262,6 +329,10 @@ fun PostDetailScreen(
                                                         userName = reply.displayAuthorName,
                                                     ),
                                                 )
+                                            },
+                                            onCommentLongClick = { reply ->
+                                                selectedComment = reply
+                                                showCommentMoreSheet = true
                                             },
                                         )
                                     }
@@ -278,12 +349,14 @@ fun PostDetailScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PostDetailCommentItem(
     comment: Comment,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     onReply: () -> Unit,
+    onLongClick: () -> Unit = {},
     repliesContent: (@Composable () -> Unit)?,
 ) {
     Column(
@@ -294,7 +367,10 @@ private fun PostDetailCommentItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onReply),
+                .combinedClickable(
+                    onClick = onReply,
+                    onLongClick = onLongClick,
+                ),
             verticalAlignment = Alignment.Top,
         ) {
             CachedImage(
@@ -337,6 +413,7 @@ private fun PostRepliesList(
     rootCommentId: Long,
     viewModel: PostDetailViewModel,
     onReply: (Comment) -> Unit,
+    onCommentLongClick: (Comment) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val repliesFlow = remember(rootCommentId) { viewModel.getRepliesFlow(rootCommentId) }
@@ -354,6 +431,7 @@ private fun PostRepliesList(
             PostReplyItem(
                 reply = reply,
                 onReply = { onReply(reply) },
+                onLongClick = { onCommentLongClick(reply) },
             )
         }
         if (repliesPaging.loadState.append is LoadState.Loading) {
@@ -362,16 +440,21 @@ private fun PostRepliesList(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PostReplyItem(
     reply: Comment,
     onReply: () -> Unit,
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onReply)
+            .combinedClickable(
+                onClick = onReply,
+                onLongClick = onLongClick,
+            )
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.Top,
     ) {

@@ -67,6 +67,8 @@ interface SocialRepository {
 
     suspend fun postComment(postId: Long, content: String, parentId: Long? = null): Result<Comment>
 
+    suspend fun deletePostComment(id: Long): Result<Unit>
+
     suspend fun getFavorites(
         type: String? = null,
         page: Int = 1,

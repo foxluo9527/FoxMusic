@@ -70,6 +70,7 @@ fun DiscoverScreen(
     viewModel: DiscoverViewModel = hiltViewModel(),
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
+    refreshTrigger: Int = 0,
     onMusicClick: (Music, List<Music>, String) -> Unit = { _, _, _ -> },
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onRankClick: (Long) -> Unit = {},
@@ -89,6 +90,12 @@ fun DiscoverScreen(
     val state by viewModel.uiState.collectAsState()
     var previewImages by remember { mutableStateOf<List<String>?>(null) }
     var previewIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(refreshTrigger) {
+        if (refreshTrigger > 0) {
+            viewModel.sendIntent(DiscoverIntent.Refresh)
+        }
+    }
 
     previewImages?.let { images ->
         PostImagePreviewDialog(

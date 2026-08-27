@@ -91,6 +91,7 @@ fun NavGraphBuilder.tabNavGraph(
             ) {
                 DiscoverScreen(
                     modifier = it,
+                    refreshTrigger = context.plazaRefreshTrigger,
                     onMusicClick = context.onMusicClick,
                     updateMusicList = context.onUpdateMusicList,
                     sharedTransitionScope = this@with,

@@ -226,6 +226,11 @@ class SocialRepositoryImpl @Inject constructor(
         } else throw Exception(response.message)
     }
 
+    override suspend fun deletePostComment(id: Long): Result<Unit> = suspendRunCatching {
+        val response = socialApi.deletePostComment(id)
+        if (!response.isSuccess) throw Exception(response.message)
+    }
+
     override suspend fun getFavorites(
         type: String?,
         page: Int,

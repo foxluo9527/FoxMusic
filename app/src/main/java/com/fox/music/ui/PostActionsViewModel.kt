@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -51,8 +50,9 @@ class PostActionsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val userId = userPreferencesRepository.userPreferences.first().userId
-            _uiState.update { it.copy(currentUserId = userId) }
+            userPreferencesRepository.userPreferences.collect { prefs ->
+                _uiState.update { it.copy(currentUserId = prefs.userId) }
+            }
         }
     }
 

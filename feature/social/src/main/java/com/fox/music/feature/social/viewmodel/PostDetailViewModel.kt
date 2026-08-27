@@ -14,6 +14,8 @@ import com.fox.music.core.domain.usecase.GetPostCommentsPagingUseCase
 import com.fox.music.core.domain.usecase.GetPostCommentRepliesPagingUseCase
 import com.fox.music.core.domain.usecase.GetPostDetailUseCase
 import com.fox.music.core.domain.usecase.PostCommentUseCase
+import com.fox.music.core.domain.usecase.DeletePostCommentUseCase
+import com.fox.music.core.domain.usecase.SubmitReportUseCase
 import com.fox.music.core.domain.usecase.TogglePostLikeUseCase
 import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.social.Post
@@ -52,11 +54,14 @@ sealed interface PostDetailIntent : UiIntent {
     data class ToggleExpandReplies(val commentId: Long) : PostDetailIntent
     data object ToggleLike : PostDetailIntent
     data object ClearPendingComments : PostDetailIntent
+    data class DeleteComment(val commentId: Long) : PostDetailIntent
+    data class ReportComment(val commentId: Long, val reason: String, val description: String?) : PostDetailIntent
 }
 
 sealed interface PostDetailEffect : UiEffect {
     data class ShowToast(val message: String) : PostDetailEffect
     data class CommentSent(val comment: Comment) : PostDetailEffect
+    data object CommentDeleted : PostDetailEffect
 }
 
 @HiltViewModel
@@ -67,6 +72,8 @@ class PostDetailViewModel @Inject constructor(
     private val getPostCommentRepliesPagingUseCase: GetPostCommentRepliesPagingUseCase,
     private val postCommentUseCase: PostCommentUseCase,
     private val togglePostLikeUseCase: TogglePostLikeUseCase,
+    private val deletePostCommentUseCase: DeletePostCommentUseCase,
+    private val submitReportUseCase: SubmitReportUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
 ) : MviViewModel<PostDetailState, PostDetailIntent, PostDetailEffect>(
     PostDetailState(postId = savedStateHandle.get<Long>("postId") ?: 0L),
@@ -97,6 +104,8 @@ class PostDetailViewModel @Inject constructor(
             is PostDetailIntent.ToggleExpandReplies -> toggleReplies(intent.commentId)
             PostDetailIntent.ToggleLike -> toggleLike()
             PostDetailIntent.ClearPendingComments -> updateState { copy(pendingComments = emptyList()) }
+            is PostDetailIntent.DeleteComment -> deleteComment(intent.commentId)
+            is PostDetailIntent.ReportComment -> reportComment(intent.commentId, intent.reason, intent.description)
         }
     }
 
@@ -230,6 +239,33 @@ class PostDetailViewModel @Inject constructor(
                     }
                 }
                 else -> Unit
+            }
+        }
+    }
+
+    private fun deleteComment(commentId: Long) {
+        viewModelScope.launch {
+            deletePostCommentUseCase(commentId).onSuccess {
+                sendEffect(PostDetailEffect.ShowToast("评论已删除"))
+                sendEffect(PostDetailEffect.CommentDeleted)
+                refresh()
+            }.onError { _, msg ->
+                sendEffect(PostDetailEffect.ShowToast(msg ?: "删除失败"))
+            }
+        }
+    }
+
+    private fun reportComment(commentId: Long, reason: String, description: String?) {
+        viewModelScope.launch {
+            submitReportUseCase(
+                targetType = "comment",
+                targetId = commentId,
+                reason = reason,
+                description = description,
+            ).onSuccess {
+                sendEffect(PostDetailEffect.ShowToast("举报已提交"))
+            }.onError { _, msg ->
+                sendEffect(PostDetailEffect.ShowToast(msg ?: "举报提交失败"))
             }
         }
     }

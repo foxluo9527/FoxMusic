@@ -104,6 +104,9 @@ interface SocialApiService {
         @Query("limit") limit: Int = 20,
     ): ApiResponse<PagedResponse<CommentDto>>
 
+    @DELETE("api/posts/comments/{id}")
+    suspend fun deletePostComment(@Path("id") id: Long): ApiResponse<Unit>
+
     // Favorites
     @GET("api/favorites")
     suspend fun getFavorites(
