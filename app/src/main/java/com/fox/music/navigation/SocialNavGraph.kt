@@ -1,40 +1,44 @@
 package com.fox.music.navigation
 
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
-import com.fox.music.feature.social.ui.screen.COMMUNITY_PLAZA_ROUTE
+import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
+import com.fox.music.feature.profile.ui.screen.userHomeRoute
 import com.fox.music.feature.social.ui.screen.CREATE_POST_ROUTE
 import com.fox.music.feature.social.ui.screen.POST_DETAIL_ROUTE
-import com.fox.music.feature.social.ui.screen.CommunityPlazaScreen
+import com.fox.music.feature.social.ui.screen.SELECT_POST_MUSIC_ROUTE
+import com.fox.music.feature.social.ui.screen.SELECT_POST_MUSIC_SEARCH_ROUTE
+import com.fox.music.feature.social.ui.screen.SELECT_POST_TAG_ROUTE
 import com.fox.music.feature.social.ui.screen.CreatePostScreen
+import com.fox.music.feature.social.ui.screen.PostPublishQueueScreen
+import com.fox.music.feature.social.ui.screen.POST_PUBLISH_QUEUE_ROUTE
 import com.fox.music.feature.social.ui.screen.PostDetailScreen
+import com.fox.music.feature.social.ui.screen.SelectPostMusicScreen
+import com.fox.music.feature.social.ui.screen.SelectPostMusicSearchScreen
+import com.fox.music.feature.social.ui.screen.SelectPostTagScreen
+import com.fox.music.feature.search.SearchResultTab
+import com.fox.music.feature.search.searchRoute
 import com.fox.music.feature.social.ui.screen.createPostRoute
-import com.fox.music.feature.social.ui.screen.postDetailRoute
 import com.fox.music.feature.social.viewmodel.PostDetailViewModel
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 
-fun NavGraphBuilder.socialNavGraph(context: NavGraphContext) {
+fun NavGraphBuilder.socialNavGraph(
+    context: NavGraphContext,
+    sharedTransitionScope: SharedTransitionScope,
+) {
     val navController = context.navController
+    val musicController = context.musicController
 
-    composableStack(COMMUNITY_PLAZA_ROUTE) {
-        CommunityPlazaScreen(
-            modifier = Modifier.fillMaxSize(),
-            refreshTrigger = context.plazaRefreshTrigger,
-            currentUserId = context.currentUserId,
-            onBack = { navController.popBackStack() },
-            onCreatePost = { navController.navigate(createPostRoute()) },
-            onPostDetail = { postId ->
-                navController.navigate(postDetailRoute(postId))
-            },
-            onSharePost = context.postActionsViewModel::sharePost,
-            onEditPost = { postId ->
-                navController.navigate(createPostRoute(postId))
-            },
-            onReportPost = context.postActionsViewModel::showReportSheet,
-            onDeletePost = context.postActionsViewModel::showDeleteDialog,
-        )
+    fun navigateToCreatePost(postId: Long = -1L) {
+        if (!context.authState.isLoggedIn) {
+            navController.navigate(LOGIN_ROUTE)
+            return
+        }
+        navController.navigate(createPostRoute(postId))
     }
 
     composableStack(
@@ -43,17 +47,58 @@ fun NavGraphBuilder.socialNavGraph(context: NavGraphContext) {
             navArgument("postId") { type = NavType.LongType },
         ),
     ) {
-        PostDetailScreen(
+        val animatedScope = this
+        with(sharedTransitionScope) {
+            PostDetailScreen(
+                modifier = Modifier.fillMaxSize(),
+                currentUserId = context.currentUserId,
+                isLoggedIn = context.authState.isLoggedIn,
+                playerState = context.playerState,
+                sharedTransitionScope = this@with,
+                animatedContentScope = animatedScope,
+                onBack = { navController.popBackStack() },
+                onLoginRequired = { navController.navigate(LOGIN_ROUTE) },
+                onSharePost = context.postActionsViewModel::sharePost,
+                onEditPost = { postId -> navigateToCreatePost(postId) },
+                onReportPost = context.postActionsViewModel::showReportSheet,
+                onDeletePost = context.postActionsViewModel::showDeleteDialog,
+                onCommentDeleted = { context.onPlazaRefreshTriggerIncrement() },
+                onPlayMusic = { post ->
+                    post.music?.let { music ->
+                        context.musicController.setPlaylist(
+                            listOf(music),
+                            0,
+                            "post_${post.id}",
+                            PlaybackPlaylistSource.fromPost(post),
+                        )
+                    }
+                },
+                onNavigateToPlayer = { navController.navigateToPlayer() },
+                onTogglePlay = { musicController.togglePlay() },
+                onNextTrack = { musicController.next() },
+                onTagClick = { tag ->
+                    navController.navigate(
+                        searchRoute(
+                            tab = SearchResultTab.POST,
+                            tag = tag,
+                            sort = "hot",
+                        ),
+                    )
+                },
+                onAddMusicToPlaylist = { music ->
+                    context.musicActionsViewModel.showAddToPlaylist(listOf(music))
+                },
+                onNavigateToUserHome = { userId ->
+                    navController.navigate(userHomeRoute(userId))
+                },
+            )
+        }
+    }
+
+    composableStack(POST_PUBLISH_QUEUE_ROUTE) {
+        PostPublishQueueScreen(
             modifier = Modifier.fillMaxSize(),
-            currentUserId = context.currentUserId,
             onBack = { navController.popBackStack() },
-            onSharePost = context.postActionsViewModel::sharePost,
-            onEditPost = { postId ->
-                navController.navigate(createPostRoute(postId))
-            },
-            onReportPost = context.postActionsViewModel::showReportSheet,
-            onDeletePost = context.postActionsViewModel::showDeleteDialog,
-            onCommentDeleted = { context.onPlazaRefreshTriggerIncrement() },
         )
     }
 
@@ -69,12 +114,41 @@ fun NavGraphBuilder.socialNavGraph(context: NavGraphContext) {
         CreatePostScreen(
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
+            onSelectTag = { navController.navigate(SELECT_POST_TAG_ROUTE) },
+            onSelectMusic = { navController.navigate(SELECT_POST_MUSIC_ROUTE) },
             onPublished = {
                 navController.previousBackStackEntry
                     ?.savedStateHandle
                     ?.set(PostDetailViewModel.POST_UPDATED_KEY, true)
                 context.onPlazaRefreshTriggerIncrement()
                 navController.popBackStack()
+            },
+        )
+    }
+
+    composableStack(SELECT_POST_TAG_ROUTE) {
+        SelectPostTagScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+            onTagSelected = { navController.popBackStack() },
+        )
+    }
+
+    composableStack(SELECT_POST_MUSIC_ROUTE) {
+        SelectPostMusicScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+            onSearchClick = { navController.navigate(SELECT_POST_MUSIC_SEARCH_ROUTE) },
+            onMusicSelected = { navController.popBackStack() },
+        )
+    }
+
+    composableStack(SELECT_POST_MUSIC_SEARCH_ROUTE) {
+        SelectPostMusicSearchScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+            onMusicSelected = {
+                navController.popBackStack(SELECT_POST_MUSIC_ROUTE, inclusive = true)
             },
         )
     }

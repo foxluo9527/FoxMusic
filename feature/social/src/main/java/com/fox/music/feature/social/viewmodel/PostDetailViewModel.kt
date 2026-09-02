@@ -13,24 +13,30 @@ import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.GetPostCommentsPagingUseCase
 import com.fox.music.core.domain.usecase.GetPostCommentRepliesPagingUseCase
 import com.fox.music.core.domain.usecase.GetPostDetailUseCase
+import com.fox.music.core.domain.usecase.GetPostLikesPagingUseCase
 import com.fox.music.core.domain.usecase.PostCommentUseCase
 import com.fox.music.core.domain.usecase.DeletePostCommentUseCase
 import com.fox.music.core.domain.usecase.SubmitReportUseCase
+import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.domain.usecase.TogglePostLikeUseCase
 import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.social.Post
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+enum class PostDetailFeedTab {
+    COMMENTS,
+    LIKES,
+}
 
 data class PostDetailState(
     val postId: Long = 0L,
     val post: Post? = null,
     val currentUserId: Long? = null,
-    val comments: Flow<PagingData<Comment>> = flowOf(),
+    val feedTab: PostDetailFeedTab = PostDetailFeedTab.COMMENTS,
     val pendingComments: List<Comment> = emptyList(),
     val isLoading: Boolean = true,
     val isCommentSending: Boolean = false,
@@ -42,17 +48,23 @@ data class PostDetailState(
     val isRefreshing: Boolean = false,
     val repliesRefreshTrigger: Int = 0,
     val commentsRefreshTrigger: Int = 0,
-) : UiState
+    val likesRefreshTrigger: Int = 0,
+) : UiState {
+    val canViewLikeList: Boolean
+        get() = currentUserId != null && post?.userId == currentUserId
+}
 
 sealed interface PostDetailIntent : UiIntent {
     data object Load : PostDetailIntent
     data object Refresh : PostDetailIntent
+    data class SelectFeedTab(val tab: PostDetailFeedTab) : PostDetailIntent
     data class UpdateCommentInput(val text: String) : PostDetailIntent
     data object SendComment : PostDetailIntent
     data class ReplyToComment(val commentId: Long, val userName: String) : PostDetailIntent
     data object ClearReply : PostDetailIntent
     data class ToggleExpandReplies(val commentId: Long) : PostDetailIntent
     data object ToggleLike : PostDetailIntent
+    data object ToggleMusicFavorite : PostDetailIntent
     data object ClearPendingComments : PostDetailIntent
     data class DeleteComment(val commentId: Long) : PostDetailIntent
     data class ReportComment(val commentId: Long, val reason: String, val description: String?) : PostDetailIntent
@@ -69,15 +81,21 @@ class PostDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val getPostDetailUseCase: GetPostDetailUseCase,
     private val getPostCommentsPagingUseCase: GetPostCommentsPagingUseCase,
+    private val getPostLikesPagingUseCase: GetPostLikesPagingUseCase,
     private val getPostCommentRepliesPagingUseCase: GetPostCommentRepliesPagingUseCase,
     private val postCommentUseCase: PostCommentUseCase,
     private val togglePostLikeUseCase: TogglePostLikeUseCase,
+    private val toggleMusicFavoriteUseCase: ToggleMusicFavoriteUseCase,
     private val deletePostCommentUseCase: DeletePostCommentUseCase,
     private val submitReportUseCase: SubmitReportUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
 ) : MviViewModel<PostDetailState, PostDetailIntent, PostDetailEffect>(
     PostDetailState(postId = savedStateHandle.get<Long>("postId") ?: 0L),
 ) {
+
+    private val postId: Long = savedStateHandle.get<Long>("postId") ?: 0L
+    val commentsPagingFlow = getPostCommentsPagingUseCase(postId).cachedIn(viewModelScope)
+    val likesPagingFlow = getPostLikesPagingUseCase(postId).cachedIn(viewModelScope)
 
     init {
         sendIntent(PostDetailIntent.Load)
@@ -95,6 +113,10 @@ class PostDetailViewModel @Inject constructor(
         when (intent) {
             PostDetailIntent.Load -> load()
             PostDetailIntent.Refresh -> refresh()
+            is PostDetailIntent.SelectFeedTab -> {
+                if (intent.tab == PostDetailFeedTab.LIKES && !currentState.canViewLikeList) return
+                updateState { copy(feedTab = intent.tab) }
+            }
             is PostDetailIntent.UpdateCommentInput -> updateState { copy(commentInput = intent.text) }
             PostDetailIntent.SendComment -> sendComment()
             is PostDetailIntent.ReplyToComment -> updateState {
@@ -103,6 +125,7 @@ class PostDetailViewModel @Inject constructor(
             PostDetailIntent.ClearReply -> updateState { copy(replyParentId = null, replyHint = null) }
             is PostDetailIntent.ToggleExpandReplies -> toggleReplies(intent.commentId)
             PostDetailIntent.ToggleLike -> toggleLike()
+            PostDetailIntent.ToggleMusicFavorite -> toggleMusicFavorite()
             PostDetailIntent.ClearPendingComments -> updateState { copy(pendingComments = emptyList()) }
             is PostDetailIntent.DeleteComment -> deleteComment(intent.commentId)
             is PostDetailIntent.ReportComment -> reportComment(intent.commentId, intent.reason, intent.description)
@@ -118,16 +141,19 @@ class PostDetailViewModel @Inject constructor(
             updateState { copy(isRefreshing = true) }
             when (val result = getPostDetailUseCase(currentState.postId)) {
                 is Result.Success -> {
+                    val newPost = result.data
+                    val canViewLikes = currentState.currentUserId != null &&
+                        newPost.userId == currentState.currentUserId
                     updateState {
                         copy(
-                            post = result.data,
+                            post = newPost,
                             isRefreshing = false,
                             pendingComments = emptyList(),
                             expandedCommentIds = emptySet(),
                             replyFlows = emptyMap(),
-                            comments = getPostCommentsPagingUseCase(currentState.postId)
-                                .cachedIn(viewModelScope),
+                            feedTab = if (canViewLikes) feedTab else PostDetailFeedTab.COMMENTS,
                             commentsRefreshTrigger = commentsRefreshTrigger + 1,
+                            likesRefreshTrigger = likesRefreshTrigger + 1,
                         )
                     }
                 }
@@ -146,12 +172,13 @@ class PostDetailViewModel @Inject constructor(
             updateState { copy(currentUserId = userId, isLoading = true) }
             when (val result = getPostDetailUseCase(currentState.postId)) {
                 is Result.Success -> {
+                    val newPost = result.data
+                    val canViewLikes = userId != null && newPost.userId == userId
                     updateState {
                         copy(
-                            post = result.data,
+                            post = newPost,
                             isLoading = false,
-                            comments = getPostCommentsPagingUseCase(currentState.postId)
-                                .cachedIn(viewModelScope),
+                            feedTab = if (canViewLikes) feedTab else PostDetailFeedTab.COMMENTS,
                         )
                     }
                 }
@@ -235,9 +262,34 @@ class PostDetailViewModel @Inject constructor(
                                 likeCount = if (newLiked) post.likeCount + 1
                                 else (post.likeCount - 1).coerceAtLeast(0),
                             ),
+                            likesRefreshTrigger = likesRefreshTrigger + 1,
                         )
                     }
                 }
+                else -> Unit
+            }
+        }
+    }
+
+    private fun toggleMusicFavorite() {
+        val post = currentState.post ?: return
+        val music = post.music ?: return
+        viewModelScope.launch {
+            when (val result = toggleMusicFavoriteUseCase(music.id)) {
+                is Result.Success -> {
+                    val newFavorite = !music.isFavorite
+                    updateState {
+                        copy(post = post.copy(music = music.copy(isFavorite = newFavorite)))
+                    }
+                    sendEffect(
+                        PostDetailEffect.ShowToast(
+                            if (newFavorite) "已收藏音乐" else "已取消收藏音乐",
+                        ),
+                    )
+                }
+                is Result.Error -> sendEffect(
+                    PostDetailEffect.ShowToast(result.exception.message ?: "操作失败"),
+                )
                 else -> Unit
             }
         }

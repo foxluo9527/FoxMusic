@@ -82,6 +82,7 @@ import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PostCard
 import com.fox.music.core.ui.component.ProfileRelationshipBottomBar
 import com.fox.music.core.ui.component.ReportBottomSheet
+import com.fox.music.core.ui.component.UserLastListenedBar
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.feature.profile.ui.util.HomepageBackgroundCropHelper
 import com.fox.music.feature.profile.ui.util.UserHomeCoverSpec
@@ -106,6 +107,7 @@ fun UserHomeScreen(
     onNavigateToAddFriend: (Long, String?) -> Unit = { _, _ -> },
     onNavigateToPlaylist: (Long) -> Unit = {},
     onNavigateToPostDetail: (Long) -> Unit = {},
+    onNavigateToPlayer: () -> Unit = {},
     onSharePost: (com.fox.music.core.model.social.Post) -> Unit = {},
     onShareProfile: (com.fox.music.core.model.user.UserHomeProfile) -> Unit = {},
     onReportPost: (com.fox.music.core.model.social.Post) -> Unit = {},
@@ -161,6 +163,7 @@ fun UserHomeScreen(
                 UserHomeEffect.PickBackgroundImage -> {
                     pickBackgroundLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }
+                UserHomeEffect.NavigateToPlayer -> onNavigateToPlayer()
             }
         }
     }
@@ -178,13 +181,14 @@ fun UserHomeScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0.dp),
         bottomBar = {
-            if (showBottomBar && profile != null) {
+            if (showBottomBar) {
                 ProfileRelationshipBottomBar(
                     isFriend = profile.isFriend,
                     isRequested = profile.isRequested,
                     isPrivateAccount = profile.isPrivate,
                     onSendMessage = viewModel::onSendMessageClick,
                     onAddFriend = viewModel::onAddFriendClick,
+                    showBackGround = false
                 )
             }
         },
@@ -234,6 +238,7 @@ fun UserHomeScreen(
                         profile = profile,
                         onBack = viewModel::onBackClick,
                         onMore = { viewModel.sendIntent(UserHomeIntent.ShowMoreSheet) },
+                        onPlayLastListened = viewModel::onLastListenedClick,
                     )
                     UserHomeTabRow(
                         selectedTab = state.selectedTab,
@@ -249,20 +254,40 @@ fun UserHomeScreen(
                         userScrollEnabled = true,
                     ) { page ->
                         when (page) {
-                            0 -> UserHomePlaylistTab(
-                                playlists = state.playlists,
-                                isLoading = state.isPlaylistsLoading,
-                                onPlaylistClick = viewModel::onPlaylistClick,
-                            )
-                            else -> UserHomePostsTab(
-                                postPagingItems = postPagingItems,
-                                currentUserId = currentUserId,
-                                onPostDetail = viewModel::onPostDetailClick,
-                                onSharePost = onSharePost,
-                                onReportPost = onReportPost,
-                                onDeletePost = onDeletePost,
-                                onEditPost = onEditPost,
-                            )
+                            0 -> if (profile.canViewContent) {
+                                UserHomePlaylistTab(
+                                    playlists = state.playlists,
+                                    isLoading = state.isPlaylistsLoading,
+                                    onPlaylistClick = viewModel::onPlaylistClick,
+                                )
+                            } else {
+                                UserHomeContentRestricted(
+                                    message = if (profile.isBlockedByTarget) {
+                                        "对方已将你加入黑名单"
+                                    } else {
+                                        "私密账号，暂不可查看"
+                                    },
+                                )
+                            }
+                            else -> if (profile.canViewContent) {
+                                UserHomePostsTab(
+                                    postPagingItems = postPagingItems,
+                                    currentUserId = currentUserId,
+                                    onPostDetail = viewModel::onPostDetailClick,
+                                    onSharePost = onSharePost,
+                                    onReportPost = onReportPost,
+                                    onDeletePost = onDeletePost,
+                                    onEditPost = onEditPost,
+                                )
+                            } else {
+                                UserHomeContentRestricted(
+                                    message = if (profile.isBlockedByTarget) {
+                                        "对方已将你加入黑名单"
+                                    } else {
+                                        "私密账号，暂不可查看"
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -385,6 +410,7 @@ private fun UserHomeHeader(
     profile: UserHomeProfile,
     onBack: () -> Unit,
     onMore: () -> Unit,
+    onPlayLastListened: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
     Box(
@@ -442,6 +468,20 @@ private fun UserHomeHeader(
             showMore = true,
             onMore = onMore,
         )
+
+        profile.lastListened?.takeIf { profile.showLastListened }?.let { music ->
+            UserLastListenedBar(
+                music = music,
+                labelPrefix = if (profile.isSelf) "最近在听" else "对方在听",
+                onClick = onPlayLastListened,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp)
+                    .height(36.dp)
+                    .padding(horizontal = 56.dp)
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -524,6 +564,23 @@ private fun UserHomeTabRow(
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+}
+
+@Composable
+private fun UserHomeContentRestricted(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable

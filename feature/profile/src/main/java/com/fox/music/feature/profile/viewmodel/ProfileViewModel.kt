@@ -74,6 +74,8 @@ sealed interface ProfileEffect : UiEffect {
     data class PlayAllPlaylistTracks(
         val playlistId: Long,
         val musicList: List<Music>,
+        val title: String,
+        val coverUrl: String?,
     ) : ProfileEffect
 }
 
@@ -141,7 +143,14 @@ class ProfileViewModel @Inject constructor(
                     if (tracks.isEmpty()) {
                         sendEffect(ProfileEffect.ShowMessage("暂无歌曲"))
                     } else {
-                        sendEffect(ProfileEffect.PlayAllPlaylistTracks(playlistId, tracks))
+                        sendEffect(
+                            ProfileEffect.PlayAllPlaylistTracks(
+                                playlistId = playlistId,
+                                musicList = tracks,
+                                title = detail.playlist.title,
+                                coverUrl = detail.playlist.coverImage,
+                            ),
+                        )
                     }
                 }
                 .onError { _, msg ->

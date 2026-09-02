@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -65,6 +66,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.common.util.MotionPhotoExtractor
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.chat.MessageType
 import com.fox.music.core.model.music.DetailType
@@ -73,8 +75,12 @@ import com.fox.music.feature.chat.ui.component.ChatInputBar
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewDialog
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewType
 import com.fox.music.feature.chat.ui.component.ChatMessageItem
-import com.fox.music.feature.chat.ui.component.ChatMessageMediaViewer
-import com.fox.music.feature.chat.ui.component.ChatMessageMediaViewerDialog
+import com.fox.music.core.ui.component.PostMediaPreviewDialog
+import com.fox.music.core.ui.component.UserLastListenedBar
+import com.fox.music.feature.chat.ui.util.ChatMessageMediaViewer
+import com.fox.music.feature.chat.ui.util.buildChatMediaPreviewQueue
+import com.fox.music.feature.chat.ui.util.indexOfViewer
+import com.fox.music.feature.chat.ui.util.toPostMedia
 import com.fox.music.feature.chat.ui.component.ChatPendingMedia
 import com.fox.music.feature.chat.ui.component.EmojiPickerPanel
 import com.fox.music.feature.chat.ui.model.ChatMediaItem
@@ -104,6 +110,7 @@ fun ChatDetailScreen(
     modifier: Modifier = Modifier,
     viewModel: ChatDetailViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    onNavigateToPlayer: (Music) -> Unit = {},
     onNavigateToSettings: (Long, String, String?) -> Unit = { _, _, _ -> },
     onForward: (Message) -> Unit = {},
     onShareClick: (Message, List<Message>) -> Unit = { _, _ -> },
@@ -117,7 +124,7 @@ fun ChatDetailScreen(
     var recordStartTime by remember { mutableLongStateOf(0L) }
     var isVoicePressing by remember { mutableStateOf(false) }
     var pendingMedia by remember { mutableStateOf<ChatPendingMedia?>(null) }
-    var viewingMessageMedia by remember { mutableStateOf<ChatMessageMediaViewer?>(null) }
+    var viewingMediaIndex by remember { mutableStateOf<Int?>(null) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessingMedia by remember { mutableStateOf(false) }
     var processingText by remember { mutableStateOf("处理中...") }
@@ -217,11 +224,17 @@ fun ChatDetailScreen(
     }
 
     fun onMediaPicked(item: ChatMediaItem) {
-        pendingMedia = ChatPendingMedia(
-            uri = item.uri,
-            type = item.type,
-            fileName = item.displayName.ifBlank { null },
-        )
+        scope.launch {
+            val isLive = item.type == ChatMediaPreviewType.IMAGE &&
+                    MotionPhotoExtractor.isMotionPhoto(context, item.uri)
+            pendingMedia = ChatPendingMedia(
+                uri = item.uri,
+                type = if (isLive) ChatMediaPreviewType.LIVE else item.type,
+                fileName = item.displayName.ifBlank { null },
+                isLiveCapable = isLive,
+                sendAsLive = isLive,
+            )
+        }
     }
 
 
@@ -278,6 +291,7 @@ fun ChatDetailScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 ChatDetailEffect.NavigateBack -> onBack()
+                is ChatDetailEffect.PlayPeerLastListened -> onNavigateToPlayer(effect.music)
                 is ChatDetailEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
@@ -315,13 +329,14 @@ fun ChatDetailScreen(
             onDismiss = { pendingMedia = null },
             onSend = { confirmed ->
                 when (confirmed.type) {
-                    ChatMediaPreviewType.IMAGE -> {
+                    ChatMediaPreviewType.IMAGE, ChatMediaPreviewType.LIVE -> {
                         showMediaSelector = false
                         pendingMedia = null
                         viewModel.sendIntent(
                             ChatDetailIntent.SendImage(
                                 uri = confirmed.uri,
                                 sendOriginal = confirmed.sendOriginal,
+                                sendAsLive = confirmed.sendAsLive,
                                 fileName = confirmed.fileName,
                             ),
                         )
@@ -365,16 +380,31 @@ fun ChatDetailScreen(
             onSendOriginalChange = { sendOriginal ->
                 pendingMedia = media.copy(sendOriginal = sendOriginal)
             },
+            onSendAsLiveChange = { sendAsLive ->
+                pendingMedia = media.copy(sendAsLive = sendAsLive)
+            },
             isProcessing = isProcessingMedia,
             processingText = processingText,
         )
     }
 
-    viewingMessageMedia?.let { viewer ->
-        ChatMessageMediaViewerDialog(
-            viewer = viewer,
-            onDismiss = { viewingMessageMedia = null },
-        )
+    val mediaPreviewQueue = remember(state.messages) {
+        state.messages.buildChatMediaPreviewQueue()
+    }
+
+    val openMediaPreview: (ChatMessageMediaViewer) -> Unit = { viewer ->
+        val index = mediaPreviewQueue.indexOfViewer(viewer)
+        if (index >= 0) viewingMediaIndex = index
+    }
+
+    viewingMediaIndex?.let { index ->
+        if (mediaPreviewQueue.isNotEmpty()) {
+            PostMediaPreviewDialog(
+                media = mediaPreviewQueue.map { it.toPostMedia() },
+                initialIndex = index.coerceIn(0, mediaPreviewQueue.lastIndex),
+                onDismiss = { viewingMediaIndex = null },
+            )
+        }
     }
 
     pendingRecall?.let { (messageId, localId) ->
@@ -402,13 +432,29 @@ fun ChatDetailScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = if (state.isSelectionMode) {
-                            "已选择 ${state.selectedMessageIds.size} 项"
-                        } else {
-                            state.peerNickname ?: "聊天"
+                    Column {
+                        Text(
+                            text = if (state.isSelectionMode) {
+                                "已选择 ${state.selectedMessageIds.size} 项"
+                            } else {
+                                state.peerNickname ?: "聊天"
+                            },
+                        )
+                        if (!state.isSelectionMode) {
+                            state.peerLastListened?.let { music ->
+                                UserLastListenedBar(
+                                    music = music,
+                                    labelPrefix = "对方在听",
+                                    onClick = viewModel::onPeerLastListenedClick,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .offset(x = (-2).dp)
+                                )
+                            }
                         }
-                    )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = viewModel::onBackClick) {
@@ -538,7 +584,8 @@ fun ChatDetailScreen(
                                     viewModel.sendIntent(ChatDetailIntent.SendVoice(uri, duration))
                                 } else if (duration < 500L) {
                                     voiceRecorder.cancel()
-                                    Toast.makeText(context, "说话时间太短", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "说话时间太短", Toast.LENGTH_SHORT)
+                                        .show()
                                 }
                             }
                         },
@@ -551,7 +598,13 @@ fun ChatDetailScreen(
                         },
                         emojiPanel = {
                             EmojiPickerPanel(
-                                onEmojiSelected = { viewModel.sendIntent(ChatDetailIntent.SendEmoji(it)) },
+                                onEmojiSelected = {
+                                    viewModel.sendIntent(
+                                        ChatDetailIntent.SendEmoji(
+                                            it
+                                        )
+                                    )
+                                },
                             )
                         },
                     )
@@ -614,71 +667,81 @@ fun ChatDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 reverseLayout = true,
             ) {
-            itemsIndexed(
-                items = reversedMessages,
-                key = { _, message -> message.localId ?: message.id.toString() },
-            ) { index, message ->
-                val isOutgoing = message.senderId == state.currentUserId
-                val localId = message.localId
-                val isSelected = localId != null && localId in state.selectedMessageIds
+                itemsIndexed(
+                    items = reversedMessages,
+                    key = { _, message -> message.localId ?: message.id.toString() },
+                ) { index, message ->
+                    val isOutgoing = message.senderId == state.currentUserId
+                    val localId = message.localId
+                    val isSelected = localId != null && localId in state.selectedMessageIds
 
-                // reverseLayout=true: index 0 在屏幕底部（最新），index 最大在屏幕顶部（最早）
-                // 视觉上的"上一条"是 index + 1（更早的消息）
-                val visuallyPreviousMessage = reversedMessages.getOrNull(index + 1)
-                val showTime = if (visuallyPreviousMessage == null) {
-                    true
-                } else {
-                    val currentMillis = parseTimestampMillis(message.createdAt)
-                    val previousMillis = parseTimestampMillis(visuallyPreviousMessage.createdAt)
-                    previousMillis == null || currentMillis == null || shouldShowMessageTime(currentMillis, previousMillis)
-                }
+                    // reverseLayout=true: index 0 在屏幕底部（最新），index 最大在屏幕顶部（最早）
+                    // 视觉上的"上一条"是 index + 1（更早的消息）
+                    val visuallyPreviousMessage = reversedMessages.getOrNull(index + 1)
+                    val showTime = if (visuallyPreviousMessage == null) {
+                        true
+                    } else {
+                        val currentMillis = parseTimestampMillis(message.createdAt)
+                        val previousMillis = parseTimestampMillis(visuallyPreviousMessage.createdAt)
+                        previousMillis == null || currentMillis == null || shouldShowMessageTime(
+                            currentMillis,
+                            previousMillis
+                        )
+                    }
 
-                if (state.isSelectionMode && localId != null) {
-                    SelectionMessageItem(
-                        message = message,
-                        isOutgoing = isOutgoing,
-                        isSelected = isSelected,
-                        avatarUrl = if (isOutgoing) state.currentUserAvatar else state.peerAvatar,
-                        avatarContentDescription = if (isOutgoing) "我的头像" else state.peerNickname,
-                        onToggleSelection = {
-                            viewModel.sendIntent(ChatDetailIntent.ToggleMessageSelection(localId))
-                        },
-                        onMediaClick = { viewingMessageMedia = it },
-                        onFileClick = { openFileWithSystem(context, it) },
-                        showTime = showTime,
-                    )
-                } else {
-                    ChatMessageItem(
-                        message = message,
-                        isOutgoing = isOutgoing,
-                        avatarUrl = if (isOutgoing) state.currentUserAvatar else state.peerAvatar,
-                        avatarContentDescription = if (isOutgoing) "我的头像" else state.peerNickname,
-                        onRetry = { viewModel.sendIntent(ChatDetailIntent.RetryMessage(it)) },
-                        onMediaClick = { viewingMessageMedia = it },
-                        onFileClick = { openFileWithSystem(context, it) },
-                        onShareClick = { msg -> onShareClick(msg, state.messages) },
-                        onDelete = { pendingDelete = it },
-                        onRecall = { messageId, localId ->
-                            pendingRecall = messageId to localId
-                        },
-                        onCancelSending = { viewModel.sendIntent(ChatDetailIntent.CancelSending(it)) },
-                        onCopy = { content ->
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("message", content))
-                            Toast.makeText(context, "复制成功", Toast.LENGTH_SHORT).show()
-                        },
-                        onForward = { msg ->
-                            viewModel.setPendingForward(msg)
-                            onForward(msg)
-                        },
-                        onMultiSelect = { localId ->
-                            viewModel.sendIntent(ChatDetailIntent.EnterSelectionMode(localId))
-                        },
-                        showTime = showTime,
-                    )
+                    if (state.isSelectionMode && localId != null) {
+                        SelectionMessageItem(
+                            message = message,
+                            isOutgoing = isOutgoing,
+                            isSelected = isSelected,
+                            avatarUrl = if (isOutgoing) state.currentUserAvatar else state.peerAvatar,
+                            avatarContentDescription = if (isOutgoing) "我的头像" else state.peerNickname,
+                            onToggleSelection = {
+                                viewModel.sendIntent(ChatDetailIntent.ToggleMessageSelection(localId))
+                            },
+                            onMediaClick = openMediaPreview,
+                            onFileClick = { openFileWithSystem(context, it) },
+                            showTime = showTime,
+                        )
+                    } else {
+                        ChatMessageItem(
+                            message = message,
+                            isOutgoing = isOutgoing,
+                            avatarUrl = if (isOutgoing) state.currentUserAvatar else state.peerAvatar,
+                            avatarContentDescription = if (isOutgoing) "我的头像" else state.peerNickname,
+                            onRetry = { viewModel.sendIntent(ChatDetailIntent.RetryMessage(it)) },
+                            onMediaClick = openMediaPreview,
+                            onFileClick = { openFileWithSystem(context, it) },
+                            onShareClick = { msg -> onShareClick(msg, state.messages) },
+                            onDelete = { pendingDelete = it },
+                            onRecall = { messageId, localId ->
+                                pendingRecall = messageId to localId
+                            },
+                            onCancelSending = {
+                                viewModel.sendIntent(
+                                    ChatDetailIntent.CancelSending(
+                                        it
+                                    )
+                                )
+                            },
+                            onCopy = { content ->
+                                val clipboard =
+                                    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("message", content))
+                                Toast.makeText(context, "复制成功", Toast.LENGTH_SHORT).show()
+                            },
+                            onForward = { msg ->
+                                viewModel.setPendingForward(msg)
+                                onForward(msg)
+                            },
+                            onMultiSelect = { localId ->
+                                viewModel.sendIntent(ChatDetailIntent.EnterSelectionMode(localId))
+                            },
+                            showTime = showTime,
+                        )
+                    }
                 }
             }
-        }
         }
     }
 }

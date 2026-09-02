@@ -10,4 +10,5 @@ data class ChatMediaItem(
     val sizeBytes: Long,
     val mimeType: String?,
     val dateAddedSec: Long,
+    val isLivePhoto: Boolean = false,
 )

@@ -48,10 +48,10 @@ fun CachedImage(
         modifier = modifier.clip(shape),
         contentScale = contentScale,
         loading = {
-            PlaceholderBox(icon = placeholderIcon)
+            PlaceholderBox(modifier = Modifier.matchParentSize(), icon = placeholderIcon)
         },
         error = {
-            PlaceholderBox(icon = Icons.Filled.BrokenImage)
+            PlaceholderBox(modifier = Modifier.matchParentSize(), icon = Icons.Filled.BrokenImage)
         },
         onError = {
             errorImageUrl?.let {

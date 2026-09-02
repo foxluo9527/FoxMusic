@@ -62,6 +62,7 @@ fun SettingsScreen(
     onManageLibrary: () -> Unit = {},
     onDownloadManager: () -> Unit = {},
     onReportHistory: () -> Unit = {},
+    onPrivacySettings: () -> Unit = {},
     onInstallApk: (File) -> Unit = {},
     onLogout: () -> Unit = {},
 ) {
@@ -233,6 +234,12 @@ fun SettingsScreen(
                                 title = "编辑资料",
                                 subtitle = "昵称、签名、邮箱、头像",
                                 onClick = { viewModel.sendIntent(SettingsIntent.OnEditProfileClick) },
+                            )
+                            SettingsDivider()
+                            SettingsNavigationItem(
+                                title = "隐私设置",
+                                subtitle = "私密账号、搜索可见性、黑名单",
+                                onClick = onPrivacySettings,
                             )
                             SettingsDivider()
                             SettingsNavigationItem(

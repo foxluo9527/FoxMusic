@@ -126,7 +126,7 @@ class PostActionsViewModel @Inject constructor(
     fun sendSharePost(friendId: Long) {
         val post = _uiState.value.actionPost ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(showSelectFriend = false) }
+            _uiState.update { it.copy(showSelectFriend = false, actionPost = null) }
             chatRepository.sendShareMessage(
                 receiverId = friendId,
                 shareType = "post",
@@ -138,5 +138,9 @@ class PostActionsViewModel @Inject constructor(
                 _effect.emit(PostActionsEffect.ShowToast(msg ?: "分享失败"))
             }
         }
+    }
+
+    fun dismissSelectFriend() {
+        _uiState.update { it.copy(showSelectFriend = false, actionPost = null) }
     }
 }

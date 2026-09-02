@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.PlayArrow
@@ -49,8 +50,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
+import com.fox.music.core.ui.component.CachedImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -65,6 +68,7 @@ fun PlaylistBottomSheet(
     playerState: PlayerState,
     musicController: MusicController,
     onDismiss: () -> Unit = {},
+    onSourceClick: (PlaybackPlaylistSource) -> Unit = {},
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
     val textColor = MaterialTheme.colorScheme.primary
@@ -73,13 +77,15 @@ fun PlaylistBottomSheet(
     val scope = rememberCoroutineScope()
     val backProgress = remember { Animatable(0f) }
     var sheetHeightPx by remember { mutableFloatStateOf(0f) }
+    val displaySource = playerState.playlistSource?.takeIf { it.isDisplayable }
 
-    fun dismissSheet() {
+    fun dismissSheet(after: (() -> Unit)? = null) {
         scope.launch {
             try {
                 sheetState.hide()
             } finally {
                 onDismiss()
+                after?.invoke()
             }
         }
     }
@@ -150,7 +156,17 @@ fun PlaylistBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            if (displaySource != null) {
+                PlaylistSourceHeader(
+                    source = displaySource,
+                    textColor = textColor,
+                    secondaryTextColor = secondaryTextColor,
+                    onClick = {
+                        dismissSheet { onSourceClick(displaySource) }
+                    },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             Text(
                 text = "共${playerState.playlist.size}首歌曲",
@@ -224,6 +240,55 @@ fun PlaylistBottomSheet(
                     Text("取消")
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun PlaylistSourceHeader(
+    source: PlaybackPlaylistSource,
+    textColor: Color,
+    secondaryTextColor: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CachedImage(
+            imageUrl = source.coverUrl,
+            contentDescription = source.title,
+            modifier = Modifier.size(44.dp),
+            shape = RoundedCornerShape(8.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = source.title.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "来自${source.typeLabel}",
+                style = MaterialTheme.typography.labelSmall,
+                color = secondaryTextColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = secondaryTextColor,
+            modifier = Modifier.size(22.dp),
         )
     }
 }

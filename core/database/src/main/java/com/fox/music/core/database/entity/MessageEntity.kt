@@ -7,12 +7,13 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "messages",
     indices = [
-        Index(value = ["conversationId", "cachedAt"]),
-        Index(value = ["serverId"]),
+        Index(value = ["ownerUserId", "conversationId", "cachedAt"]),
+        Index(value = ["serverId", "ownerUserId"]),
     ],
 )
 data class MessageEntity(
     @PrimaryKey val localId: String,
+    val ownerUserId: Long,
     val serverId: Long? = null,
     val conversationId: Long,
     val senderId: Long,
@@ -36,4 +37,6 @@ data class MessageEntity(
     val shareType: String? = null,
     val shareId: Long? = null,
     val shareDataJson: String? = null,
+    val localVideoUri: String? = null,
+    val remoteVideoUrl: String? = null,
 )

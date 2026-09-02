@@ -3,6 +3,7 @@ package com.fox.music.core.common
 import androidx.lifecycle.MutableLiveData
 import com.fox.music.core.common.realtime.NavigationRequest
 import com.fox.music.core.common.realtime.RealtimeNotificationEvent
+import com.fox.music.core.common.post.PostPublishMessages
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -56,5 +57,34 @@ object EventViewModel {
 
     fun notifyListeningStatsUpdated() {
         _listeningStatsUpdated.tryEmit(Unit)
+    }
+
+    private val _plazaPostsUpdated = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 8,
+    )
+    val plazaPostsUpdated = _plazaPostsUpdated.asSharedFlow()
+
+    fun notifyPlazaPostsUpdated() {
+        _plazaPostsUpdated.tryEmit(Unit)
+    }
+
+    private val _postPublishCompleted = MutableSharedFlow<String>(
+        extraBufferCapacity = 8,
+    )
+    val postPublishCompleted = _postPublishCompleted.asSharedFlow()
+
+    fun notifyPostPublishCompleted(
+        isEdit: Boolean,
+        skippedCount: Int,
+        skippedHasImage: Boolean,
+        skippedHasVideo: Boolean,
+    ) {
+        val message = PostPublishMessages.successMessage(
+            isEdit = isEdit,
+            skippedCount = skippedCount,
+            skippedHasImage = skippedHasImage,
+            skippedHasVideo = skippedHasVideo,
+        )
+        _postPublishCompleted.tryEmit(message)
     }
 }

@@ -32,8 +32,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -117,9 +117,9 @@ fun ProfileScreen(
     onCreatePlaylistClick: () -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onSettingsClick: () -> Unit = {},
-    onMessageNotificationClick: () -> Unit = {},
+    onUserHomeClick: () -> Unit = {},
     onDownloadManagerClick: () -> Unit = {},
-    onPlayAllPlaylist: (Long, List<Music>) -> Unit = { _, _ -> },
+    onPlayAllPlaylist: (Long, List<Music>, String, String?) -> Unit = { _, _, _, _ -> },
     onEditPlaylistClick: (Long) -> Unit = {},
     onMusicClick: (Music, List<Music>) -> Unit = { _, _ -> },
     refreshKey: Int = 0,
@@ -169,7 +169,12 @@ fun ProfileScreen(
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
                 is ProfileEffect.PlayAllPlaylistTracks -> {
-                    onPlayAllPlaylist(effect.playlistId, effect.musicList)
+                    onPlayAllPlaylist(
+                        effect.playlistId,
+                        effect.musicList,
+                        effect.title,
+                        effect.coverUrl,
+                    )
                 }
             }
         }
@@ -184,15 +189,14 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ProfilePageTopTitle(
-                    unreadCount = 0,
-                    onMessageNotificationClick = onLogin,
+                    onSettingsClick = onLogin,
                 )
                 ProfileHeaderCard(
                     nickname = stringResource(CommonR.string.app_name),
-                    signature = "设置",
+                    signature = "登录",
                     avatarUrl = null,
                     showFavoriteIcon = false,
-                    onUserInfoClick = onSettingsClick,
+                    onUserInfoClick = onLogin,
                 )
                 ProfileGuestLoginPrompt(onLogin = onLogin)
             }
@@ -208,14 +212,13 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ProfilePageTopTitle(
-                    unreadCount = state.unreadNotificationCount,
-                    onMessageNotificationClick = onMessageNotificationClick,
+                    onSettingsClick = onSettingsClick,
                 )
                 ProfileHeaderCard(
                     nickname = user.nickname ?: user.username,
                     signature = user.signature,
                     avatarUrl = user.avatar,
-                    onUserInfoClick = { viewModel.sendIntent(ProfileIntent.OnSettingsClick) },
+                    onUserInfoClick = onUserHomeClick,
                 )
                 ProfileTabRow(
                     selectedTab = collectState.currentPage,
@@ -434,8 +437,7 @@ fun ProfileScreen(
 
 @Composable
 private fun ProfilePageTopTitle(
-    unreadCount: Int,
-    onMessageNotificationClick: () -> Unit,
+    onSettingsClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -445,46 +447,24 @@ private fun ProfilePageTopTitle(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
-            text = "个人主页",
+            text = "我的",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
         )
-        Box {
-            IconButton(
-                onClick = onMessageNotificationClick,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "消息",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            if (unreadCount > 0) {
-                val badgeSize = if (unreadCount > 9) 18.dp else 16.dp
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(badgeSize)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = if (unreadCount > 99) "99+" else unreadCount.toString(),
-                        color = MaterialTheme.colorScheme.onError,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier.offset(y = (-4).dp)
-                    )
-                }
-            }
+        IconButton(
+            onClick = onSettingsClick,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "设置",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }

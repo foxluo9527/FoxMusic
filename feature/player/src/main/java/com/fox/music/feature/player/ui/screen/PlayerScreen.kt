@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.ImageWithPaletteColors
@@ -80,6 +81,7 @@ fun PlayerScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     onBack: () -> Unit = {},
+    onPlaylistSourceClick: (PlaybackPlaylistSource) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val playerState by musicController.playerState.collectAsState(PlayerState())
@@ -258,7 +260,11 @@ fun PlayerScreen(
             PlaylistBottomSheet(
                 playerState = playerState,
                 musicController = musicController,
-                onDismiss = { showPlaylistSheet = false }
+                onDismiss = { showPlaylistSheet = false },
+                onSourceClick = { source ->
+                    showPlaylistSheet = false
+                    onPlaylistSourceClick(source)
+                },
             )
         }
 

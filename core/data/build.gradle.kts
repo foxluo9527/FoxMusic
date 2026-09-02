@@ -37,6 +37,8 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.hilt.work)
     ksp(libs.hilt.compiler.work)
+
+    implementation(libs.ffmpeg.kit.min.gpl)
     
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -16,6 +16,7 @@ import com.fox.music.core.network.api.SearchApiService
 import com.fox.music.core.network.api.SocialApiService
 import com.fox.music.core.network.api.SourceLinkApiService
 import com.fox.music.core.network.api.UploadApiService
+import com.fox.music.core.network.api.UserApiService
 import com.fox.music.core.network.interceptor.AuthInterceptor
 import com.fox.music.core.network.interceptor.SafeHttpLoggingInterceptor
 import com.fox.music.core.network.interceptor.TokenAuthenticator
@@ -28,6 +29,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
+import com.fox.music.core.network.di.UploadClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import com.fox.music.core.network.di.WebSocketClient
@@ -142,15 +144,49 @@ object NetworkModule {
     fun provideFavoriteApiService(retrofit: Retrofit): FavoriteApiService =
         retrofit.create(FavoriteApiService::class.java)
 
+    /** Large uploads: no read/write timeout (same idea as WebSocket client). */
     @Provides
     @Singleton
-    fun provideUploadApiService(retrofit: Retrofit): UploadApiService =
+    @UploadClient
+    fun provideUploadOkHttpClient(
+        loggingInterceptor: SafeHttpLoggingInterceptor,
+        authInterceptor: AuthInterceptor,
+        tokenAuthenticator: TokenAuthenticator,
+    ): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(AppConstants.Network.CONNECT_TIMEOUT, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .writeTimeout(0, TimeUnit.MILLISECONDS)
+        .addInterceptor(authInterceptor)
+        .addInterceptor(loggingInterceptor)
+        .authenticator(tokenAuthenticator)
+        .build()
+
+    @Provides
+    @Singleton
+    @UploadClient
+    fun provideUploadRetrofit(
+        @UploadClient okHttpClient: OkHttpClient,
+        json: Json,
+    ): Retrofit = Retrofit.Builder()
+        .baseUrl(BuildConfig.BASE_URL)
+        .client(okHttpClient)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideUploadApiService(@UploadClient retrofit: Retrofit): UploadApiService =
         retrofit.create(UploadApiService::class.java)
 
     @Provides
     @Singleton
     fun provideReportApiService(retrofit: Retrofit): ReportApiService =
         retrofit.create(ReportApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideUserApiService(retrofit: Retrofit): UserApiService =
+        retrofit.create(UserApiService::class.java)
 
     @Provides
     @Singleton

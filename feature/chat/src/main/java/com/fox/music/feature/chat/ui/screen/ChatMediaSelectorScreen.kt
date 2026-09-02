@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -54,6 +55,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import com.fox.music.core.common.util.MotionPhotoExtractor
+import com.fox.music.core.ui.component.PostLiveBadge
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewType
 import com.fox.music.feature.chat.ui.model.ChatMediaItem
 import com.hjq.permissions.OnPermissionCallback
@@ -257,6 +260,10 @@ private fun MediaGridItem(
             null
         }
     }
+    val isLivePhoto by produceState(initialValue = item.isLivePhoto, key1 = item.uri) {
+        value = item.type == ChatMediaPreviewType.IMAGE &&
+            MotionPhotoExtractor.isMotionPhoto(context, item.uri)
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -282,7 +289,7 @@ private fun MediaGridItem(
                 bitmap = thumbnailBitmap!!.asImageBitmap(),
                 contentDescription = item.displayName,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentScale = ContentScale.Crop,
             )
@@ -291,7 +298,7 @@ private fun MediaGridItem(
                 model = model,
                 contentDescription = item.displayName,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentScale = ContentScale.Crop,
             )
@@ -302,6 +309,14 @@ private fun MediaGridItem(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.align(Alignment.Center),
+            )
+        }
+        if (isLivePhoto) {
+            PostLiveBadge(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(6.dp)
+                    .size(22.dp),
             )
         }
     }
@@ -355,9 +370,10 @@ private suspend fun loadMediaItems(context: Context): List<ChatMediaItem> =
                 } else {
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI
                 }
+                val itemUri = ContentUris.withAppendedId(baseUri, id)
                 result.add(
                     ChatMediaItem(
-                        uri = ContentUris.withAppendedId(baseUri, id),
+                        uri = itemUri,
                         type = type,
                         displayName = cursor.getString(nameIndex).orEmpty(),
                         sizeBytes = cursor.getLong(sizeIndex),

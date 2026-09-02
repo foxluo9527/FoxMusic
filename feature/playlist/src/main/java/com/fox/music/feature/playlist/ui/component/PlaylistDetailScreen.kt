@@ -73,6 +73,7 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.DeletePlaylistConfirmDialog
 import com.fox.music.core.ui.component.ErrorView
@@ -94,7 +95,7 @@ fun PlaylistDetailScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>, String) -> Unit = { _, _, _ -> },
+    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onBack: () -> Unit = {},
     onPlaylistDeleted: () -> Unit = {},
@@ -102,7 +103,7 @@ fun PlaylistDetailScreen(
     onMusicMoreClick: (Music) -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onAddSelectedToQueue: (List<Music>) -> Unit = {},
-    onAddSelectedToPlaylist: (List<Long>) -> Unit = {},
+    onAddSelectedToPlaylist: (List<Music>) -> Unit = {},
     onDownloadSelected: (List<Music>) -> Unit = {},
     onSelectionModeChanged: (Boolean) -> Unit = {},
 ) {
@@ -151,13 +152,23 @@ fun PlaylistDetailScreen(
             when (effect) {
                 is PlaylistDetailEffect.NavigateToMusic -> {
                     if (playlistKey.isNotEmpty()) {
-                        onMusicClick(effect.music, effect.musicList, playlistKey)
+                        onMusicClick(
+                            effect.music,
+                            effect.musicList,
+                            playlistKey,
+                            state.headerInfo?.toPlaybackSource(),
+                        )
                     }
                 }
 
                 is PlaylistDetailEffect.PlayAllTracks -> {
                     if (playlistKey.isNotEmpty() && effect.musicList.isNotEmpty()) {
-                        onMusicClick(effect.musicList.first(), effect.musicList, playlistKey)
+                        onMusicClick(
+                            effect.musicList.first(),
+                            effect.musicList,
+                            playlistKey,
+                            state.headerInfo?.toPlaybackSource(),
+                        )
                     }
                 }
 
@@ -175,7 +186,7 @@ fun PlaylistDetailScreen(
                 }
 
                 is PlaylistDetailEffect.AddSelectedToPlaylist -> {
-                    onAddSelectedToPlaylist(effect.musicIds)
+                    onAddSelectedToPlaylist(effect.musics)
                 }
 
                 is PlaylistDetailEffect.DownloadSelected -> {
@@ -903,6 +914,14 @@ private fun RowScope.ActionButton(
         )
     }
 }
+
+private fun HeaderInfo.toPlaybackSource(): PlaybackPlaylistSource =
+    PlaybackPlaylistSource.fromDetailType(
+        type = detailType,
+        id = id,
+        title = title,
+        coverUrl = coverImage,
+    )
 
 private fun getTypeTitle(type: DetailType): String {
     return when (type) {

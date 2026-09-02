@@ -26,6 +26,7 @@ import com.fox.music.feature.search.SearchScreen
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
+import com.fox.music.feature.social.ui.screen.postDetailRoute
 import com.fox.music.ui.importplaylist.IMPORT_PLAYLIST_SELECT_ROUTE
 import com.fox.music.ui.importplaylist.ImportPlaylistSelectScreen
 
@@ -38,7 +39,27 @@ fun NavGraphBuilder.musicNavGraph(
     val playerState = context.playerState
     val showBottomBar = context.showBottomBar
 
-    composableStack(SEARCH_ROUTE) {
+    composableStack(
+        route = SEARCH_ROUTE,
+        arguments = listOf(
+            navArgument("tab") {
+                type = NavType.StringType
+                defaultValue = ""
+            },
+            navArgument("query") {
+                type = NavType.StringType
+                defaultValue = ""
+            },
+            navArgument("tag") {
+                type = NavType.StringType
+                defaultValue = ""
+            },
+            navArgument("sort") {
+                type = NavType.StringType
+                defaultValue = ""
+            },
+        ),
+    ) {
         val animatedScope = this
         with(sharedTransitionScope) {
             MainScreenWithBottomBar(
@@ -56,6 +77,9 @@ fun NavGraphBuilder.musicNavGraph(
                     updateMusicList = context.onUpdateMusicList,
                     onArtistClick = context.onArtistClick,
                     onAlbumClick = context.onAlbumClick,
+                    onPostClick = { postId ->
+                        navController.navigateToDetail(postDetailRoute(postId))
+                    },
                     onMusicMoreClick = context.onMusicMoreClick,
                     onBack = { navController.popBackStack() },
                 )
@@ -173,8 +197,8 @@ fun NavGraphBuilder.musicNavGraph(
                     onAddSelectedToQueue = { musics ->
                         context.musicActionsViewModel.addAllToQueue(musics)
                     },
-                    onAddSelectedToPlaylist = { musicIds ->
-                        context.musicActionsViewModel.showAddToPlaylist(musicIds)
+                    onAddSelectedToPlaylist = { musics ->
+                        context.musicActionsViewModel.showAddToPlaylist(musics)
                     },
                     onDownloadSelected = { musics ->
                         context.musicActionsViewModel.downloadMusics(musics)

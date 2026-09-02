@@ -14,10 +14,13 @@ import com.fox.music.core.network.model.NotificationDto
 import com.fox.music.core.network.model.PagedResponse
 import com.fox.music.core.network.model.PostCommentRequest
 import com.fox.music.core.network.model.PostDto
+import com.fox.music.core.network.model.PostLikerDto
+import com.fox.music.core.network.model.PostMediaDto
 import com.fox.music.core.network.model.SocialPostCommentRequest
 import com.fox.music.core.network.model.UpdatePostRequest
 import com.fox.music.core.network.model.SearchedUserDto
 import com.fox.music.core.network.model.SetRemarkRequest
+import com.fox.music.core.network.model.TagDto
 import com.fox.music.core.network.model.UnreadCountDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -60,8 +63,23 @@ interface SocialApiService {
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 20,
         @Query("keyword") keyword: String? = null,
+        @Query("tag") tag: String? = null,
         @Query("sort") sort: String,
+        @Query("author_id") authorId: Long? = null,
     ): ApiResponse<PagedResponse<PostDto>>
+
+    @GET("api/tags/post")
+    suspend fun getPostTags(
+        @Query("limit") limit: Int = 30,
+        @Query("keyword") keyword: String? = null,
+    ): ApiResponse<List<TagDto>>
+
+    @GET("api/tags/post/recommend")
+    suspend fun getRecommendedPostTags(
+        @Query("content") content: String? = null,
+        @Query("music_id") musicId: Long? = null,
+        @Query("limit") limit: Int = 20,
+    ): ApiResponse<List<TagDto>>
 
     @POST("api/posts")
     suspend fun createPost(@Body request: CreatePostRequest): ApiResponse<PostDto>
@@ -80,6 +98,13 @@ interface SocialApiService {
 
     @POST("api/posts/{id}/like")
     suspend fun togglePostLike(@Path("id") id: Long): ApiResponse<Unit>
+
+    @GET("api/posts/{id}/likes")
+    suspend fun getPostLikes(
+        @Path("id") id: Long,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20,
+    ): ApiResponse<PagedResponse<PostLikerDto>>
 
     @POST("api/posts/{id}/favorite")
     suspend fun togglePostFavorite(@Path("id") id: Long): ApiResponse<Unit>

@@ -43,6 +43,7 @@ import com.fox.music.feature.profile.ui.screen.PRIVACY_SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.PrivacySettingsScreen
 import com.fox.music.feature.profile.ui.screen.USER_HOME_ROUTE
 import com.fox.music.feature.profile.ui.screen.UserHomeScreen
+import com.fox.music.navigation.navigateToPlayer
 import com.fox.music.realtime.BackgroundPermissionGuide
 import com.fox.music.ui.BackgroundPermissionGuideDialog
 import com.fox.music.car.CarModeActivity
@@ -223,6 +224,7 @@ fun NavGraphBuilder.profileNavGraph(
                             com.fox.music.feature.social.ui.screen.createPostRoute(postId),
                         )
                     },
+                    onNavigateToPlayer = { navController.navigateToPlayer() },
                 )
             }
         }

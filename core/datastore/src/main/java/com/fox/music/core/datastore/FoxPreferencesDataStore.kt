@@ -59,6 +59,8 @@ class FoxPreferencesDataStore @Inject constructor(
         val PLAYBACK_CURRENT_INDEX = intPreferencesKey("playback_current_index")
         val PLAYBACK_POSITION_MS = longPreferencesKey("playback_position_ms")
         val PLAYBACK_PLAYING_KEY = stringPreferencesKey("playback_playing_key")
+        val PLAYBACK_PLAYLIST_SOURCE = stringPreferencesKey("playback_playlist_source")
+        val PLAZA_LAYOUT_MODE = stringPreferencesKey("plaza_layout_mode")
     }
 
     // Token flows（DataStore 中为密文，对外始终解密）
@@ -130,6 +132,9 @@ class FoxPreferencesDataStore @Inject constructor(
     }
     val carBluetoothLyricEnabled: Flow<Boolean> = context.dataStore.data.map {
         it[PreferencesKeys.CAR_LYRIC_ENABLED] ?: false
+    }
+    val plazaLayoutMode: Flow<String> = context.dataStore.data.map {
+        it[PreferencesKeys.PLAZA_LAYOUT_MODE] ?: PlazaLayoutModeDefault
     }
 
     // Token operations
@@ -252,6 +257,10 @@ class FoxPreferencesDataStore @Inject constructor(
         context.dataStore.edit { it[PreferencesKeys.CAR_LYRIC_ENABLED] = enabled }
     }
 
+    suspend fun updatePlazaLayoutMode(mode: String) {
+        context.dataStore.edit { it[PreferencesKeys.PLAZA_LAYOUT_MODE] = mode }
+    }
+
     suspend fun getCacheMaxBytes(): Long {
         return context.dataStore.data.first()[PreferencesKeys.CACHE_MAX_BYTES] ?: DEFAULT_CACHE_MAX_BYTES
     }
@@ -303,12 +312,34 @@ class FoxPreferencesDataStore @Inject constructor(
         }
     }
 
+    suspend fun getPlaybackPlaylistSourceJson(): String? {
+        return context.dataStore.data.first()[PreferencesKeys.PLAYBACK_PLAYLIST_SOURCE]
+    }
+
+    suspend fun savePlaybackPlaylistSourceJson(json: String?) {
+        context.dataStore.edit { prefs ->
+            if (json.isNullOrBlank()) {
+                prefs.remove(PreferencesKeys.PLAYBACK_PLAYLIST_SOURCE)
+            } else {
+                prefs[PreferencesKeys.PLAYBACK_PLAYLIST_SOURCE] = json
+            }
+        }
+    }
+
     suspend fun clearPlaybackSnapshot() {
         context.dataStore.edit { prefs ->
             prefs.remove(PreferencesKeys.PLAYBACK_SNAPSHOT)
             prefs.remove(PreferencesKeys.PLAYBACK_CURRENT_INDEX)
             prefs.remove(PreferencesKeys.PLAYBACK_POSITION_MS)
             prefs.remove(PreferencesKeys.PLAYBACK_PLAYING_KEY)
+            prefs.remove(PreferencesKeys.PLAYBACK_PLAYLIST_SOURCE)
+        }
+    }
+
+    /** 仅清除旧版队列 JSON blob，保留 index/position 等标量。 */
+    suspend fun clearPlaybackSnapshotPlaylistJson() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(PreferencesKeys.PLAYBACK_SNAPSHOT)
         }
     }
 
@@ -358,6 +389,7 @@ class FoxPreferencesDataStore @Inject constructor(
 
     companion object {
         private const val RepeatModeDefault = "ALL"
+        const val PlazaLayoutModeDefault = "staggered"
         const val DEFAULT_CACHE_MAX_BYTES = 2L * 1024 * 1024 * 1024
     }
 }

@@ -20,7 +20,6 @@ import androidx.navigation.NavHostController
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.MiniPlayer
-import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.ui.AppBottomNavigationBar
 
 @Composable
@@ -37,20 +36,24 @@ fun AnimatedContentScope.MainScreenWithBottomBar(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        navScreen(Modifier.fillMaxSize())
-        if (showMiniPlayer) {
-            MiniPlayer(
-                playerState = playerState,
-                sharedTransitionScope = sharedTransitionScope,
-                animatedContentScope = this@MainScreenWithBottomBar,
-                onPlayPauseClick = { musicController.togglePlay() },
-                onNextClick = { musicController.next() },
-                onClick = { navController.navigate(PLAYER_ROUTE) },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 10.dp),
-            )
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f)) {
+                navScreen(Modifier.fillMaxSize())
+            }
+            if (showMiniPlayer) {
+                MiniPlayer(
+                    playerState = playerState,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = this@MainScreenWithBottomBar,
+                    onPlayPauseClick = { musicController.togglePlay() },
+                    onNextClick = { musicController.next() },
+                    onClick = { navController.navigateToPlayer() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = 10.dp),
+                )
+            }
         }
     }
 }
@@ -62,6 +65,7 @@ fun AnimatedContentScope.MainScreenWithTabBar(
     playerState: PlayerState,
     tabRoute: String,
     showMiniPlayer: Boolean,
+    messagesUnreadCount: Int = 0,
     sharedTransitionScope: SharedTransitionScope,
     navScreen: @Composable AnimatedContentScope.(Modifier) -> Unit,
 ) {
@@ -103,13 +107,14 @@ fun AnimatedContentScope.MainScreenWithTabBar(
                     animatedContentScope = this@MainScreenWithTabBar,
                     onPlayPauseClick = { musicController.togglePlay() },
                     onNextClick = { musicController.next() },
-                    onClick = { navController.navigate(PLAYER_ROUTE) },
+                    onClick = { navController.navigateToPlayer() },
                     modifier = Modifier.padding(bottom = 2.dp),
                 )
             }
             AppBottomNavigationBar(
                 navController = navController,
                 selectedRoute = tabRoute,
+                messagesUnreadCount = messagesUnreadCount,
             )
         }
     }

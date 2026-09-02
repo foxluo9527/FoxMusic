@@ -1,5 +1,6 @@
 package com.fox.music.feature.chat.viewmodel
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -9,14 +10,18 @@ import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.EventViewModel
+import com.fox.music.core.common.util.MotionPhotoExtractor
 import com.fox.music.core.data.realtime.ActiveChatTracker
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.GetProfileUseCase
+import com.fox.music.core.domain.usecase.GetUserHomeProfileUseCase
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.chat.MessageStatus
+import com.fox.music.core.model.music.Music
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -29,6 +34,7 @@ data class ChatDetailState(
     val currentUserAvatar: String? = null,
     val peerAvatar: String? = null,
     val peerNickname: String? = null,
+    val peerLastListened: Music? = null,
     val messages: List<Message> = emptyList(),
     val inputText: String = "",
     val isLoading: Boolean = false,
@@ -54,6 +60,7 @@ sealed interface ChatDetailIntent : UiIntent {
     data class SendImage(
         val uri: Uri,
         val sendOriginal: Boolean = false,
+        val sendAsLive: Boolean = true,
         val fileName: String? = null,
     ) : ChatDetailIntent
     data class SendVideo(val uri: Uri, val fileName: String?) : ChatDetailIntent
@@ -80,14 +87,17 @@ sealed interface ChatDetailIntent : UiIntent {
 sealed interface ChatDetailEffect : UiEffect {
     data class ShowMessage(val message: String) : ChatDetailEffect
     data object NavigateBack : ChatDetailEffect
+    data class PlayPeerLastListened(val music: Music) : ChatDetailEffect
     data object RequestRecordPermission : ChatDetailEffect
 }
 
 @HiltViewModel
 class ChatDetailViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val chatRepository: ChatRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val getProfileUseCase: GetProfileUseCase,
+    private val getUserHomeProfileUseCase: GetUserHomeProfileUseCase,
     private val activeChatTracker: ActiveChatTracker,
     private val preferencesDataStore: FoxPreferencesDataStore,
     val savedStateHandle: SavedStateHandle,
@@ -168,11 +178,11 @@ class ChatDetailViewModel @Inject constructor(
             is ChatDetailIntent.UpdateInput -> updateState { copy(inputText = intent.text) }
             ChatDetailIntent.SendMessage -> sendText()
             is ChatDetailIntent.SendEmoji -> sendEmoji(intent.emoji)
-            is ChatDetailIntent.SendImage -> sendMedia(
+            is ChatDetailIntent.SendImage -> sendImage(
                 uri = intent.uri,
-                type = "file",
                 fileName = intent.fileName,
                 imageSendOriginal = intent.sendOriginal,
+                sendAsLive = intent.sendAsLive,
             )
             is ChatDetailIntent.SendVideo -> sendMedia(
                 uri = intent.uri,
@@ -266,12 +276,34 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
+    fun onPeerLastListenedClick() {
+        val music = currentState.peerLastListened ?: return
+        sendEffect(ChatDetailEffect.PlayPeerLastListened(music))
+    }
+
     private fun loadChat() {
         val userId = currentState.userId
         if (userId <= 0L) return
 
         viewModelScope.launch {
+            val currentUserId = userPreferencesRepository.userPreferences.first().userId ?: 0L
+            updateState { copy(currentUserId = currentUserId) }
+            if (currentUserId > 0L && userId == currentUserId) {
+                chatRepository.clearChatHistory(userId)
+                updateState { copy(isLoading = false, error = "会话数据异常") }
+                sendEffect(ChatDetailEffect.ShowMessage("会话数据异常，请从消息列表重新进入"))
+                sendEffect(ChatDetailEffect.NavigateBack)
+                return@launch
+            }
+
             updateState { copy(isLoading = true, error = null) }
+            when (val profileResult = getUserHomeProfileUseCase(userId)) {
+                is Result.Success -> {
+                    val music = profileResult.data.lastListened?.takeIf { profileResult.data.showLastListened }
+                    updateState { copy(peerLastListened = music) }
+                }
+                else -> Unit
+            }
             when (val sync = chatRepository.syncUnreadMessages(peerUserId = userId)) {
                 is Result.Error -> updateState {
                     copy(isLoading = false, error = sync.message ?: "加载新消息失败")
@@ -291,6 +323,10 @@ class ChatDetailViewModel @Inject constructor(
     private fun sendText() {
         val content = currentState.inputText.trim()
         if (content.isBlank()) return
+        if (isSelfPeerChat()) {
+            sendEffect(ChatDetailEffect.ShowMessage("无法向自己发送消息"))
+            return
+        }
         viewModelScope.launch {
             when (
                 val result = chatRepository.sendTextMessage(
@@ -308,6 +344,10 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     private fun sendEmoji(emoji: String) {
+        if (isSelfPeerChat()) {
+            sendEffect(ChatDetailEffect.ShowMessage("无法向自己发送消息"))
+            return
+        }
         if (currentState.inputText.isBlank()) {
             viewModelScope.launch {
                 chatRepository.sendTextMessage(
@@ -319,6 +359,34 @@ class ChatDetailViewModel @Inject constructor(
             }
         } else {
             updateState { copy(inputText = inputText + emoji) }
+        }
+    }
+
+    private fun sendImage(
+        uri: Uri,
+        fileName: String? = null,
+        imageSendOriginal: Boolean = false,
+        sendAsLive: Boolean = true,
+    ) {
+        viewModelScope.launch {
+            updateState { copy(showAttachmentSheet = false) }
+            val motion = if (sendAsLive) MotionPhotoExtractor.extract(appContext, uri) else null
+            when (
+                val result = chatRepository.sendMediaMessage(
+                    receiverId = currentState.userId,
+                    type = "file",
+                    mediaUri = motion?.stillUri ?: uri,
+                    videoUri = motion?.videoUri,
+                    fileName = fileName,
+                    imageSendOriginal = imageSendOriginal,
+                    peerNickname = currentState.peerNickname,
+                    peerAvatar = currentState.peerAvatar,
+                )
+            ) {
+                is Result.Success -> Unit
+                is Result.Error -> sendEffect(ChatDetailEffect.ShowMessage(result.message ?: "发送失败"))
+                is Result.Loading -> Unit
+            }
         }
     }
 
@@ -336,6 +404,7 @@ class ChatDetailViewModel @Inject constructor(
                     receiverId = currentState.userId,
                     type = type,
                     mediaUri = uri,
+                    videoUri = null,
                     fileName = fileName,
                     audioDurationMs = audioDurationMs,
                     imageSendOriginal = imageSendOriginal,
@@ -458,5 +527,11 @@ class ChatDetailViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun isSelfPeerChat(): Boolean {
+        val selfId = currentState.currentUserId
+        val peerId = currentState.userId
+        return selfId > 0L && peerId > 0L && selfId == peerId
     }
 }

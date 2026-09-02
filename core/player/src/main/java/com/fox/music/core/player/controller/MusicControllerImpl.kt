@@ -16,6 +16,7 @@ import com.fox.music.core.common.util.MediaUrlResolver
 import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlaybackSnapshot
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.RepeatMode
@@ -57,6 +58,8 @@ class MusicControllerImpl @Inject constructor(
     private var lastTrackId: Long? = null
     private var lastTrackDurationMs: Long = 0L
     private var lastTrackPositionMs: Long = 0L
+    @Volatile
+    private var restorePlayAfterTransientMedia = false
     /** 避免同一进度重复上报 */
     private var lastReportedPlayKey: String? = null
 
@@ -68,6 +71,7 @@ class MusicControllerImpl @Inject constructor(
 
     private var currentPlaylist: List<Music> = emptyList()
     private var playingKey: String? = null
+    private var playlistSource: PlaybackPlaylistSource? = null
     private var currentRepeatMode: RepeatMode = RepeatMode.ALL
 
     private var pendingAutoPlay = false
@@ -179,6 +183,7 @@ class MusicControllerImpl @Inject constructor(
     private fun restoreFromSnapshot(snapshot: PlaybackSnapshot) {
         if (userPlaylistActive) return
         playingKey = snapshot.playingKey
+        playlistSource = snapshot.playlistSource
         currentPlaylist = snapshot.playlist
         currentRepeatMode = snapshot.repeatMode
         pendingAutoPlay = false
@@ -377,6 +382,7 @@ class MusicControllerImpl @Inject constructor(
             currentIndex = index.coerceIn(0, playlist.lastIndex),
             positionMs = position.coerceAtLeast(0L),
             repeatMode = currentRepeatMode,
+            playlistSource = playlistSource,
         )
     }
 
@@ -411,20 +417,16 @@ class MusicControllerImpl @Inject constructor(
         lastPersistedPositionMs = snapshot.positionMs
         lastPersistTimeMs = System.currentTimeMillis()
         scope.launch {
-            playbackStateStore.saveSnapshot(snapshotForPersist(snapshot))
+            playbackStateStore.saveSnapshot(snapshot)
         }
     }
-
-    private fun snapshotForPersist(snapshot: PlaybackSnapshot): PlaybackSnapshot =
-        PlaybackSnapshotTrimmer.forPersist(snapshot)
 
     override fun flushPlaybackState() {
         val snapshot = buildSnapshot() ?: return
         lastPersistedPositionMs = snapshot.positionMs
         lastPersistTimeMs = System.currentTimeMillis()
-        val toSave = snapshotForPersist(snapshot)
         scope.launch(Dispatchers.IO) {
-            playbackStateStore.saveSnapshot(toSave)
+            playbackStateStore.saveSnapshot(snapshot)
         }
     }
 
@@ -503,6 +505,7 @@ class MusicControllerImpl @Inject constructor(
             },
             playbackSpeed = player.playbackParameters.speed,
             isFavorite = currentMusic?.isFavorite ?: false,
+            playlistSource = playlistSource,
         )
     }
 
@@ -592,6 +595,20 @@ class MusicControllerImpl @Inject constructor(
     override fun pause() {
         controller?.pause()
         persistPlaybackState()
+    }
+
+    override fun beginTransientMediaPlayback() {
+        if (restorePlayAfterTransientMedia) return
+        restorePlayAfterTransientMedia = _playerState.value.isPlaying
+        if (restorePlayAfterTransientMedia) {
+            pause()
+        }
+    }
+
+    override fun endTransientMediaPlayback() {
+        if (!restorePlayAfterTransientMedia) return
+        restorePlayAfterTransientMedia = false
+        play()
     }
 
     override fun togglePlay() {
@@ -869,30 +886,47 @@ class MusicControllerImpl @Inject constructor(
         val existingById = existing.associateBy { it.id }
         return incoming.map { music ->
             val previous = existingById[music.id] ?: return@map music
-            music.copy(
-                lyrics = music.lyrics?.takeIf { it.isNotBlank() } ?: previous.lyrics,
-                lyricsTrans = music.lyricsTrans?.takeIf { it.isNotBlank() } ?: previous.lyricsTrans,
-            )
+            mergeMusicPreservingLyrics(music, previous)
         }
     }
 
-    override fun setPlaylist(musics: List<Music>, startIndex: Int, key: String) {
+    private fun mergeMusicPreservingLyrics(incoming: Music, previous: Music): Music {
+        return incoming.copy(
+            lyrics = incoming.lyrics?.takeIf { it.isNotBlank() } ?: previous.lyrics,
+            lyricsTrans = incoming.lyricsTrans?.takeIf { it.isNotBlank() } ?: previous.lyricsTrans,
+            lyricsUrl = incoming.lyricsUrl?.takeIf { it.isNotBlank() } ?: previous.lyricsUrl,
+        )
+    }
+
+    override fun setPlaylist(
+        musics: List<Music>,
+        startIndex: Int,
+        key: String,
+        source: PlaybackPlaylistSource?,
+    ) {
         if (musics.isEmpty()) return
         userPlaylistActive = true
         pendingRestorePositionMs = null
         lastUserSetPlaylistTimeMs = System.currentTimeMillis()
         playingKey = key
-        currentPlaylist = musics
+        playlistSource = source
+        val lyricLookup = buildList {
+            addAll(currentPlaylist)
+            _playerState.value.currentMusic?.let { add(it) }
+        }.distinctBy { it.id }
+        val mergedPlaylist = mergePlaylistPreservingDetails(lyricLookup, musics)
+        currentPlaylist = mergedPlaylist
         pendingAutoPlay = true
-        val safeIndex = startIndex.coerceIn(0, musics.lastIndex)
-        userAnchorMusicId = musics[safeIndex].id
-        publishOptimisticPlayerState(musics, safeIndex)
+        val safeIndex = startIndex.coerceIn(0, mergedPlaylist.lastIndex)
+        userAnchorMusicId = mergedPlaylist[safeIndex].id
+        publishOptimisticPlayerState(mergedPlaylist, safeIndex)
         applyRepeatModeToPlayer(currentRepeatMode)
         applyTrackToPlayer(
             startIndex = safeIndex,
             startPositionMs = 0L,
             autoPlay = true,
         )
+        persistPlaybackState()
     }
 
     /** 用户点播：ExoPlayer 只加载当前单曲，完整列表存内存，避免全量 setMediaItems Binder 失败 */
@@ -962,6 +996,7 @@ class MusicControllerImpl @Inject constructor(
             duration = fallbackDurationMs,
             repeatMode = currentRepeatMode,
             isFavorite = music.isFavorite,
+            playlistSource = playlistSource,
         )
     }
 
@@ -1107,6 +1142,7 @@ class MusicControllerImpl @Inject constructor(
 
         if (currentPlaylist.isEmpty()) {
             playingKey = null
+            playlistSource = null
             userAnchorMusicId = null
             expectedMediaItemIndex = null
             controller?.setMediaItems(emptyList())
@@ -1144,6 +1180,7 @@ class MusicControllerImpl @Inject constructor(
         currentPlaylist = emptyList()
         controller?.setMediaItems(emptyList())
         playingKey = null
+        playlistSource = null
         updatePlayerState()
         scope.launch {
             playbackStateStore.saveSnapshot(

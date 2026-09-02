@@ -62,6 +62,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
@@ -79,7 +80,7 @@ fun ArtistDetailScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: ArtistDetailViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>, String) -> Unit = { _, _, _ -> },
+    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onAlbumClick: (Album) -> Unit = {},
     onBack: () -> Unit = {},
@@ -109,7 +110,7 @@ fun ArtistDetailScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 is ArtistDetailEffect.NavigateToMusic -> {
-                    onMusicClick(effect.music, effect.musicList, playlistKey)
+                    onMusicClick(effect.music, effect.musicList, playlistKey, null)
                 }
 
                 is ArtistDetailEffect.NavigateToAlbum -> onAlbumClick(effect.album)

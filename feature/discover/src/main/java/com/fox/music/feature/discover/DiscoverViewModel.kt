@@ -10,16 +10,11 @@ import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
-import com.fox.music.core.domain.usecase.GetPostCommentPreviewUseCase
-import com.fox.music.core.domain.usecase.GetRecentPostsUseCase
-import com.fox.music.core.domain.usecase.TogglePostLikeUseCase
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.PlaylistDetail
-import com.fox.music.core.model.social.Comment
-import com.fox.music.core.model.social.Post
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -31,8 +26,6 @@ data class DiscoverState(
     val ranks: List<Playlist> = emptyList(),
     val rankDetails: Map<Long, PlaylistDetail> = emptyMap(),
     val newMusic: List<Music> = emptyList(),
-    val recentPosts: List<Post> = emptyList(),
-    val commentPreview: Comment? = null,
     val hotArtists: List<Artist> = emptyList(),
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -45,7 +38,6 @@ sealed interface DiscoverIntent : UiIntent {
     data class OnRankClick(val rank: Playlist) : DiscoverIntent
     data class OnMusicClick(val music: Music) : DiscoverIntent
     data class OnArtistClick(val artist: Artist) : DiscoverIntent
-    data class OnPostLikeClick(val postId: Long) : DiscoverIntent
 }
 
 sealed interface DiscoverEffect : UiEffect {
@@ -58,9 +50,6 @@ sealed interface DiscoverEffect : UiEffect {
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
     private val getMusicListUseCase: GetMusicListUseCase,
-    private val getRecentPostsUseCase: GetRecentPostsUseCase,
-    private val togglePostLikeUseCase: TogglePostLikeUseCase,
-    private val getPostCommentPreviewUseCase: GetPostCommentPreviewUseCase,
     private val playlistRepository: PlaylistRepository,
     private val artistRepository: ArtistRepository,
     private val searchRepository: SearchRepository,
@@ -85,37 +74,6 @@ class DiscoverViewModel @Inject constructor(
             is DiscoverIntent.OnArtistClick -> {
                 sendEffect(DiscoverEffect.NavigateToArtist(intent.artist.id))
             }
-            is DiscoverIntent.OnPostLikeClick -> togglePostLike(intent.postId)
-        }
-    }
-
-    fun applyPostOverrides(post: Post): Post = post
-
-    private fun togglePostLike(postId: Long) {
-        viewModelScope.launch {
-            when (togglePostLikeUseCase(postId)) {
-                is Result.Success -> {
-                    updateState {
-                        copy(
-                            recentPosts = recentPosts.map { post ->
-                                if (post.id == postId) {
-                                    post.copy(
-                                        isLiked = !post.isLiked,
-                                        likeCount = if (post.isLiked) {
-                                            (post.likeCount - 1).coerceAtLeast(0)
-                                        } else {
-                                            post.likeCount + 1
-                                        },
-                                    )
-                                } else {
-                                    post
-                                }
-                            }
-                        )
-                    }
-                }
-                else -> Unit
-            }
         }
     }
 
@@ -123,31 +81,24 @@ class DiscoverViewModel @Inject constructor(
         sendEffect(DiscoverEffect.NavigateToSearch)
     }
 
-    private fun loadContent(isRefresh: Boolean = false) {
+    private fun loadContent(isRefresh: Boolean) {
         viewModelScope.launch {
-            if (isRefresh) {
-                updateState { copy(isRefreshing = true, error = null) }
-            } else {
-                updateState { copy(isLoading = true, error = null) }
+            updateState {
+                copy(
+                    isLoading = !isRefresh,
+                    isRefreshing = isRefresh,
+                    error = null,
+                )
             }
 
-            // 加载热词
             when (val result = searchRepository.getHotKeywords(limit = 10)) {
-                is Result.Success -> {
-                    updateState { copy(hotKeywords = result.data) }
-                }
-                is Result.Error -> {
-                    // 忽略热词加载失败
-                }
-                else -> {}
+                is Result.Success -> updateState { copy(hotKeywords = result.data) }
+                else -> Unit
             }
 
-            // 加载榜单列表（请求3个）
             when (val result = playlistRepository.getRanks(page = 1, limit = 4)) {
                 is Result.Success -> {
                     updateState { copy(ranks = result.data) }
-
-                    // 并行加载每个榜单的详情（前4首歌）
                     val rankDetails = result.data.map { rank ->
                         async {
                             when (val detailResult = playlistRepository.getRankDetail(rank.id, page = 1, limit = 4)) {
@@ -156,7 +107,6 @@ class DiscoverViewModel @Inject constructor(
                             }
                         }
                     }.awaitAll().filterNotNull().toMap()
-
                     updateState { copy(rankDetails = rankDetails) }
                 }
                 is Result.Error -> {
@@ -165,42 +115,16 @@ class DiscoverViewModel @Inject constructor(
                 else -> {}
             }
 
-            // 加载新歌速递
             when (val result = getMusicListUseCase(page = 1, limit = 25, sort = "latest")) {
                 is Result.Success -> {
                     updateState { copy(newMusic = result.data.list) }
                 }
-                is Result.Error -> {
-                    // 忽略新歌加载失败
-                }
                 else -> {}
             }
 
-            // 加载社区广场预览（最多 1 条）
-            when (val result = getRecentPostsUseCase(limit = 1)) {
-                is Result.Success -> {
-                    val posts = result.data
-                    updateState { copy(recentPosts = posts) }
-                    posts.firstOrNull()?.let { post ->
-                        when (val preview = getPostCommentPreviewUseCase(post.id)) {
-                            is Result.Success -> updateState { copy(commentPreview = preview.data) }
-                            else -> Unit
-                        }
-                    }
-                }
-                is Result.Error -> {
-                    // 忽略帖子加载失败
-                }
-                else -> {}
-            }
-
-            // 加载热门歌手（只请求4个）
             when (val result = artistRepository.getArtistList(page = 1, limit = 4, sort = "hot")) {
                 is Result.Success -> {
                     updateState { copy(hotArtists = result.data.list) }
-                }
-                is Result.Error -> {
-                    // 忽略歌手加载失败
                 }
                 else -> {}
             }

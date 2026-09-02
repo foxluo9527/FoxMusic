@@ -1,6 +1,7 @@
 package com.fox.music.ui
 
 import androidx.annotation.OptIn
+import com.fox.music.core.common.EventViewModel
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +44,8 @@ import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
+import com.fox.music.core.ui.component.LocalTransientMediaAudioCoordinator
+import com.fox.music.core.ui.component.TransientMediaAudioCoordinator
 import com.fox.music.core.ui.component.UpdateDialog
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.chat.CHAT_DETAIL_ROUTE
@@ -185,6 +189,18 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        EventViewModel.plazaPostsUpdated.collect {
+            plazaRefreshTrigger++
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        EventViewModel.postPublishCompleted.collect { message ->
+            ToastUtils.showShort(message)
+        }
+    }
+
     LaunchedEffect(playlistState) {
         if (playlistState.isPlaylistCreated || playlistState.isPlaylistImported) {
             viewModel.resetPlaylistState()
@@ -297,6 +313,21 @@ fun MainScreen(
         showCreatePlaylistBottomSheet = ::showCreatePlaylistBottomSheet,
     )
 
+    val transientMediaAudioCoordinator = remember(musicController) {
+        object : TransientMediaAudioCoordinator {
+            override fun onTransientMediaPlaybackStarted() {
+                musicController.beginTransientMediaPlayback()
+            }
+
+            override fun onTransientMediaPlaybackEnded() {
+                musicController.endTransientMediaPlayback()
+            }
+        }
+    }
+
+    CompositionLocalProvider(
+        LocalTransientMediaAudioCoordinator provides transientMediaAudioCoordinator,
+    ) {
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0.dp)
@@ -396,5 +427,6 @@ fun MainScreen(
             onConfirmUpdate = viewModel::onConfirmUpdate,
             onRetry = viewModel::retryDownload,
         )
+    }
     }
 }

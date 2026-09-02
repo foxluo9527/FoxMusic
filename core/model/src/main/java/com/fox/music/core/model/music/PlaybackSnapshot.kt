@@ -6,6 +6,7 @@ data class PlaybackSnapshot(
     val currentIndex: Int = 0,
     val positionMs: Long = 0L,
     val repeatMode: RepeatMode = RepeatMode.ALL,
+    val playlistSource: PlaybackPlaylistSource? = null,
 ) {
     val isValid: Boolean
         get() = playlist.isNotEmpty() && currentIndex in playlist.indices

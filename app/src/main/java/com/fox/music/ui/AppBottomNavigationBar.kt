@@ -20,14 +20,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Mail
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,14 +48,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.fox.music.core.ui.theme.FloatingNavShape
 import com.fox.music.core.ui.theme.FoxSemanticColors
 import com.fox.music.core.ui.theme.FoxSpacing
+import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
+import com.fox.music.feature.social.ui.screen.COMMUNITY_PLAZA_ROUTE
 import kotlin.math.roundToInt
 
 /** 底部 Tab 路由：仅这些页面内嵌导航栏，以参与 NavHost 转场与可预测返回动画。 */
@@ -74,6 +83,8 @@ enum class AppDestinations(
 ) {
     HOME(HOME_ROUTE, "首页", Icons.Filled.Home, Icons.Outlined.Home),
     DISCOVER(DISCOVER_ROUTE, "发现", Icons.Filled.Explore, Icons.Outlined.Explore),
+    COMMUNITY(COMMUNITY_PLAZA_ROUTE, "社区", Icons.Filled.Forum, Icons.Outlined.Forum),
+    MESSAGES(MESSAGES_ROUTE, "消息", Icons.Filled.Mail, Icons.Outlined.Mail),
     PROFILE(PROFILE_ROUTE, "我的", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle),
 }
 
@@ -81,6 +92,7 @@ enum class AppDestinations(
 fun AppBottomNavigationBar(
     navController: NavHostController,
     selectedRoute: String,
+    messagesUnreadCount: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -143,6 +155,7 @@ fun AppBottomNavigationBar(
                         FloatingNavItem(
                             destination = dest,
                             selected = selectedRoute == dest.route,
+                            badgeCount = if (dest == AppDestinations.MESSAGES) messagesUnreadCount else 0,
                             onClick = {
                                 if (selectedRoute != dest.route) {
                                     navController.navigate(dest.route) {
@@ -219,6 +232,7 @@ private fun CircularTabIndicator(
 private fun FloatingNavItem(
     destination: AppDestinations,
     selected: Boolean,
+    badgeCount: Int = 0,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -248,6 +262,25 @@ private fun FloatingNavItem(
             modifier = Modifier.size(24.dp),
             tint = tint,
         )
+        if (badgeCount > 0) {
+            val badgeSize = if (badgeCount > 9) 18.dp else 16.dp
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 6.dp, y = (-4).dp)
+                    .size(badgeSize)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.error),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (badgeCount > 99) "99+" else badgeCount.toString(),
+                    color = MaterialTheme.colorScheme.onError,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 package com.fox.music.core.player.controller
 
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.RepeatMode
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +31,12 @@ interface MusicController {
      */
     fun updatePlaylist(musics: List<Music>, key: String)
 
-    fun setPlaylist(musics: List<Music>, startIndex: Int = 0, key: String)
+    fun setPlaylist(
+        musics: List<Music>,
+        startIndex: Int = 0,
+        key: String,
+        source: PlaybackPlaylistSource? = null,
+    )
 
     fun addToQueue(music: Music)
 
@@ -69,4 +75,10 @@ interface MusicController {
      * 将详情接口拉取到的歌词写回内存歌单与 UI
      */
     fun updateMusicLyrics(musicId: Long, lyrics: String?, lyricsTrans: String?)
+
+    /** Live/短视频开始有声播放前调用：若正在播音乐则暂停并记住状态 */
+    fun beginTransientMediaPlayback()
+
+    /** Live/短视频结束或取消时调用：必要时恢复音乐播放 */
+    fun endTransientMediaPlayback()
 }

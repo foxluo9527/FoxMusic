@@ -10,33 +10,47 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MessageDao {
 
-    /**
-     * 仅观察最近 [limit] 条消息（按时间升序），避免会话全量进内存。
-     */
     @Query(
         """
         SELECT * FROM (
             SELECT * FROM messages
-            WHERE conversationId = :conversationId
+            WHERE ownerUserId = :ownerUserId AND conversationId = :conversationId
             ORDER BY cachedAt DESC
             LIMIT :limit
         )
         ORDER BY cachedAt ASC
         """,
     )
-    fun observeMessages(conversationId: Long, limit: Int = 120): Flow<List<MessageEntity>>
+    fun observeMessages(ownerUserId: Long, conversationId: Long, limit: Int = 120): Flow<List<MessageEntity>>
 
     @Query("SELECT * FROM messages WHERE localId = :localId LIMIT 1")
     suspend fun getMessageByLocalId(localId: String): MessageEntity?
 
-    @Query("SELECT * FROM messages WHERE serverId = :serverId LIMIT 1")
-    suspend fun getMessageByServerId(serverId: Long): MessageEntity?
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE serverId = :serverId AND ownerUserId = :ownerUserId
+        LIMIT 1
+        """,
+    )
+    suspend fun getMessageByServerId(serverId: Long, ownerUserId: Long): MessageEntity?
 
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY cachedAt DESC LIMIT :limit")
-    suspend fun getRecentMessages(conversationId: Long, limit: Int = 50): List<MessageEntity>
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE ownerUserId = :ownerUserId AND conversationId = :conversationId
+        ORDER BY cachedAt DESC LIMIT :limit
+        """,
+    )
+    suspend fun getRecentMessages(ownerUserId: Long, conversationId: Long, limit: Int = 50): List<MessageEntity>
 
-    @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId AND isRead = 0")
-    fun getUnreadCount(conversationId: Long): Flow<Int>
+    @Query(
+        """
+        SELECT COUNT(*) FROM messages
+        WHERE ownerUserId = :ownerUserId AND conversationId = :conversationId AND isRead = 0
+        """,
+    )
+    fun getUnreadCount(ownerUserId: Long, conversationId: Long): Flow<Int>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
@@ -54,7 +68,9 @@ interface MessageDao {
             localMediaUri = COALESCE(:localMediaUri, localMediaUri),
             remoteMediaUrl = COALESCE(:remoteMediaUrl, remoteMediaUrl),
             uploadedAt = COALESCE(:uploadedAt, uploadedAt),
-            fileType = COALESCE(:fileType, fileType)
+            fileType = COALESCE(:fileType, fileType),
+            localVideoUri = COALESCE(:localVideoUri, localVideoUri),
+            remoteVideoUrl = COALESCE(:remoteVideoUrl, remoteVideoUrl)
         WHERE localId = :localId
         """,
     )
@@ -68,28 +84,64 @@ interface MessageDao {
         remoteMediaUrl: String? = null,
         uploadedAt: Long? = null,
         fileType: String? = null,
+        localVideoUri: String? = null,
+        remoteVideoUrl: String? = null,
     )
 
     @Query("UPDATE messages SET taskUuid = :taskUuid WHERE localId = :localId")
     suspend fun updateTaskUuid(localId: String, taskUuid: String)
 
-    @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId AND isRead = 0 AND senderId != :currentUserId")
-    suspend fun countIncomingUnread(conversationId: Long, currentUserId: Long): Int
+    @Query(
+        """
+        UPDATE messages SET
+            isRecalled = 1,
+            content = :content,
+            type = 'text',
+            localMediaUri = NULL,
+            remoteMediaUrl = NULL,
+            localVideoUri = NULL,
+            remoteVideoUrl = NULL,
+            fileType = NULL
+        WHERE localId = :localId
+        """,
+    )
+    suspend fun markMessageRecalled(localId: String, content: String)
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM messages
+        WHERE ownerUserId = :ownerUserId AND conversationId = :conversationId
+        AND isRead = 0 AND senderId != :currentUserId
+        """,
+    )
+    suspend fun countIncomingUnread(ownerUserId: Long, conversationId: Long, currentUserId: Long): Int
 
     @Query(
         """
         SELECT * FROM messages
-        WHERE status IN ('sending', 'failed') AND serverId IS NULL
+        WHERE ownerUserId = :ownerUserId
+        AND status IN ('sending', 'failed') AND serverId IS NULL
         ORDER BY cachedAt ASC
         """,
     )
-    suspend fun getPendingOutgoingMessages(): List<MessageEntity>
+    suspend fun getPendingOutgoingMessages(ownerUserId: Long): List<MessageEntity>
 
-    @Query("UPDATE messages SET isRead = 1 WHERE conversationId = :conversationId")
-    suspend fun markConversationAsRead(conversationId: Long)
+    @Query(
+        """
+        UPDATE messages SET isRead = 1
+        WHERE ownerUserId = :ownerUserId AND conversationId = :conversationId
+        """,
+    )
+    suspend fun markConversationAsRead(ownerUserId: Long, conversationId: Long)
 
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY cachedAt DESC LIMIT 1")
-    suspend fun getLatestMessageByConversation(conversationId: Long): MessageEntity?
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE ownerUserId = :ownerUserId AND conversationId = :conversationId
+        ORDER BY cachedAt DESC LIMIT 1
+        """,
+    )
+    suspend fun getLatestMessageByConversation(ownerUserId: Long, conversationId: Long): MessageEntity?
 
     @Query("DELETE FROM messages WHERE localId = :localId")
     suspend fun deleteMessageByLocalId(localId: String)
@@ -97,8 +149,13 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE localId IN (:localIds)")
     suspend fun deleteMessagesByLocalIds(localIds: List<String>)
 
-    @Query("DELETE FROM messages WHERE conversationId = :conversationId")
-    suspend fun deleteMessagesByConversation(conversationId: Long)
+    @Query(
+        """
+        DELETE FROM messages
+        WHERE ownerUserId = :ownerUserId AND conversationId = :conversationId
+        """,
+    )
+    suspend fun deleteMessagesByConversation(ownerUserId: Long, conversationId: Long)
 
     @Query("DELETE FROM messages")
     suspend fun deleteAllMessages()
@@ -106,34 +163,35 @@ interface MessageDao {
     @Query(
         """
         SELECT * FROM messages
-        WHERE content LIKE '%' || :query || '%'
+        WHERE ownerUserId = :ownerUserId
+        AND content LIKE '%' || :query || '%'
         AND type = 'text'
         AND isRecalled = 0
         ORDER BY cachedAt DESC
         """,
     )
-    fun searchMessages(query: String): Flow<List<MessageEntity>>
+    fun searchMessages(ownerUserId: Long, query: String): Flow<List<MessageEntity>>
 
     @Query(
         """
         SELECT * FROM messages
-        WHERE conversationId = :peerUserId
+        WHERE ownerUserId = :ownerUserId AND conversationId = :peerUserId
         AND content LIKE '%' || :query || '%'
         AND type = 'text'
         AND isRecalled = 0
         ORDER BY cachedAt DESC
         """,
     )
-    fun searchMessagesByUser(peerUserId: Long, query: String): Flow<List<MessageEntity>>
+    fun searchMessagesByUser(ownerUserId: Long, peerUserId: Long, query: String): Flow<List<MessageEntity>>
 
     @Query(
         """
         SELECT COUNT(*) FROM messages
-        WHERE conversationId = :peerUserId
+        WHERE ownerUserId = :ownerUserId AND conversationId = :peerUserId
         AND content LIKE '%' || :query || '%'
         AND type = 'text'
         AND isRecalled = 0
         """,
     )
-    suspend fun countMessagesByUser(peerUserId: Long, query: String): Int
+    suspend fun countMessagesByUser(ownerUserId: Long, peerUserId: Long, query: String): Int
 }

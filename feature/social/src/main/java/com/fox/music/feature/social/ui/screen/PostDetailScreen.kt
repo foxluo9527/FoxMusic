@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,8 +32,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -102,10 +102,12 @@ fun PostDetailScreen(
     modifier: Modifier = Modifier,
     viewModel: PostDetailViewModel = hiltViewModel(),
     currentUserId: Long? = null,
+    isLoggedIn: Boolean = false,
     playerState: PlayerState = PlayerState(),
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedContentScope: AnimatedContentScope? = null,
     onBack: () -> Unit = {},
+    onLoginRequired: () -> Unit = {},
     onSharePost: (Post) -> Unit = {},
     onEditPost: (Long) -> Unit = {},
     onReportPost: (Post) -> Unit = {},
@@ -117,6 +119,7 @@ fun PostDetailScreen(
     onNextTrack: () -> Unit = {},
     onTagClick: (String) -> Unit = {},
     onAddMusicToPlaylist: (Music) -> Unit = {},
+    onNavigateToUserHome: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val commentsPaging = viewModel.commentsPagingFlow.collectAsLazyPagingItems()
@@ -171,10 +174,24 @@ fun PostDetailScreen(
         PostMoreBottomSheet(
             isOwnPost = isOwn,
             onDismiss = { showMoreSheet = false },
-            onShare = { onSharePost(post) },
+            onShare = {
+                showMoreSheet = false
+                if (!isLoggedIn) {
+                    onLoginRequired()
+                } else {
+                    onSharePost(post)
+                }
+            },
             onEdit = { onEditPost(post.id) },
             onDelete = { onDeletePost(post) },
-            onReport = { onReportPost(post) },
+            onReport = {
+                showMoreSheet = false
+                if (!isLoggedIn) {
+                    onLoginRequired()
+                } else {
+                    onReportPost(post)
+                }
+            },
         )
     }
 
@@ -228,6 +245,7 @@ fun PostDetailScreen(
                 post = post,
                 onBack = onBack,
                 onMore = { showMoreSheet = true },
+                onAuthorClick = { post?.userId?.let(onNavigateToUserHome) },
             )
         },
         bottomBar = {
@@ -244,8 +262,13 @@ fun PostDetailScreen(
                         viewModel.sendIntent(PostDetailIntent.UpdateCommentInput(it))
                     },
                     onSend = { viewModel.sendIntent(PostDetailIntent.SendComment) },
-                    onLike = { viewModel.sendIntent(PostDetailIntent.ToggleLike) },
-                    onFavorite = { viewModel.sendIntent(PostDetailIntent.ToggleFavorite) },
+                    onLike = {
+                        if (!isLoggedIn) {
+                            onLoginRequired()
+                        } else {
+                            viewModel.sendIntent(PostDetailIntent.ToggleLike)
+                        }
+                    },
                 )
             }
         },
@@ -354,6 +377,7 @@ fun PostDetailScreen(
                                 PostDetailCommentItem(
                                     comment = comment,
                                     isExpanded = comment.id in state.expandedCommentIds,
+                                    onUserClick = onNavigateToUserHome,
                                     onToggleExpand = {
                                         viewModel.sendIntent(
                                             PostDetailIntent.ToggleExpandReplies(comment.id),
@@ -376,6 +400,7 @@ fun PostDetailScreen(
                                             PostRepliesList(
                                                 rootCommentId = comment.id,
                                                 viewModel = viewModel,
+                                                onUserClick = onNavigateToUserHome,
                                                 onReply = { reply ->
                                                     viewModel.sendIntent(
                                                         PostDetailIntent.ReplyToComment(
@@ -403,6 +428,7 @@ fun PostDetailScreen(
                             PostDetailCommentItem(
                                 comment = comment,
                                 isExpanded = comment.id in state.expandedCommentIds,
+                                onUserClick = onNavigateToUserHome,
                                 onToggleExpand = {
                                     viewModel.sendIntent(
                                         PostDetailIntent.ToggleExpandReplies(comment.id),
@@ -425,6 +451,7 @@ fun PostDetailScreen(
                                         PostRepliesList(
                                             rootCommentId = comment.id,
                                             viewModel = viewModel,
+                                            onUserClick = onNavigateToUserHome,
                                             onReply = { reply ->
                                                 viewModel.sendIntent(
                                                     PostDetailIntent.ReplyToComment(
@@ -471,7 +498,10 @@ fun PostDetailScreen(
                                 key = likesPaging.itemKey { it.id },
                             ) { index ->
                                 val liker = likesPaging[index] ?: return@items
-                                PostLikerRow(user = liker)
+                                PostLikerRow(
+                                    user = liker,
+                                    onClick = { onNavigateToUserHome(liker.id) },
+                                )
                             }
                             if (likesPaging.loadState.append is LoadState.Loading) {
                                 item(key = "likes_loading") {
@@ -508,6 +538,7 @@ private fun PostDetailTopBar(
     post: Post?,
     onBack: () -> Unit,
     onMore: () -> Unit,
+    onAuthorClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -521,21 +552,27 @@ private fun PostDetailTopBar(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
         }
         if (post != null) {
-            CachedImage(
-                imageUrl = post.authorAvatar,
-                contentDescription = post.authorName,
-                modifier = Modifier.size(32.dp),
-                shape = CircleShape,
-                placeholderIcon = Icons.Default.Person,
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = post.authorName ?: "用户",
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAuthorClick),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CachedImage(
+                    imageUrl = post.authorAvatar,
+                    contentDescription = post.authorName,
+                    modifier = Modifier.size(32.dp),
+                    shape = CircleShape,
+                    placeholderIcon = Icons.Default.Person,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = post.authorName ?: "用户",
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             IconButton(onClick = onMore) {
                 Icon(Icons.Default.MoreVert, contentDescription = "更多")
             }
@@ -592,7 +629,6 @@ private fun PostDetailBottomBar(
     onCommentChange: (String) -> Unit,
     onSend: () -> Unit,
     onLike: () -> Unit,
-    onFavorite: () -> Unit,
 ) {
     Column(
         modifier = modifier
@@ -632,24 +668,6 @@ private fun PostDetailBottomBar(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clickable(onClick = onFavorite)
-                    .padding(horizontal = 8.dp),
-            ) {
-                Icon(
-                    imageVector = if (post.isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
-                    contentDescription = "收藏",
-                    tint = if (post.isFavorited) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
-                Text(
-                    text = "收藏",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
@@ -659,6 +677,7 @@ private fun PostDetailBottomBar(
 private fun PostDetailCommentItem(
     comment: Comment,
     isExpanded: Boolean,
+    onUserClick: (Long) -> Unit,
     onToggleExpand: () -> Unit,
     onReply: () -> Unit,
     onLongClick: () -> Unit = {},
@@ -673,52 +692,64 @@ private fun PostDetailCommentItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(
-                    onClick = onReply,
-                    onLongClick = onLongClick,
-                ),
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.Top,
         ) {
             CachedImage(
                 imageUrl = comment.displayAuthorAvatar,
                 contentDescription = comment.displayAuthorName,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { onUserClick(comment.userId) },
                 shape = CircleShape,
                 placeholderIcon = Icons.Default.Person,
             )
-            Column(modifier = Modifier.padding(start = 10.dp).weight(1f)) {
-                Text(
-                    text = comment.displayAuthorName,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = comment.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+            Box(
+                modifier = Modifier
+                    .padding(start = 10.dp)
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .combinedClickable(
+                        onClick = onReply,
+                        onLongClick = onLongClick,
+                    ),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = comment.displayAuthorName,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { onUserClick(comment.userId) },
+                    )
+                    Text(
+                        text = comment.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
         if (!isExpanded && previewReply != null) {
             PostReplyItem(
                 reply = previewReply,
+                onUserClick = onUserClick,
                 onReply = onReply,
                 onLongClick = onLongClick,
                 modifier = Modifier.padding(start = 46.dp, top = 8.dp),
             )
         }
-        if (comment.replyCount > 0) {
-            val remaining = if (!isExpanded && previewReply != null) {
+        if (comment.replyCount > 0 && !isExpanded) {
+            val remaining = if (previewReply != null) {
                 (comment.replyCount - 1).coerceAtLeast(0)
             } else {
                 comment.replyCount
             }
-            val label = when {
-                isExpanded -> "收起回复"
-                remaining > 0 -> "展开 $remaining 条回复"
-                else -> "展开回复"
+            val label = if (remaining > 0) {
+                "展开 $remaining 条回复"
+            } else {
+                "展开回复"
             }
-            if (isExpanded || remaining > 0 || previewReply == null) {
+            if (remaining > 0 || previewReply == null) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
@@ -729,7 +760,19 @@ private fun PostDetailCommentItem(
                 )
             }
         }
-        repliesContent?.invoke()
+        if (isExpanded) {
+            repliesContent?.invoke()
+            if (comment.replyCount > 0) {
+                Text(
+                    text = "收起回复",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(top = 4.dp, start = 46.dp)
+                        .clickable(onClick = onToggleExpand),
+                )
+            }
+        }
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
     }
 }
@@ -738,6 +781,7 @@ private fun PostDetailCommentItem(
 private fun PostRepliesList(
     rootCommentId: Long,
     viewModel: PostDetailViewModel,
+    onUserClick: (Long) -> Unit,
     onReply: (Comment) -> Unit,
     onCommentLongClick: (Comment) -> Unit = {},
 ) {
@@ -751,11 +795,16 @@ private fun PostRepliesList(
         }
     }
 
-    Column(modifier = Modifier.padding(start = 46.dp, top = 8.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 46.dp, top = 8.dp),
+    ) {
         for (index in 0 until repliesPaging.itemCount) {
             val reply = repliesPaging[index] ?: continue
             PostReplyItem(
                 reply = reply,
+                onUserClick = onUserClick,
                 onReply = { onReply(reply) },
                 onLongClick = { onCommentLongClick(reply) },
             )
@@ -770,6 +819,7 @@ private fun PostRepliesList(
 @Composable
 private fun PostReplyItem(
     reply: Comment,
+    onUserClick: (Long) -> Unit,
     onReply: () -> Unit,
     onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -777,41 +827,52 @@ private fun PostReplyItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onReply,
-                onLongClick = onLongClick,
-            )
+            .height(IntrinsicSize.Min)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.Top,
     ) {
         CachedImage(
             imageUrl = reply.displayAuthorAvatar,
             contentDescription = reply.displayAuthorName,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier
+                .size(28.dp)
+                .clickable { onUserClick(reply.userId) },
             shape = CircleShape,
             placeholderIcon = Icons.Default.Person,
         )
-        Column(modifier = Modifier.padding(start = 8.dp).weight(1f)) {
-            Text(
-                text = reply.displayAuthorName,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-            )
-            if (!reply.parentAuthorName.isNullOrBlank()) {
+        Box(
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .weight(1f)
+                .fillMaxHeight()
+                .combinedClickable(
+                    onClick = onReply,
+                    onLongClick = onLongClick,
+                ),
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "回复 @${reply.parentAuthorName}",
+                    text = reply.displayAuthorName,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { onUserClick(reply.userId) },
+                )
+                if (!reply.parentAuthorName.isNullOrBlank()) {
+                    Text(
+                        text = "回复 @${reply.parentAuthorName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Text(
+                    text = reply.content,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = reply.content,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 4.dp),
-                maxLines = 5,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }
@@ -865,6 +926,7 @@ private fun PostDetailFeedTabItem(
 @Composable
 private fun PostLikerRow(
     user: User,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val displayName = user.nickname?.takeIf { it.isNotBlank() }
@@ -873,6 +935,7 @@ private fun PostLikerRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -22,7 +22,9 @@ data class UpdateProfileRequest(
     val nickname: String? = null,
     val avatar: String? = null,
     val signature: String? = null,
-    val email: String? = null
+    val email: String? = null,
+    @SerialName("homepage_background")
+    val homepageBackground: String? = null,
 )
 
 @Serializable
@@ -59,6 +61,8 @@ data class UserDto(
     val nickname: String? = null,
     val avatar: String? = null,
     val signature: String? = null,
+    @SerialName("homepage_background")
+    val homepageBackground: String? = null,
     val role: String? = null,
     val status: String? = null,
     @SerialName("created_at")

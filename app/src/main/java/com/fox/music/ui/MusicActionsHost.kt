@@ -56,6 +56,11 @@ fun MusicActionsHost(
             onDismiss = viewModel::dismissPlaylistPicker,
             onPlaylistSelected = viewModel::addTracksToPlaylist,
             onCreatePlaylist = viewModel::requestCreatePlaylist,
+            currentQueueTitle = state.currentQueueTitle,
+            currentQueueSize = state.currentQueueSize,
+            isCurrentQueueEnabled = state.pendingMusicIds.isNotEmpty(),
+            isPendingInCurrentQueue = state.isPendingInCurrentQueue,
+            onCurrentQueueSelected = viewModel::addPendingToCurrentQueue,
         )
     }
 

@@ -1,6 +1,8 @@
 package com.fox.music.navigation
 
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.navigation.NamedNavArgument
 import androidx.navigation.NavBackStackEntry
@@ -55,8 +57,14 @@ fun NavGraphBuilder.composablePlayer(
         arguments = arguments,
         deepLinks = deepLinks,
         enterTransition = { playerEnter() },
-        exitTransition = { playerExit() },
-        popEnterTransition = { playerEnter() },
+        exitTransition = {
+            val toDetail = targetState.destination.route?.let(::isOverlayDetailRoute) == true
+            if (toDetail) ExitTransition.None else playerExit()
+        },
+        popEnterTransition = {
+            val fromDetail = initialState.destination.route?.let(::isOverlayDetailRoute) == true
+            if (fromDetail) EnterTransition.None else playerEnter()
+        },
         popExitTransition = { playerExit() },
         content = content,
     )

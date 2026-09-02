@@ -12,6 +12,7 @@ import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.crash.BuglyInitializer
 import com.fox.music.core.data.recovery.ChatMessageRecovery
+import com.fox.music.core.data.recovery.PostPublishRecovery
 import com.fox.music.core.data.realtime.RealtimeMessageCoordinator
 import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.UserPreferencesRepository
@@ -61,6 +62,9 @@ class FoxMusicApplication : Application(), Configuration.Provider, ImageLoaderFa
     lateinit var chatMessageRecovery: ChatMessageRecovery
 
     @Inject
+    lateinit var postPublishRecovery: PostPublishRecovery
+
+    @Inject
     lateinit var realtimeMessageCoordinator: RealtimeMessageCoordinator
 
     @Inject
@@ -108,6 +112,7 @@ class FoxMusicApplication : Application(), Configuration.Provider, ImageLoaderFa
         }
         foxNotificationManager.createChannels()
         chatMessageRecovery.recoverPendingMessages()
+        postPublishRecovery.recoverPendingJobs()
         realtimeMessageCoordinator.start()
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {

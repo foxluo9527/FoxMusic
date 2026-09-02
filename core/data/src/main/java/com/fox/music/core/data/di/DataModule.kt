@@ -2,6 +2,7 @@ package com.fox.music.core.data.di
 
 import com.fox.music.core.data.download.MusicDownloadManager
 import com.fox.music.core.data.cache.RecommendedMusicCacheManagerImpl
+import com.fox.music.core.data.player.PlaybackStateStoreImpl
 import com.fox.music.core.data.repository.AdminMusicRepositoryImpl
 import com.fox.music.core.data.repository.AppUpdateRepositoryImpl
 import com.fox.music.core.data.repository.AlbumRepositoryImpl
@@ -13,12 +14,15 @@ import com.fox.music.core.data.repository.ImportRepositoryImpl
 import com.fox.music.core.data.repository.PlaylistImportProgressRepositoryImpl
 import com.fox.music.core.data.repository.MusicRepositoryImpl
 import com.fox.music.core.data.repository.PostDraftRepositoryImpl
+import com.fox.music.core.data.repository.PostPublishRepositoryImpl
 import com.fox.music.core.data.repository.PlaylistRepositoryImpl
 import com.fox.music.core.data.repository.ReportRepositoryImpl
 import com.fox.music.core.data.repository.SearchRepositoryImpl
 import com.fox.music.core.data.repository.SocialRepositoryImpl
 import com.fox.music.core.data.repository.UploadRepositoryImpl
 import com.fox.music.core.data.repository.UserPreferencesRepositoryImpl
+import com.fox.music.core.data.repository.UserRepositoryImpl
+import com.fox.music.core.common.player.PlaybackStateStore
 import com.fox.music.core.domain.repository.AdminMusicRepository
 import com.fox.music.core.domain.repository.AppUpdateRepository
 import com.fox.music.core.domain.repository.AlbumRepository
@@ -31,6 +35,7 @@ import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.PlaylistImportProgressRepository
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PostDraftRepository
+import com.fox.music.core.domain.repository.PostPublishRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.ReportRepository
@@ -38,6 +43,7 @@ import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.repository.UploadRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
+import com.fox.music.core.domain.repository.UserRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -47,6 +53,10 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class DataModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaybackStateStore(impl: PlaybackStateStoreImpl): PlaybackStateStore
 
     @Binds
     @Singleton
@@ -125,6 +135,14 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindAppUpdateRepository(impl: AppUpdateRepositoryImpl): AppUpdateRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPostPublishRepository(impl: PostPublishRepositoryImpl): PostPublishRepository
 
     @Binds
     @Singleton

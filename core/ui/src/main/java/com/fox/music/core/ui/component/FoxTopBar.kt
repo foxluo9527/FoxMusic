@@ -1,5 +1,7 @@
 package com.fox.music.core.ui.component
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -11,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -25,6 +28,8 @@ fun FoxTopBar(
     onBackClick: () -> Unit = {},
     centerAligned: Boolean = true,
     scrollBehavior: TopAppBarScrollBehavior? = null,
+    onTitleClick: (() -> Unit)? = null,
+    titleTrailing: (@Composable () -> Unit)? = null,
     actions: @Composable () -> Unit = {},
 ) {
     val colors = TopAppBarDefaults.topAppBarColors(
@@ -32,15 +37,24 @@ fun FoxTopBar(
         titleContentColor = MaterialTheme.colorScheme.onSurface,
         scrolledContainerColor = MaterialTheme.colorScheme.surface,
     )
+    val titleContent: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = if (onTitleClick != null) {
+                    Modifier.clickable(onClick = onTitleClick)
+                } else {
+                    Modifier
+                },
+            )
+            titleTrailing?.invoke()
+        }
+    }
     if (centerAligned) {
         CenterAlignedTopAppBar(
-            title = {
-                Text(
-                    text = title,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
+            title = titleContent,
             modifier = modifier,
             navigationIcon = {
                 if (showBackButton) {
@@ -61,13 +75,7 @@ fun FoxTopBar(
         )
     } else {
         androidx.compose.material3.TopAppBar(
-            title = {
-                Text(
-                    text = title,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
+            title = titleContent,
             modifier = modifier,
             navigationIcon = {
                 if (showBackButton) {

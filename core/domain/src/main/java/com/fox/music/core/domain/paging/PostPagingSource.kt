@@ -9,6 +9,8 @@ class PostPagingSource(
     private val socialRepository: SocialRepository,
     private val sort: String = "latest",
     private val keyword: String? = null,
+    private val tag: String? = null,
+    private val authorId: Long? = null,
 ) : PagingSource<Int, Post>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Post> {
@@ -19,6 +21,8 @@ class PostPagingSource(
                 limit = params.loadSize,
                 keyword = keyword,
                 sort = sort,
+                tag = tag,
+                authorId = authorId,
             )
             val pagedData = result.getOrNull()
             result.exceptionOrNull()?.let { throw it }

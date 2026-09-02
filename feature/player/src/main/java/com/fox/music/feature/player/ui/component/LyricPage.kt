@@ -24,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -59,13 +58,17 @@ fun LyricPage(
     onCommentClick: (Long) -> Unit = {}
 ) {
     val playerState by musicController.playerState.collectAsState(PlayerState())
-    val bilingualLyricLines by remember {
-        derivedStateOf {
-            playerState.currentMusic?.bilingualLyricLines ?: emptyList()
-        }
+    val currentMusic = playerState.currentMusic
+    // 显式依赖 lyrics，确保冷启动切歌后预取补全时会刷新
+    val bilingualLyricLines = remember(
+        currentMusic?.id,
+        currentMusic?.lyrics,
+        currentMusic?.lyricsTrans,
+    ) {
+        currentMusic?.bilingualLyricLines ?: emptyList()
     }
-    val isPlaying by remember {derivedStateOf {playerState.isPlaying}}
-    val position by remember {derivedStateOf {playerState.position}}
+    val isPlaying = playerState.isPlaying
+    val position = playerState.position
 
     Column(modifier.fillMaxSize()) {
         BilingualLyricComponent(

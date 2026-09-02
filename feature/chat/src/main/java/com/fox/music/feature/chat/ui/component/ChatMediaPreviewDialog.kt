@@ -67,6 +67,7 @@ import kotlinx.coroutines.withContext
 enum class ChatMediaPreviewType {
     IMAGE,
     VIDEO,
+    LIVE,
 }
 
 data class ChatPendingMedia(
@@ -74,6 +75,8 @@ data class ChatPendingMedia(
     val type: ChatMediaPreviewType,
     val fileName: String? = null,
     val sendOriginal: Boolean = false,
+    val isLiveCapable: Boolean = false,
+    val sendAsLive: Boolean = true,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,6 +87,7 @@ fun ChatMediaPreviewDialog(
     onSend: (ChatPendingMedia) -> Unit,
     onCrop: (Uri) -> Unit,
     onSendOriginalChange: (Boolean) -> Unit,
+    onSendAsLiveChange: (Boolean) -> Unit = {},
     isProcessing: Boolean = false,
     processingText: String = "处理中...",
 ) {
@@ -155,6 +159,13 @@ fun ChatMediaPreviewDialog(
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
+                        ChatMediaPreviewType.LIVE -> {
+                            ZoomableAsyncImage(
+                                model = media.uri,
+                                contentDescription = "Live 图预览",
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
                     if (isProcessing) {
                         Surface(
@@ -218,6 +229,30 @@ fun ChatMediaPreviewDialog(
                             checked = media.sendOriginal,
                             onCheckedChange = onSendOriginalChange,
                         )
+                    }
+
+                    if (media.isLiveCapable) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                Text(
+                                    text = "以 Live 图发送",
+                                    color = Color.White,
+                                )
+                                Text(
+                                    text = "关闭后仅发送静态图片",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.6f),
+                                )
+                            }
+                            Switch(
+                                checked = media.sendAsLive,
+                                onCheckedChange = onSendAsLiveChange,
+                            )
+                        }
                     }
 
                     Row(

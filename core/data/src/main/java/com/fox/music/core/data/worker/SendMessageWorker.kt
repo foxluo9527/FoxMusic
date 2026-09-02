@@ -20,6 +20,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import java.io.File
 
 @HiltWorker
@@ -63,6 +64,7 @@ class SendMessageWorker @AssistedInject constructor(
                     remoteMediaUrl = payload.fileUrl,
                     uploadedAt = payload.uploadedAt,
                     fileType = payload.fileType,
+                    remoteVideoUrl = payload.videoUrl,
                 )
             }
 
@@ -77,9 +79,11 @@ class SendMessageWorker @AssistedInject constructor(
                     content = data.content,
                     remoteMediaUrl = data.fileUrl ?: payload?.fileUrl,
                     fileType = data.fileType ?: payload?.fileType ?: entity.fileType,
+                    remoteVideoUrl = data.videoUrl ?: payload?.videoUrl ?: entity.remoteVideoUrl,
                     errorMessage = null,
                 )
                 conversationDao.updateLastMessage(
+                    ownerUserId = entity.ownerUserId,
                     peerUserId = entity.conversationId,
                     preview = previewForMessage(data.content, data.type),
                     status = "sent",
@@ -110,6 +114,7 @@ class SendMessageWorker @AssistedInject constructor(
                 fileSize = 0L,
                 uploadedAt = entity.uploadedAt ?: System.currentTimeMillis(),
                 fileType = entity.fileType ?: resolveFileType(resolveFileName(entity, null)),
+                videoUrl = entity.remoteVideoUrl,
             )
         }
 
@@ -123,12 +128,14 @@ class SendMessageWorker @AssistedInject constructor(
             val uploadedAt = System.currentTimeMillis()
             val fileName = uploaded.filename.substringAfterLast('/').ifBlank { resolveFileName(entity, uploadUri) }
             val fileType = entity.fileType ?: resolveFileType(fileName)
+            val videoUrl = uploadLiveVideoIfNeeded(entity)
             return MediaPayload.Ready(
                 fileUrl = uploaded.url,
                 fileName = fileName,
                 fileSize = uploaded.size.coerceAtLeast(0L),
                 uploadedAt = uploadedAt,
                 fileType = fileType,
+                videoUrl = videoUrl,
             )
         }
 
@@ -180,6 +187,7 @@ class SendMessageWorker @AssistedInject constructor(
             "file_type" to fileType,
             "file_name" to name,
             "file_size" to payload?.fileSize?.coerceAtLeast(0L)?.toString().orEmpty(),
+            "video_url" to (payload?.videoUrl ?: entity.remoteVideoUrl.orEmpty()),
         )
     }
 
@@ -195,6 +203,26 @@ class SendMessageWorker @AssistedInject constructor(
             "voice_url" to (payload?.fileUrl ?: entity.remoteMediaUrl.orEmpty()),
             "voice_duration" to durationSec.toString(),
         )
+    }
+
+    private suspend fun uploadLiveVideoIfNeeded(entity: MessageEntity): String? {
+        entity.remoteVideoUrl?.takeIf { isUploadedUrl(it) }?.let { return it }
+        val localVideo = entity.localVideoUri?.takeIf { it.isNotBlank() } ?: return null
+        val uri = Uri.parse(localVideo)
+        // Live 动图片段可能非标准 video MIME，走通用文件上传（与发帖 Live 图一致）
+        return when (
+            val result = uploadRepository.uploadFile(
+                uri = uri,
+                fileName = "live_${System.currentTimeMillis()}.mp4",
+            )
+        ) {
+            is AppResult.Success -> result.data
+            is AppResult.Error -> {
+                Timber.w("Live 视频上传失败: ${result.message}")
+                null
+            }
+            is AppResult.Loading -> null
+        }
     }
 
     private fun resolveFileName(entity: MessageEntity, uri: Uri?): String {
@@ -275,6 +303,7 @@ class SendMessageWorker @AssistedInject constructor(
         )
         val entity = messageDao.getMessageByLocalId(localId) ?: return
         conversationDao.updateLastMessage(
+            ownerUserId = entity.ownerUserId,
             peerUserId = conversationId,
             preview = previewForMessage(entity.content, entity.type),
             status = "failed",
@@ -291,6 +320,7 @@ class SendMessageWorker @AssistedInject constructor(
             val fileSize: Long,
             val uploadedAt: Long,
             val fileType: String,
+            val videoUrl: String? = null,
         ) : MediaPayload
         data class Error(val message: String) : MediaPayload
     }

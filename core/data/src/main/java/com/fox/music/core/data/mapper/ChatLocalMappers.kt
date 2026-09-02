@@ -16,8 +16,12 @@ import kotlinx.serialization.json.Json
 
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-fun Message.toIncomingMessageEntity(conversationId: Long): MessageEntity = MessageEntity(
+fun Message.toIncomingMessageEntity(
+    conversationId: Long,
+    ownerUserId: Long,
+): MessageEntity = MessageEntity(
     localId = localId ?: "server_$id",
+    ownerUserId = ownerUserId,
     serverId = id,
     conversationId = conversationId,
     senderId = senderId,
@@ -36,6 +40,8 @@ fun Message.toIncomingMessageEntity(conversationId: Long): MessageEntity = Messa
     shareType = shareType,
     shareId = shareId,
     shareDataJson = shareData?.let { json.encodeToString(ShareData.serializer(), it) },
+    localVideoUri = localVideoUri,
+    remoteVideoUrl = videoUrl,
 )
 
 private fun MessageType.toEntityType(): String = when (this) {
@@ -68,6 +74,7 @@ fun MessageEntity.toDomainMessage(): Message = Message(
     readAt = if (isRead) sentAt else null,
     errorMessage = errorMessage,
     localMediaUri = localMediaUri,
+    localVideoUri = localVideoUri,
     localMediaFileName = localMediaFileName,
     remoteMediaUrl = remoteMediaUrl,
     fileType = fileType,
@@ -78,6 +85,7 @@ fun MessageEntity.toDomainMessage(): Message = Message(
     shareData = shareDataJson?.let {
         runCatching { json.decodeFromString(ShareData.serializer(), it) }.getOrNull()
     },
+    videoUrl = remoteVideoUrl,
 )
 
 fun MessageDto.resolveStatus(): String =
@@ -87,7 +95,7 @@ fun MessageDto.resolveSentAt(): String? = sentAt ?: createdAt
 
 fun MessageDto.resolveIsRecalled(): Boolean = isRecalled || isDeleted
 
-fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity {
+fun MessageDto.toMessageEntity(conversationId: Long, ownerUserId: Long): MessageEntity {
     val timestamp = resolveSentAt()
     val resolvedType = when {
         !voiceUrl.isNullOrBlank() -> "voice"
@@ -97,6 +105,7 @@ fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity {
     }
     return MessageEntity(
         localId = "server_$id",
+        ownerUserId = ownerUserId,
         serverId = id,
         conversationId = conversationId,
         senderId = senderId,
@@ -115,6 +124,8 @@ fun MessageDto.toMessageEntity(conversationId: Long): MessageEntity {
         shareType = shareType,
         shareId = shareId,
         shareDataJson = shareData?.let { json.encodeToString(ShareData.serializer(), it.toDomain()) },
+        localVideoUri = null,
+        remoteVideoUrl = videoUrl,
     )
 }
 
@@ -150,9 +161,10 @@ fun ConversationEntity.toChatConversation(): ChatConversation {
     )
 }
 
-fun ConversationDto.toConversationEntity(): ConversationEntity {
+fun ConversationDto.toConversationEntity(ownerUserId: Long): ConversationEntity {
     val last = lastMessage
     return ConversationEntity(
+        ownerUserId = ownerUserId,
         peerUserId = user.id,
         peerNickname = user.nickname ?: user.username,
         peerAvatar = user.avatar,

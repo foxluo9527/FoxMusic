@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -24,6 +25,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.music.Playlist
@@ -36,6 +38,11 @@ fun PlaylistPickerBottomSheet(
     onDismiss: () -> Unit,
     onPlaylistSelected: (Long) -> Unit,
     onCreatePlaylist: () -> Unit,
+    currentQueueTitle: String? = null,
+    currentQueueSize: Int = 0,
+    isCurrentQueueEnabled: Boolean = true,
+    isPendingInCurrentQueue: Boolean = false,
+    onCurrentQueueSelected: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -53,6 +60,42 @@ fun PlaylistPickerBottomSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
+
+            val queueLabel = currentQueueTitle?.takeIf { it.isNotBlank() }
+                ?: if (currentQueueSize > 0) "播放列表 · $currentQueueSize 首" else "当前播放列表"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(if (isCurrentQueueEnabled) 1f else 0.45f)
+                    .clickable(enabled = isCurrentQueueEnabled) {
+                        onCurrentQueueSelected()
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.QueueMusic,
+                    contentDescription = "当前播放列表",
+                    tint = if (isPendingInCurrentQueue) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "当前播放列表",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = queueLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             Row(
                 modifier = Modifier

@@ -18,21 +18,30 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,26 +67,45 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
+import com.fox.music.core.model.social.Post
 import com.fox.music.core.ui.component.AlbumListItem
 import com.fox.music.core.ui.component.ArtistListItem
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.core.ui.component.PostNoteGridCard
 import com.fox.music.core.ui.component.SearchBar
 
-const val SEARCH_ROUTE = "search"
+const val SEARCH_ROUTE = "search?tab={tab}&query={query}&tag={tag}&sort={sort}"
+
+fun searchRoute(
+    tab: SearchResultTab? = null,
+    query: String? = null,
+    tag: String? = null,
+    sort: String? = null,
+): String {
+    val encodedQuery = android.net.Uri.encode(query.orEmpty())
+    val encodedTag = android.net.Uri.encode(tag.orEmpty())
+    val encodedSort = android.net.Uri.encode(sort.orEmpty())
+    return "search?tab=${tab?.name.orEmpty()}&query=$encodedQuery&tag=$encodedTag&sort=$encodedSort"
+}
 
 private val searchTabs = listOf(
     SearchResultTab.MUSIC to "单曲",
     SearchResultTab.ARTIST to "歌手",
     SearchResultTab.ALBUM to "专辑",
+    SearchResultTab.POST to "帖子",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,10 +115,11 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    onMusicClick: (Music, List<Music>, String) -> Unit = { _, _, _ -> },
+    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onArtistClick: (Long) -> Unit = {},
     onAlbumClick: (Album) -> Unit = {},
+    onPostClick: (Long) -> Unit = {},
     onBack: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
 ) {
@@ -98,6 +127,7 @@ fun SearchScreen(
     val musicResults = state.musicResults.collectAsLazyPagingItems()
     val artistResults = state.artistResults.collectAsLazyPagingItems()
     val albumResults = state.albumResults.collectAsLazyPagingItems()
+    val postResults = state.postResults.collectAsLazyPagingItems()
     val playlistKey = SEARCH_ROUTE + "-${state.query}"
     val focusManager = LocalFocusManager.current
     val showRecommendPanel = state.showRecommendPanel
@@ -125,11 +155,12 @@ fun SearchScreen(
             when (effect) {
                 is SearchEffect.NavigateToMusic -> {
                     val playlist = effect.musicList.ifEmpty { listOf(effect.music) }
-                    onMusicClick(effect.music, playlist, playlistKey)
+                    onMusicClick(effect.music, playlist, playlistKey, null)
                 }
 
                 is SearchEffect.NavigateToArtist -> onArtistClick(effect.artistId)
                 is SearchEffect.NavigateToAlbum -> onAlbumClick(effect.album)
+                is SearchEffect.NavigateToPost -> onPostClick(effect.postId)
                 SearchEffect.ClearSearchFocus -> focusManager.clearFocus()
             }
         }
@@ -253,6 +284,14 @@ fun SearchScreen(
                     state.selectedTab == SearchResultTab.ALBUM -> AlbumSearchResults(
                         albumResults = albumResults,
                         onAlbumClick = { viewModel.onAlbumClick(it) },
+                    )
+
+                    state.selectedTab == SearchResultTab.POST -> PostSearchResults(
+                        postResults = postResults,
+                        applyOverrides = viewModel::applyPostOverrides,
+                        onPostClick = { viewModel.onPostClick(it) },
+                        onLikeClick = { viewModel.onPostLikeClick(it) },
+                        onTagClick = { viewModel.onPostTagClick(it) },
                     )
                 }
             }
@@ -665,6 +704,70 @@ private fun AlbumSearchResults(
 }
 
 @Composable
+private fun PostSearchResults(
+    postResults: LazyPagingItems<Post>,
+    applyOverrides: (Post) -> Post,
+    onPostClick: (Long) -> Unit,
+    onLikeClick: (Post) -> Unit,
+    onTagClick: (String) -> Unit,
+) {
+    when {
+        postResults.loadState.refresh is LoadState.Loading -> {
+            LoadingIndicator(useLottie = false)
+        }
+
+        postResults.loadState.refresh is LoadState.Error -> {
+            ErrorView(
+                modifier = Modifier.fillMaxSize(),
+                message = (postResults.loadState.refresh as LoadState.Error).error.message
+                    ?: "搜索失败",
+                onRetry = { postResults.retry() },
+            )
+        }
+
+        postResults.loadState.refresh is LoadState.NotLoading && postResults.itemCount == 0 -> {
+            ErrorView(
+                modifier = Modifier.fillMaxSize(),
+                message = "未找到相关帖子",
+                showIcon = false,
+            )
+        }
+
+        else -> {
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalItemSpacing = 8.dp,
+            ) {
+                items(
+                    count = postResults.itemCount,
+                    key = postResults.itemKey { it.id },
+                ) { index ->
+                    val post = postResults[index] ?: return@items
+                    val displayPost = applyOverrides(post)
+                    PostNoteGridCard(
+                        post = displayPost,
+                        onClick = { onPostClick(displayPost.id) },
+                        onLikeClick = { onLikeClick(displayPost) },
+                        onTagClick = onTagClick,
+                    )
+                }
+                if (postResults.loadState.append is LoadState.Loading) {
+                    item(
+                        key = "loading_more",
+                        span = StaggeredGridItemSpan.FullLine,
+                    ) {
+                        LoadingIndicator(useLottie = false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun <T : Any> PagingResultList(
     pagingItems: LazyPagingItems<T>,
     emptyMessage: String,
@@ -701,9 +804,10 @@ private fun <T : Any> PagingResultList(
                     count = pagingItems.itemCount,
                     key = { index ->
                         pagingItems.peek(index)?.let { item ->
-                            (item as? com.fox.music.core.model.music.Music)?.id?.toString()
-                                ?: (item as? com.fox.music.core.model.music.Artist)?.id?.toString()
-                                ?: (item as? com.fox.music.core.model.music.Album)?.id?.toString()
+                            (item as? Music)?.id?.toString()
+                                ?: (item as? Artist)?.id?.toString()
+                                ?: (item as? Album)?.id?.toString()
+                                ?: (item as? Post)?.id?.toString()
                                 ?: "search_item_$index"
                         } ?: "search_placeholder_$index"
                     },

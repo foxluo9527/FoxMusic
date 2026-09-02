@@ -48,3 +48,12 @@ fun AnimatedContentTransitionScope<*>.playerExit(): ExitTransition =
         towards = AnimatedContentTransitionScope.SlideDirection.Down,
         animationSpec = tween(FoxTransitions.PLAYER_DURATION_MS),
     )
+
+/** 播放页上叠的详情路由：进入时不播放页退场，返回时不播放页入场 */
+fun isOverlayDetailRoute(route: String?): Boolean {
+    if (route.isNullOrBlank()) return false
+    return route.startsWith("post_detail") ||
+        route.startsWith("playlist_detail") ||
+        route.startsWith("artist_detail") ||
+        route.startsWith("music_comment_detail")
+}

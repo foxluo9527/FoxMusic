@@ -7,6 +7,7 @@ import android.webkit.MimeTypeMap
 import com.fox.music.core.common.util.ImageCompressor
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatchingWithParser
+import com.fox.music.core.data.util.PostMediaUploader
 import com.fox.music.core.domain.repository.ChatUploadResult
 import com.fox.music.core.domain.repository.UploadRepository
 import com.fox.music.core.network.api.UploadApiService
@@ -36,6 +37,7 @@ class UploadRepositoryImpl @Inject constructor(
         uri = uri,
         compressImage = compress,
         preferredFileName = fileName,
+        fallbackMimeType = "image/jpeg",
     ) { part -> uploadApi.uploadImage(part) }
 
     override suspend fun uploadAudio(uri: Uri, fileName: String?): Result<String> =
@@ -43,20 +45,27 @@ class UploadRepositoryImpl @Inject constructor(
             uri = uri,
             defaultName = "voice_${System.currentTimeMillis()}.m4a",
             preferredFileName = fileName,
+            fallbackMimeType = "audio/mp4",
         ) { part -> uploadApi.uploadAudio(part) }
 
-    override suspend fun uploadVideo(uri: Uri, fileName: String?): Result<String> =
-        upload(
+    override suspend fun uploadVideo(uri: Uri, fileName: String?): Result<String> {
+        val resolvedName = fileName?.takeIf { it.isNotBlank() }
+            ?: resolveFileName(uri)
+            ?: "video_${System.currentTimeMillis()}.mp4"
+        return upload(
             uri = uri,
-            defaultName = "video_${System.currentTimeMillis()}.mp4",
-            preferredFileName = fileName,
+            defaultName = resolvedName,
+            preferredFileName = resolvedName,
+            fallbackMimeType = PostMediaUploader.resolveVideoMimeType(context, uri, resolvedName),
         ) { part -> uploadApi.uploadVideo(part) }
+    }
 
     override suspend fun uploadFile(uri: Uri, fileName: String?): Result<String> =
         upload(
             uri = uri,
             defaultName = "file_${System.currentTimeMillis()}",
             preferredFileName = fileName,
+            fallbackMimeType = "application/octet-stream",
         ) { part -> uploadApi.uploadFile(part) }
 
     override suspend fun uploadChatFile(uri: Uri, fileName: String?): Result<ChatUploadResult> =
@@ -129,14 +138,14 @@ class UploadRepositoryImpl @Inject constructor(
         compressImage: Boolean = false,
         defaultName: String = "upload_${System.currentTimeMillis()}",
         preferredFileName: String? = null,
+        fallbackMimeType: String = "application/octet-stream",
         apiCall: suspend (MultipartBody.Part) -> com.fox.music.core.network.model.ApiResponse<com.fox.music.core.network.model.UploadFileDto>,
     ): Result<String> = suspendRunCatchingWithParser(ErrorParser::parseError) {
         val contentResolver = context.contentResolver
-        val mimeType = contentResolver.getType(uri)
-            ?: if (compressImage) "image/jpeg" else "application/octet-stream"
         val fileName = preferredFileName?.takeIf { it.isNotBlank() }
             ?: resolveFileName(uri)
             ?: defaultName
+        val mimeType = resolveMimeType(uri, fileName, fallbackMimeType, compressImage)
         val requestBody = if (compressImage) {
             val rawBytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
                 ?: throw IllegalArgumentException("无法读取文件")
@@ -153,6 +162,24 @@ class UploadRepositoryImpl @Inject constructor(
             throw Exception(response.message.ifBlank { "上传失败" })
         }
     }
+
+    private fun resolveMimeType(
+        uri: Uri,
+        fileName: String,
+        fallbackMimeType: String,
+        compressImage: Boolean,
+    ): String {
+        if (compressImage) return "image/jpeg"
+        contentResolver.getType(uri)?.takeIf { it.isNotBlank() && it != "application/octet-stream" }
+            ?.let { return it }
+        val extension = fileName.substringAfterLast('.', "").lowercase()
+        if (extension.isNotBlank()) {
+            MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)?.let { return it }
+        }
+        return fallbackMimeType
+    }
+
+    private val contentResolver get() = context.contentResolver
 
     private fun createStreamingRequestBody(uri: Uri, mimeType: String): RequestBody {
         val mediaType = mimeType.toMediaTypeOrNull()

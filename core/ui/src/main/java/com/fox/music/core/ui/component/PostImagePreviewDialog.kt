@@ -112,75 +112,106 @@ fun PostImagePreviewDialog(
 }
 
 @Composable
-private fun ZoomablePreviewImage(
+internal fun ZoomablePreviewImage(
     model: Any?,
     contentDescription: String,
     onZoomedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var scale by remember(model) { mutableFloatStateOf(1f) }
-    var offset by remember(model) { mutableStateOf(Offset.Zero) }
+    ZoomablePreviewContainer(
+        resetKey = model,
+        enabled = true,
+        onZoomedChange = onZoomedChange,
+        modifier = modifier,
+    ) { contentModifier ->
+        SubcomposeAsyncImage(
+            model = model,
+            contentDescription = contentDescription,
+            modifier = contentModifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        )
+    }
+}
+
+@Composable
+internal fun ZoomablePreviewContainer(
+    resetKey: Any?,
+    enabled: Boolean,
+    onZoomedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (Modifier) -> Unit,
+) {
+    var scale by remember(resetKey) { mutableFloatStateOf(1f) }
+    var offset by remember(resetKey) { mutableStateOf(Offset.Zero) }
     val currentScale by rememberUpdatedState(scale)
 
-    LaunchedEffect(scale) {
-        onZoomedChange(scale > 1.01f)
+    LaunchedEffect(resetKey) {
+        scale = 1f
+        offset = Offset.Zero
+        onZoomedChange(false)
     }
+
+    LaunchedEffect(scale, enabled) {
+        onZoomedChange(enabled && scale > 1.01f)
+    }
+
+    val contentModifier = Modifier.graphicsLayer(
+        scaleX = if (enabled) scale else 1f,
+        scaleY = if (enabled) scale else 1f,
+        translationX = if (enabled) offset.x else 0f,
+        translationY = if (enabled) offset.y else 0f,
+    )
 
     Box(
         modifier = modifier
             .clipToBounds()
-            .pointerInput(model) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        if (currentScale > 1.01f) {
-                            scale = 1f
-                            offset = Offset.Zero
-                        } else {
-                            scale = 2.5f
+            .then(
+                if (enabled) {
+                    Modifier
+                        .pointerInput(resetKey) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    if (currentScale > 1.01f) {
+                                        scale = 1f
+                                        offset = Offset.Zero
+                                    } else {
+                                        scale = 2.5f
+                                    }
+                                },
+                            )
                         }
-                    },
-                )
-            }
-            .pointerInput(model) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    do {
-                        val event = awaitPointerEvent()
-                        val pressedPointerCount = event.changes.count { it.pressed }
-                        val shouldHandle = pressedPointerCount >= 2 || currentScale > 1.01f
-                        if (shouldHandle) {
-                            val zoomChange = event.calculateZoom()
-                            val panChange = event.calculatePan()
-                            val newScale = (currentScale * zoomChange).coerceIn(1f, 5f)
-                            scale = newScale
-                            offset = if (newScale > 1f) {
-                                offset + panChange
-                            } else {
-                                Offset.Zero
-                            }
-                            event.changes.forEach { change ->
-                                if (change.pressed) {
-                                    change.consume()
-                                }
+                        .pointerInput(resetKey) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val pressedPointerCount = event.changes.count { it.pressed }
+                                    val shouldHandle = pressedPointerCount >= 2 || currentScale > 1.01f
+                                    if (shouldHandle) {
+                                        val zoomChange = event.calculateZoom()
+                                        val panChange = event.calculatePan()
+                                        val newScale = (currentScale * zoomChange).coerceIn(1f, 5f)
+                                        scale = newScale
+                                        offset = if (newScale > 1f) {
+                                            offset + panChange
+                                        } else {
+                                            Offset.Zero
+                                        }
+                                        event.changes.forEach { change ->
+                                            if (change.pressed) {
+                                                change.consume()
+                                            }
+                                        }
+                                    }
+                                } while (event.changes.any { it.pressed })
                             }
                         }
-                    } while (event.changes.any { it.pressed })
-                }
-            },
+                } else {
+                    Modifier
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        SubcomposeAsyncImage(
-            model = model,
-            contentDescription = contentDescription,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
-                    translationX = offset.x,
-                    translationY = offset.y,
-                ),
-            contentScale = ContentScale.Fit,
-        )
+        content(contentModifier)
     }
 }

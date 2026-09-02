@@ -9,7 +9,7 @@ fun NavGraphBuilder.appNavGraph(
 ) {
     tabNavGraph(context, sharedTransitionScope)
     musicNavGraph(context, sharedTransitionScope)
-    socialNavGraph(context)
+    socialNavGraph(context, sharedTransitionScope)
     chatNavGraph(context)
     profileNavGraph(context, sharedTransitionScope)
     playerNavGraph(context, sharedTransitionScope)

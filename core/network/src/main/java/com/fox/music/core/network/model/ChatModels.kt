@@ -54,6 +54,8 @@ data class MessageDto(
     val shareId: Long? = null,
     @SerialName("share_data")
     val shareData: ShareDataDto? = null,
+    @SerialName("video_url")
+    val videoUrl: String? = null,
 )
 
 @Serializable

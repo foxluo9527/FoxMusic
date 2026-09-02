@@ -30,8 +30,11 @@ data class Post(
     val id: Long,
     @SerialName("author_id")
     val userId: Long,
+    val title: String? = null,
     val content: String,
     val images: List<String> = emptyList(),
+    val media: List<PostMedia> = emptyList(),
+    val tags: List<com.fox.music.core.model.music.Tag> = emptyList(),
     val music: Music? = null,
     @SerialName("like_count")
     val likeCount: Int = 0,
@@ -53,7 +56,12 @@ data class Post(
     val authorName:String?,
     @SerialName("author_avatar")
     val authorAvatar:String?,
-)
+) {
+    val displayMedia: List<PostMedia>
+        get() = media.ifEmpty {
+            images.map { PostMedia(type = PostMediaType.IMAGE, url = it) }
+        }
+}
 
 @Serializable
 data class Comment(

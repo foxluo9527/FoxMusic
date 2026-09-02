@@ -10,6 +10,7 @@ import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.SocialRepository
+import com.fox.music.core.domain.usecase.GetUserHomeProfileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ data class UserProfileState(
     val signature: String? = null,
     val isFriend: Boolean = false,
     val isRequested: Boolean = false,
+    val isPrivate: Boolean = false,
     val isSelf: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -46,12 +48,14 @@ sealed interface UserProfileEffect : UiEffect {
     data object NavigateBack : UserProfileEffect
     data class NavigateToChat(val userId: Long, val peerNickname: String?, val peerAvatar: String?) : UserProfileEffect
     data class NavigateToAddFriend(val userId: Long, val nickname: String?) : UserProfileEffect
+    data class NavigateToUserHome(val userId: Long) : UserProfileEffect
 }
 
 @HiltViewModel
 class UserProfileViewModel @Inject constructor(
     private val socialRepository: SocialRepository,
     private val authRepository: AuthRepository,
+    private val getUserHomeProfileUseCase: GetUserHomeProfileUseCase,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<UserProfileState, UserProfileIntent, UserProfileEffect>(
     UserProfileState(
@@ -121,6 +125,10 @@ class UserProfileViewModel @Inject constructor(
         )
     }
 
+    fun onUserHomeClick() {
+        sendEffect(UserProfileEffect.NavigateToUserHome(currentState.userId))
+    }
+
     fun onFriendRequestSent() {
         updateState { copy(isRequested = true) }
     }
@@ -131,11 +139,15 @@ class UserProfileViewModel @Inject constructor(
 
             val friendsDeferred = async { socialRepository.getFriends() }
             val profileDeferred = async { authRepository.getProfile() }
+            val homeProfileDeferred = async { getUserHomeProfileUseCase(currentState.userId) }
 
             val friendsResult = friendsDeferred.await()
             val profileResult = profileDeferred.await()
+            val homeProfileResult = homeProfileDeferred.await()
 
             var isFriend = currentState.isFriend
+            var isRequested = currentState.isRequested
+            var isPrivate = false
             var nickname = currentState.nickname
             var mark = currentState.mark
             var avatar = currentState.avatar
@@ -162,6 +174,22 @@ class UserProfileViewModel @Inject constructor(
                 is Result.Loading -> Unit
             }
 
+            when (homeProfileResult) {
+                is Result.Success -> {
+                    val home = homeProfileResult.data
+                    isFriend = home.isFriend
+                    isRequested = home.isRequested
+                    isPrivate = home.isPrivate
+                    nickname = home.nickname?.takeIf { it.isNotBlank() } ?: nickname
+                    avatar = home.avatar ?: avatar
+                    signature = home.signature ?: signature
+                }
+                is Result.Error -> {
+                    if (errorMessage == null) errorMessage = homeProfileResult.message
+                }
+                is Result.Loading -> Unit
+            }
+
             val isSelf = when (profileResult) {
                 is Result.Success -> profileResult.data.id == currentState.userId
                 is Result.Error -> {
@@ -178,6 +206,8 @@ class UserProfileViewModel @Inject constructor(
                     avatar = avatar,
                     signature = signature,
                     isFriend = isFriend,
+                    isRequested = isRequested,
+                    isPrivate = isPrivate,
                     isSelf = isSelf,
                     isLoading = false,
                     error = errorMessage,

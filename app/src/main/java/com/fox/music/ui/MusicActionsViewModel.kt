@@ -7,6 +7,7 @@ import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.AddTrackToPlaylistUseCase
+import com.fox.music.core.domain.usecase.GetMusicDetailUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistListUseCase
 import com.fox.music.core.domain.usecase.SubmitReportUseCase
 import com.fox.music.core.model.music.Music
@@ -30,8 +31,12 @@ data class MusicActionsUiState(
     val showReportSheet: Boolean = false,
     val showSelectFriend: Boolean = false,
     val pendingMusicIds: List<Long> = emptyList(),
+    val pendingMusics: List<Music> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
     val isPlaylistsLoading: Boolean = false,
+    val currentQueueSize: Int = 0,
+    val currentQueueTitle: String? = null,
+    val isPendingInCurrentQueue: Boolean = false,
     val isReportSubmitting: Boolean = false,
 )
 
@@ -46,6 +51,7 @@ sealed interface MusicActionsEffect {
 class MusicActionsViewModel @Inject constructor(
     private val musicController: MusicController,
     private val addTrackToPlaylistUseCase: AddTrackToPlaylistUseCase,
+    private val getMusicDetailUseCase: GetMusicDetailUseCase,
     private val submitReportUseCase: SubmitReportUseCase,
     private val getPlaylistListUseCase: GetPlaylistListUseCase,
     private val downloadRepository: DownloadRepository,
@@ -78,13 +84,19 @@ class MusicActionsViewModel @Inject constructor(
         dismissActionSheet()
     }
 
-    fun showAddToPlaylist(musicIds: List<Long>) {
-        if (musicIds.isEmpty()) return
+    fun showAddToPlaylist(musics: List<Music>) {
+        if (musics.isEmpty()) return
+        val queueState = musicController.playerState.value
+        val queueMusicIds = queueState.playlist.map { it.id }.toSet()
         _uiState.update {
             it.copy(
-                pendingMusicIds = musicIds,
+                pendingMusicIds = musics.map { music -> music.id },
+                pendingMusics = musics,
                 showPlaylistPicker = true,
                 isPlaylistsLoading = true,
+                currentQueueSize = queueState.playlist.size,
+                currentQueueTitle = queueState.playlistSource?.title,
+                isPendingInCurrentQueue = musics.all { music -> music.id in queueMusicIds },
             )
         }
         loadPlaylists()
@@ -99,12 +111,19 @@ class MusicActionsViewModel @Inject constructor(
             return
         }
         _uiState.update { it.copy(showActionSheet = false) }
-        showAddToPlaylist(listOf(music.id))
+        showAddToPlaylist(listOf(music))
     }
 
     fun dismissPlaylistPicker() {
         _uiState.update {
-            it.copy(showPlaylistPicker = false, pendingMusicIds = emptyList())
+            it.copy(
+                showPlaylistPicker = false,
+                pendingMusicIds = emptyList(),
+                pendingMusics = emptyList(),
+                currentQueueSize = 0,
+                currentQueueTitle = null,
+                isPendingInCurrentQueue = false,
+            )
         }
     }
 
@@ -134,6 +153,26 @@ class MusicActionsViewModel @Inject constructor(
                 _effect.emit(MusicActionsEffect.ShowToast(msg ?: "举报提交失败"))
             }
             _uiState.update { it.copy(isReportSubmitting = false) }
+        }
+    }
+
+    fun addPendingToCurrentQueue() {
+        val state = _uiState.value
+        if (state.pendingMusicIds.isEmpty()) return
+        viewModelScope.launch {
+            val musics = resolvePendingMusics(state)
+            if (musics.isEmpty()) {
+                _effect.emit(MusicActionsEffect.ShowToast("无法获取歌曲信息"))
+                return@launch
+            }
+            musicController.addAllToQueue(musics)
+            dismissPlaylistPicker()
+            val message = if (musics.size == 1) {
+                "已添加到播放列表"
+            } else {
+                "已添加 ${musics.size} 首到播放列表"
+            }
+            _effect.emit(MusicActionsEffect.ShowToast(message))
         }
     }
 
@@ -231,6 +270,23 @@ class MusicActionsViewModel @Inject constructor(
                 _effect.emit(MusicActionsEffect.ShowToast(msg ?: "分享失败"))
             }
         }
+    }
+
+    private suspend fun resolvePendingMusics(state: MusicActionsUiState): List<Music> {
+        val knownById = buildMap {
+            state.actionMusic?.let { put(it.id, it) }
+            state.pendingMusics.forEach { put(it.id, it) }
+        }
+        val resolved = mutableListOf<Music>()
+        for (id in state.pendingMusicIds) {
+            val known = knownById[id]
+            if (known != null) {
+                resolved.add(known)
+                continue
+            }
+            getMusicDetailUseCase(id).onSuccess { resolved.add(it.music) }
+        }
+        return resolved
     }
 
     private fun loadPlaylists() {

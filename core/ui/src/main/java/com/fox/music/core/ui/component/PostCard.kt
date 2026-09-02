@@ -54,6 +54,11 @@ fun PostCard(
     onDeleteClick: () -> Unit = {},
     onReportClick: () -> Unit = {},
     onImageClick: (Int) -> Unit = {},
+    onMusicPlayClick: () -> Unit = {},
+    onMusicRowClick: () -> Unit = onMusicPlayClick,
+    isCurrentTrack: Boolean = false,
+    isPlaying: Boolean = false,
+    onTagClick: (String) -> Unit = {},
 ) {
     var showMoreSheet by remember { mutableStateOf(false) }
 
@@ -70,7 +75,7 @@ fun PostCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         PostContentBody(
             post = post,
@@ -83,6 +88,11 @@ fun PostCard(
             onLikeClick = onLikeClick,
             onCommentClick = onCommentClick,
             onShareClick = onShareClick,
+            onMusicPlayClick = onMusicPlayClick,
+            onMusicRowClick = onMusicRowClick,
+            isCurrentTrack = isCurrentTrack,
+            isPlaying = isPlaying,
+            onTagClick = onTagClick,
             modifier = Modifier.padding(16.dp),
         )
     }
@@ -101,7 +111,13 @@ fun PostContentBody(
     showMoreButton: Boolean = false,
     onMoreClick: () -> Unit = {},
     onImageClick: (Int) -> Unit = {},
+    onMusicPlayClick: () -> Unit = {},
+    onMusicRowClick: () -> Unit = onMusicPlayClick,
+    isCurrentTrack: Boolean = false,
+    isPlaying: Boolean = false,
+    onTagClick: (String) -> Unit = {},
 ) {
+    val displayMedia = post.displayMedia
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -141,25 +157,64 @@ fun PostContentBody(
             }
         }
 
+        if (displayMedia.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            PostMediaCarousel(
+                media = displayMedia,
+                onMediaClick = onImageClick,
+                minAspectRatio = PostFeedMediaAspectRatio.LIST_MIN,
+                maxAspectRatio = PostFeedMediaAspectRatio.MAX,
+                cropOverflow = true,
+            )
+        }
+
+        post.music?.let { music ->
+            Spacer(modifier = Modifier.height(12.dp))
+            PostMusicBar(
+                music = music,
+                isCurrentTrack = isCurrentTrack,
+                isPlaying = isPlaying,
+                onPlayClick = onMusicPlayClick,
+                onClick = onMusicRowClick,
+            )
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
-        Text(
-            text = post.content,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 6,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onPostClick),
-        )
-
-        if (post.images.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(12.dp))
-            PostImageGrid(
-                images = post.images,
-                onImageClick = onImageClick,
+        val title = post.title?.takeIf { it.isNotBlank() && it != "无标题" }
+        if (title != null) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onPostClick),
             )
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        val bodyText = post.content.trim().takeIf { content ->
+            content.isNotBlank() && content != title
+        }
+        if (bodyText != null) {
+            Text(
+                text = bodyText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 6,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onPostClick),
+            )
+        }
+
+        if (post.tags.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            PostTagsRow(tags = post.tags.map { it.name }, onTagClick = onTagClick)
         }
 
         previewComment?.let { comment ->

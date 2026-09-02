@@ -207,6 +207,10 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
         ChatDetailScreen(
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
+            onNavigateToPlayer = { music ->
+                musicController.setPlaylist(listOf(music), startIndex = 0, key = "chat_peer_last_listened")
+                navController.navigateToPlayer()
+            },
             onNavigateToSettings = { userId, nickname, avatar ->
                 navController.navigate(chatSettingsRoute(userId, nickname, avatar))
             },
@@ -270,9 +274,13 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
     composableStack(SELECT_FRIEND_ROUTE) {
         SelectFriendScreen(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            onBack = { navController.popBackStack() },
+                .fillMaxSize(),
+            onBack = {
+                context.musicActionsViewModel.dismissSelectFriend()
+                context.postActionsViewModel.dismissSelectFriend()
+                context.profileShareActionsViewModel.dismissSelectFriend()
+                navController.popBackStack()
+            },
             onFriendSelected = { friend ->
                 navController.previousBackStackEntry
                     ?.savedStateHandle

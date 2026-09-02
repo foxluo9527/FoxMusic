@@ -23,8 +23,7 @@ class ChatMessageRecovery @Inject constructor(
     fun recoverPendingMessages() {
         scope.launch {
             val currentUserId = userPreferencesRepository.userPreferences.first().userId ?: return@launch
-            messageDao.getPendingOutgoingMessages()
-                .filter { it.senderId == currentUserId }
+            messageDao.getPendingOutgoingMessages(currentUserId)
                 .forEach { entity ->
                     messageDao.updateMessageStatus(
                         localId = entity.localId,

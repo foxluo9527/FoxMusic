@@ -11,7 +11,9 @@ data class PlayerState(
     val repeatMode: RepeatMode = RepeatMode.ALL,
     val shuffleMode: Boolean = false,
     val playbackSpeed: Float = 1.0f,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    /** 当前播放队列来源；弹窗仅在 [PlaybackPlaylistSource.isDisplayable] 时展示 */
+    val playlistSource: PlaybackPlaylistSource? = null,
 )
 
 enum class RepeatMode {

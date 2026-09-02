@@ -8,6 +8,7 @@ import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
+import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.usecase.GetPostCommentPreviewUseCase
 import com.fox.music.core.domain.usecase.GetPostsPagingUseCase
 import com.fox.music.core.domain.usecase.PostCommentUseCase
@@ -20,14 +21,31 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class PlazaLayoutMode {
+    STAGGERED,
+    LIST,
+}
+
+private fun PlazaLayoutMode.toStoredValue(): String = when (this) {
+    PlazaLayoutMode.STAGGERED -> "staggered"
+    PlazaLayoutMode.LIST -> "list"
+}
+
+private fun String.toPlazaLayoutMode(): PlazaLayoutMode = when (this) {
+    "list" -> PlazaLayoutMode.LIST
+    else -> PlazaLayoutMode.STAGGERED
+}
+
 data class CommunityPlazaState(
     val posts: Flow<PagingData<Post>> = flowOf(),
+    val layoutMode: PlazaLayoutMode = PlazaLayoutMode.STAGGERED,
     val isRefreshing: Boolean = false,
     val likeOverrides: Map<Long, Pair<Boolean, Int>> = emptyMap(),
     val commentPreviews: Map<Long, Comment?> = emptyMap(),
     val commentingPostId: Long? = null,
     val commentInput: String = "",
     val isCommentSending: Boolean = false,
+    val filterTag: String? = null,
 ) : UiState
 
 sealed interface CommunityPlazaIntent : UiIntent {
@@ -39,10 +57,13 @@ sealed interface CommunityPlazaIntent : UiIntent {
     data object DismissComment : CommunityPlazaIntent
     data class UpdateCommentInput(val text: String) : CommunityPlazaIntent
     data object SendComment : CommunityPlazaIntent
+    data class FilterByTag(val tag: String?) : CommunityPlazaIntent
+    data object ToggleLayoutMode : CommunityPlazaIntent
 }
 
 sealed interface CommunityPlazaEffect : UiEffect {
     data object NavigateToCreatePost : CommunityPlazaEffect
+    data object NavigateToPublishQueue : CommunityPlazaEffect
     data class NavigateToPostDetail(val postId: Long) : CommunityPlazaEffect
     data class ShowToast(val message: String) : CommunityPlazaEffect
 }
@@ -53,10 +74,16 @@ class CommunityPlazaViewModel @Inject constructor(
     private val togglePostLikeUseCase: TogglePostLikeUseCase,
     private val getPostCommentPreviewUseCase: GetPostCommentPreviewUseCase,
     private val postCommentUseCase: PostCommentUseCase,
+    private val preferencesDataStore: FoxPreferencesDataStore,
 ) : MviViewModel<CommunityPlazaState, CommunityPlazaIntent, CommunityPlazaEffect>(CommunityPlazaState()) {
 
     init {
         sendIntent(CommunityPlazaIntent.Load)
+        viewModelScope.launch {
+            preferencesDataStore.plazaLayoutMode.collect { stored ->
+                updateState { copy(layoutMode = stored.toPlazaLayoutMode()) }
+            }
+        }
     }
 
     override fun handleIntent(intent: CommunityPlazaIntent) {
@@ -75,11 +102,39 @@ class CommunityPlazaViewModel @Inject constructor(
             }
             is CommunityPlazaIntent.UpdateCommentInput -> updateState { copy(commentInput = intent.text) }
             CommunityPlazaIntent.SendComment -> sendComment()
+            is CommunityPlazaIntent.FilterByTag -> {
+                updateState { copy(filterTag = intent.tag, likeOverrides = emptyMap()) }
+                loadPosts()
+            }
+            CommunityPlazaIntent.ToggleLayoutMode -> toggleLayoutMode()
         }
     }
 
+    private fun toggleLayoutMode() {
+        val next = when (currentState.layoutMode) {
+            PlazaLayoutMode.STAGGERED -> PlazaLayoutMode.LIST
+            PlazaLayoutMode.LIST -> PlazaLayoutMode.STAGGERED
+        }
+        viewModelScope.launch {
+            preferencesDataStore.updatePlazaLayoutMode(next.toStoredValue())
+        }
+    }
+
+    private var lastHandledRefreshTrigger = 0
+
     fun onCreatePostClick() {
         sendEffect(CommunityPlazaEffect.NavigateToCreatePost)
+    }
+
+    fun onPublishQueueClick() {
+        sendEffect(CommunityPlazaEffect.NavigateToPublishQueue)
+    }
+
+    fun handleExternalRefreshTrigger(trigger: Int, onRefreshPaging: () -> Unit) {
+        if (trigger <= lastHandledRefreshTrigger) return
+        lastHandledRefreshTrigger = trigger
+        sendIntent(CommunityPlazaIntent.Refresh)
+        onRefreshPaging()
     }
 
     fun applyOverrides(post: Post): Post {
@@ -90,8 +145,9 @@ class CommunityPlazaViewModel @Inject constructor(
     }
 
     private fun loadPosts() {
+        val tag = currentState.filterTag
         updateState {
-            copy(posts = getPostsPagingUseCase().flow.cachedIn(viewModelScope))
+            copy(posts = getPostsPagingUseCase(tag = tag).flow.cachedIn(viewModelScope))
         }
     }
 

@@ -35,6 +35,7 @@ interface ChatRepository {
         type: String,
         content: String = "",
         mediaUri: Uri? = null,
+        videoUri: Uri? = null,
         fileName: String? = null,
         audioDurationMs: Long? = null,
         imageSendOriginal: Boolean = false,
@@ -82,6 +83,12 @@ interface ChatRepository {
     suspend fun landMessageNotification(notification: Notification): Result<Unit>
 
     suspend fun hasIngestedMessage(serverId: Long): Boolean
+
+    /** 清除本机全部聊天会话与消息（账号切换时必须调用） */
+    suspend fun clearAllLocalData(): Result<Unit>
+
+    /** 移除 peer 指向当前登录用户的脏会话（历史缓存遗留） */
+    suspend fun purgeSelfPeerConversation(): Result<Unit>
 
     fun searchMessages(query: String): Flow<List<SearchResultItem>>
 

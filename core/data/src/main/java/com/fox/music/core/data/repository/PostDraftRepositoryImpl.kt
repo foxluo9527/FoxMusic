@@ -14,19 +14,24 @@ class PostDraftRepositoryImpl @Inject constructor(
 
     override suspend fun loadDraft(): PostDraft? = postDraftStorage.loadDraft()
 
-    override suspend fun saveDraft(content: String, localImagePaths: List<String>) {
-        postDraftStorage.saveDraft(
-            PostDraft(
-                content = content,
-                localImagePaths = localImagePaths,
-                updatedAt = System.currentTimeMillis(),
-            )
-        )
+    override suspend fun saveDraft(draft: PostDraft) {
+        postDraftStorage.saveDraft(draft.copy(updatedAt = System.currentTimeMillis()))
     }
 
-    override suspend fun persistImage(uri: Uri): Uri = postDraftStorage.persistUri(uri)
+    override suspend fun persistImage(uri: Uri, extension: String): Uri =
+        postDraftStorage.persistUri(uri, extension)
+
+    override suspend fun persistCompressedImage(uri: Uri): Uri =
+        postDraftStorage.persistCompressedImage(uri)
+
+    override suspend fun persistCompressedVideo(uri: Uri): Uri =
+        postDraftStorage.persistCompressedVideo(uri)
 
     override suspend fun clearDraft() {
         postDraftStorage.clearDraft()
+    }
+
+    override suspend fun clearDraftMetadata() {
+        postDraftStorage.clearDraftMetadata()
     }
 }

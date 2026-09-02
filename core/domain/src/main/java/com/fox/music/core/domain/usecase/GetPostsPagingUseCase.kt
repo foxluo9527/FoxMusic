@@ -13,6 +13,7 @@ class GetPostsPagingUseCase @Inject constructor(
         limit: Int = 20,
         sort: String = "latest",
         keyword: String? = null,
+        tag: String? = null,
     ) = Pager(
         config = PagingConfig(
             pageSize = limit,
@@ -24,6 +25,7 @@ class GetPostsPagingUseCase @Inject constructor(
                 socialRepository = socialRepository,
                 sort = sort,
                 keyword = keyword,
+                tag = tag,
             )
         },
     )

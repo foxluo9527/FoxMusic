@@ -40,6 +40,7 @@ dependencies {
     implementation(libs.bundles.coroutines)
 
     implementation(libs.ucrop)
+    implementation(libs.paging.compose)
     
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

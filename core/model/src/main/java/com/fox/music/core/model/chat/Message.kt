@@ -140,6 +140,8 @@ val ShareData.postBodyText: String?
 /** 用户名片展示名 */
 val ShareData.userDisplayName: String?
     get() = name?.takeIf { it.isNotBlank() }
+        ?: authorName?.takeIf { it.isNotBlank() }
+        ?: title?.takeIf { it.isNotBlank() }
 
 /** 用户名片封面：优先主页背景，其次头像 */
 val ShareData.userCoverImage: String?

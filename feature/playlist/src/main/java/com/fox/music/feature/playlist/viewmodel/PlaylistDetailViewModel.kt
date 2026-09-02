@@ -138,7 +138,7 @@ sealed interface PlaylistDetailEffect : UiEffect {
     data class ShowToast(val message: String): PlaylistDetailEffect
     data object NavigateBack : PlaylistDetailEffect
     data class AddSelectedToQueue(val musics: List<Music>) : PlaylistDetailEffect
-    data class AddSelectedToPlaylist(val musicIds: List<Long>) : PlaylistDetailEffect
+    data class AddSelectedToPlaylist(val musics: List<Music>) : PlaylistDetailEffect
     data class DownloadSelected(val musics: List<Music>) : PlaylistDetailEffect
     data object RefreshTracks : PlaylistDetailEffect
 }
@@ -455,12 +455,12 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     private fun addSelectedToPlaylist() {
-        val musicIds = uiState.value.selectedMusicIds.toList()
-        if (musicIds.isEmpty()) {
+        val musics = getSelectedMusics()
+        if (musics.isEmpty()) {
             sendEffect(PlaylistDetailEffect.ShowToast("请先选择歌曲"))
             return
         }
-        sendEffect(PlaylistDetailEffect.AddSelectedToPlaylist(musicIds))
+        sendEffect(PlaylistDetailEffect.AddSelectedToPlaylist(musics))
         exitSelectionMode()
     }
 

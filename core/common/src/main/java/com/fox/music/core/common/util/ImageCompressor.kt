@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 object ImageCompressor {
@@ -12,7 +11,8 @@ object ImageCompressor {
     const val MAX_IMAGE_SIZE_BYTES: Int = 2 * 1024 * 1024
 
     /**
-     * 将图片居中裁剪为 1:1，并压缩到 [maxSizeBytes] 以内（默认 2MB）。
+     * 保留原始宽高比，仅压缩到 [maxSizeBytes] 以内（默认 2MB）。
+     * 不做 1:1 裁切。
      */
     fun prepareForUpload(
         input: ByteArray,
@@ -20,11 +20,11 @@ object ImageCompressor {
     ): ByteArray {
         val decoded = BitmapFactory.decodeByteArray(input, 0, input.size)
             ?: throw IllegalArgumentException("无法解码图片")
-        val squared = cropCenterSquare(decoded)
-        if (squared !== decoded) {
+        return try {
+            compressToMaxSize(decoded, maxSizeBytes)
+        } finally {
             decoded.recycle()
         }
-        return compressToMaxSize(squared, maxSizeBytes).also { squared.recycle() }
     }
 
     fun compressToMaxSize(
@@ -65,16 +65,6 @@ object ImageCompressor {
             working.recycle()
         }
         return result
-    }
-
-    private fun cropCenterSquare(bitmap: Bitmap): Bitmap {
-        val size = min(bitmap.width, bitmap.height)
-        if (bitmap.width == size && bitmap.height == size) {
-            return bitmap
-        }
-        val x = (bitmap.width - size) / 2
-        val y = (bitmap.height - size) / 2
-        return Bitmap.createBitmap(bitmap, x, y, size, size)
     }
 
     private fun encodeJpeg(bitmap: Bitmap, quality: Int): ByteArray {

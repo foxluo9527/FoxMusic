@@ -10,6 +10,10 @@ import com.fox.music.feature.player.ui.screen.MUSIC_COMMENT_DETAIL_ROUTE
 import com.fox.music.feature.player.ui.screen.MusicCommentDetailScreen
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.PlayerScreen
+import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
+import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
+import com.fox.music.core.model.music.PlaybackSourceKind
+import com.fox.music.feature.social.ui.screen.postDetailRoute
 
 fun NavGraphBuilder.playerNavGraph(
     context: NavGraphContext,
@@ -39,7 +43,22 @@ fun NavGraphBuilder.playerNavGraph(
                 musicController = context.musicController,
                 sharedTransitionScope = this@with,
                 animatedContentScope = animatedScope,
-                onBack = { context.navController.popBackStack() }
+                onBack = { context.navController.popBackStack() },
+                onPlaylistSourceClick = { source ->
+                    when (source.kind) {
+                        PlaybackSourceKind.POST -> {
+                            val id = source.id ?: return@PlayerScreen
+                            navController.navigateFromPlayerToDetail(postDetailRoute(id))
+                        }
+                        else -> {
+                            val detailType = source.toDetailType() ?: return@PlayerScreen
+                            val id = source.id ?: return@PlayerScreen
+                            navController.navigateFromPlayerToDetail(
+                                playlistDetailRoute(id, detailType),
+                            )
+                        }
+                    }
+                },
             )
         }
     }

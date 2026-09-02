@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -156,7 +157,7 @@ fun UserProfileScreen(
                     isRequested = state.isRequested,
                     isPrivateAccount = state.isPrivate,
                     onSendMessage = viewModel::onSendMessageClick,
-                    onAddFriend = viewModel::onAddFriendClick,
+                    onAddFriend = viewModel::onAddFriendClick
                 )
             }
         },

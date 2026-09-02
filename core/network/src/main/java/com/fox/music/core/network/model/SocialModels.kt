@@ -60,13 +60,39 @@ data class SetRemarkRequest(
 )
 
 @Serializable
+data class PostLikerDto(
+    val id: Long,
+    val nickname: String? = null,
+    val avatar: String? = null,
+)
+
+@Serializable
+data class PostMediaDto(
+    val type: String = "image",
+    val url: String,
+    @SerialName("video_url")
+    val videoUrl: String? = null,
+    @SerialName("cover_url")
+    val coverUrl: String? = null,
+)
+
+@Serializable
 data class PostDto(
     val id: Long,
     @SerialName("author_id")
     val userId: Long,
+    val title: String? = null,
     val content: String,
     val images: List<String> = emptyList(),
+    val media: List<PostMediaDto> = emptyList(),
+    /** 兼容字段：标签名列表 */
+    val tags: List<String> = emptyList(),
+    /** 带 id 的标签，优先用于复用 */
+    @SerialName("tag_items")
+    val tagItems: List<TagDto> = emptyList(),
     val music: MusicDto? = null,
+    @SerialName("music_id")
+    val musicId: Long? = null,
     @SerialName("like_count")
     val likeCount: Int = 0,
     @SerialName("comment_count")
@@ -94,7 +120,10 @@ data class CreatePostRequest(
     val title: String,
     val content: String,
     val images: List<String>? = null,
+    val media: List<PostMediaDto>? = null,
     val tags: List<String>? = null,
+    @SerialName("tag_ids")
+    val tagIds: List<Long>? = null,
     @SerialName("music_id")
     val musicId: Long? = null,
     val status: String = "published",
@@ -105,7 +134,12 @@ data class UpdatePostRequest(
     val title: String? = null,
     val content: String? = null,
     val images: List<String>? = null,
+    val media: List<PostMediaDto>? = null,
     val tags: List<String>? = null,
+    @SerialName("tag_ids")
+    val tagIds: List<Long>? = null,
+    @SerialName("music_id")
+    val musicId: Long? = null,
     val status: String? = null,
 )
 

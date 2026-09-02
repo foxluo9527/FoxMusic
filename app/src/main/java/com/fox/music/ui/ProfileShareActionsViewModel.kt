@@ -55,17 +55,21 @@ class ProfileShareActionsViewModel @Inject constructor(
     fun sendShareProfile(friendId: Long) {
         val target = _uiState.value.target ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(showSelectFriend = false) }
+            _uiState.update { it.copy(showSelectFriend = false, target = null) }
             chatRepository.sendShareMessage(
                 receiverId = friendId,
                 shareType = "user",
                 shareId = target.userId,
-                content = target.signature.orEmpty(),
+                content = "",
             ).onSuccess {
                 _effect.emit(ProfileShareActionsEffect.ShowToast("分享成功"))
             }.onError { _, msg ->
                 _effect.emit(ProfileShareActionsEffect.ShowToast(msg ?: "分享失败"))
             }
         }
+    }
+
+    fun dismissSelectFriend() {
+        _uiState.update { it.copy(showSelectFriend = false, target = null) }
     }
 }

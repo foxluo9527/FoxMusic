@@ -36,10 +36,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -49,16 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.PlaylistDetail
-import com.fox.music.core.model.social.Post
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.component.HotKeywordsCarousel
 import com.fox.music.core.ui.component.MusicListItem
-import com.fox.music.core.ui.component.PostImagePreviewDialog
-import com.fox.music.core.ui.component.PostCard
-
 import com.fox.music.core.ui.component.SectionHeader
 
 const val DISCOVER_ROUTE = "discover"
@@ -70,40 +63,16 @@ fun DiscoverScreen(
     viewModel: DiscoverViewModel = hiltViewModel(),
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    refreshTrigger: Int = 0,
-    onMusicClick: (Music, List<Music>, String) -> Unit = { _, _, _ -> },
+    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onRankClick: (Long) -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onSearchClick: () -> Unit = {},
     onNewMusicMore:()->Unit={},
     onHotArtistMore: () -> Unit = {},
-    onCommunityPlazaMore: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
-    currentUserId: Long? = null,
-    onPostDetail: (Long) -> Unit = {},
-    onSharePost: (Post) -> Unit = {},
-    onEditPost: (Long) -> Unit = {},
-    onReportPost: (Post) -> Unit = {},
-    onDeletePost: (Post) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
-    var previewImages by remember { mutableStateOf<List<String>?>(null) }
-    var previewIndex by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(refreshTrigger) {
-        if (refreshTrigger > 0) {
-            viewModel.sendIntent(DiscoverIntent.Refresh)
-        }
-    }
-
-    previewImages?.let { images ->
-        PostImagePreviewDialog(
-            images = images,
-            initialIndex = previewIndex,
-            onDismiss = { previewImages = null },
-        )
-    }
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
@@ -111,7 +80,8 @@ fun DiscoverScreen(
                 is DiscoverEffect.NavigateToMusic -> onMusicClick(
                     effect.music,
                     state.newMusic,
-                    DISCOVER_ROUTE
+                    DISCOVER_ROUTE,
+                    null,
                 )
                 is DiscoverEffect.NavigateToRank -> onRankClick(effect.rankId)
                 is DiscoverEffect.NavigateToArtist -> onArtistClick(effect.artistId)
@@ -157,7 +127,7 @@ fun DiscoverScreen(
                             color = MaterialTheme.colorScheme.onBackground,
                         )
                         Text(
-                            text = "榜单、新声与社区广场",
+                            text = "榜单、新声与热门艺人",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
@@ -230,66 +200,6 @@ fun DiscoverScreen(
                             animatedContentScope = animatedContentScope,
                             onClick = { viewModel.sendIntent(DiscoverIntent.OnMusicClick(music)) },
                             onMoreClick = { onMusicMoreClick(music) },
-                        )
-                    }
-                }
-
-                // 社区广场预览
-                item(
-                    span = { GridItemSpan(4) },
-                    key = "community_plaza_header",
-                    contentType = "section_header",
-                ) {
-                    SectionHeader(
-                        title = "社区广场",
-                        onMoreClick = onCommunityPlazaMore,
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    )
-                }
-
-                if (state.recentPosts.isEmpty()) {
-                    item(
-                        span = { GridItemSpan(4) },
-                        key = "community_plaza_empty",
-                    ) {
-                        Text(
-                            text = "暂无动态，点击进入广场发布第一条吧",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onCommunityPlazaMore)
-                                .padding(horizontal = 8.dp, vertical = 12.dp),
-                        )
-                    }
-                } else {
-                    val post = state.recentPosts.first()
-                    val displayPost = viewModel.applyPostOverrides(post)
-                    val isOwn = displayPost.userId == currentUserId
-                    item(
-                        span = { GridItemSpan(4) },
-                        key = "recent_post_${displayPost.id}",
-                        contentType = "post_item",
-                    ) {
-                        PostCard(
-                            post = displayPost,
-                            previewComment = state.commentPreview,
-                            isOwnPost = isOwn,
-                            onPostClick = { onPostDetail(displayPost.id) },
-                            onLikeClick = {
-                                viewModel.sendIntent(DiscoverIntent.OnPostLikeClick(displayPost.id))
-                            },
-                            onCommentClick = { onPostDetail(displayPost.id) },
-                            onShareClick = { onSharePost(displayPost) },
-                            onUserClick = { onPostDetail(displayPost.id) },
-                            onEditClick = { onEditPost(displayPost.id) },
-                            onDeleteClick = { onDeletePost(displayPost) },
-                            onReportClick = { onReportPost(displayPost) },
-                            onImageClick = { index ->
-                                previewImages = displayPost.images
-                                previewIndex = index
-                            },
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     }
                 }

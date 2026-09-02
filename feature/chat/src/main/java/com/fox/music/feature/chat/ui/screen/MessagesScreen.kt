@@ -2,6 +2,8 @@ package com.fox.music.feature.chat.ui.screen
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,9 +41,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.chat.ChatConversation
+import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.feature.chat.ui.component.ConversationItem
 import com.fox.music.feature.chat.ui.component.MessageCategoryItem
 import com.fox.music.feature.chat.util.displayName
@@ -54,6 +58,7 @@ import com.fox.music.feature.chat.viewmodel.MessagesViewModel
 fun MessagesScreen(
     modifier: Modifier = Modifier,
     viewModel: MessagesViewModel = hiltViewModel(),
+    showBackButton: Boolean = true,
     onBack: () -> Unit = {},
     onNavigateToFriends: () -> Unit = {},
     onNavigateToCommentNotifications: () -> Unit = {},
@@ -91,48 +96,149 @@ fun MessagesScreen(
 
     Scaffold(
         modifier = modifier,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("我的消息") },
-                navigationIcon = {
-                    IconButton(onClick = viewModel::onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = viewModel::onNotificationSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "通知设置")
-                    }
-                    IconButton(onClick = onNavigateToSearch) {
-                        Icon(Icons.Default.Search, contentDescription = "搜索")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
+            if (showBackButton) {
+                TopAppBar(
+                    title = { Text("我的消息") },
+                    navigationIcon = {
+                        IconButton(onClick = viewModel::onBackClick) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = viewModel::onNotificationSettingsClick) {
+                            Icon(Icons.Default.Settings, contentDescription = "通知设置")
+                        }
+                        IconButton(onClick = onNavigateToSearch) {
+                            Icon(Icons.Default.Search, contentDescription = "搜索")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            }
         },
     ) { padding ->
-        if (state.isLoading && state.conversations.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-            return@Scaffold
-        }
-
-        PullToRefreshBox(
-            isRefreshing = state.isRefreshing,
-            onRefresh = { viewModel.sendIntent(MessagesIntent.Refresh) },
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            if (!showBackButton) {
+                MessagesTabHeader(
+                    onNotificationSettingsClick = viewModel::onNotificationSettingsClick,
+                    onSearchClick = onNavigateToSearch,
+                )
+            }
+            MessagesContent(
+                state = state,
+                viewModel = viewModel,
+                onNavigateToSearch = onNavigateToSearch,
+                showDeleteDialog = showDeleteDialog,
+                selectedConversation = selectedConversation,
+                onShowDeleteDialog = { show, conversation ->
+                    showDeleteDialog = show
+                    selectedConversation = conversation
+                },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    if (showDeleteDialog && selectedConversation != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("删除会话") },
+            text = { Text("确定要删除与「${selectedConversation!!.user.displayName()}」的会话吗？聊天记录将保留。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteConversation(selectedConversation!!.user.id)
+                        showDeleteDialog = false
+                        selectedConversation = null
+                    }
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun MessagesTabHeader(
+    onNotificationSettingsClick: () -> Unit,
+    onSearchClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = FoxSpacing.pagePadding,
+                end = FoxSpacing.pagePadding - 4.dp,
+                top = FoxSpacing.heroTop,
+                bottom = 8.dp,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "消息",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onNotificationSettingsClick) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "通知设置",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        IconButton(onClick = onSearchClick) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "搜索",
+                tint = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MessagesContent(
+    state: com.fox.music.feature.chat.viewmodel.MessagesState,
+    viewModel: MessagesViewModel,
+    onNavigateToSearch: () -> Unit,
+    showDeleteDialog: Boolean,
+    selectedConversation: ChatConversation?,
+    onShowDeleteDialog: (Boolean, ChatConversation?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (state.isLoading && state.conversations.isEmpty()) {
+        Box(
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = { viewModel.sendIntent(MessagesIntent.Refresh) },
+        modifier = modifier.fillMaxSize(),
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -209,8 +315,7 @@ fun MessagesScreen(
                         conversation = conversation,
                         onClick = { viewModel.onConversationClick(conversation.user.id) },
                         onDeleteClick = {
-                            selectedConversation = conversation
-                            showDeleteDialog = true
+                            onShowDeleteDialog(true, conversation)
                         },
                         onPinClick = {
                             viewModel.pinConversation(conversation.user.id)
@@ -219,30 +324,5 @@ fun MessagesScreen(
                 }
             }
         }
-        }
-    }
-
-    if (showDeleteDialog && selectedConversation != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("删除会话") },
-            text = { Text("确定要删除与「${selectedConversation!!.user.displayName()}」的会话吗？聊天记录将保留。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteConversation(selectedConversation!!.user.id)
-                        showDeleteDialog = false
-                        selectedConversation = null
-                    }
-                ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("取消")
-                }
-            },
-        )
     }
 }

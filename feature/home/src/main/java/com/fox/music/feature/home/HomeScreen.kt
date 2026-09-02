@@ -47,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
@@ -66,7 +67,7 @@ fun HomeScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: HomeViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>, String) -> Unit = { _, _, _ -> },
+    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
     onPlaylistClick: (Long) -> Unit = {},
     onAlbumClick: (Long) -> Unit = {},
@@ -86,6 +87,7 @@ fun HomeScreen(
                     effect.music,
                     effect.musicList,
                     HOME_ROUTE,
+                    null,
                 )
                 is HomeEffect.NavigateToPlaylist -> onPlaylistClick(effect.playlistId)
                 is HomeEffect.NavigateToAlbum -> onAlbumClick(effect.albumId)
@@ -255,12 +257,7 @@ private fun HomeBrandHero(
                 fontWeight = FontWeight.Bold,
             ),
             color = scheme.onBackground,
-        )
-        Text(
-            text = "沉浸夜场，封面即舞台",
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+            modifier = Modifier.padding(bottom = 16.dp),
         )
         Row(
             modifier = Modifier

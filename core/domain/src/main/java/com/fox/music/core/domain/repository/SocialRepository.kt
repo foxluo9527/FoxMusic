@@ -30,12 +30,25 @@ interface SocialRepository {
         page: Int = 1,
         limit: Int = 20,
         keyword: String? = null,
-        sort:String = "latest"
+        sort: String = "latest",
+        tag: String? = null,
+        authorId: Long? = null,
     ): Result<PagedData<Post>>
+
+    suspend fun getPostTags(limit: Int = 30, keyword: String? = null): Result<List<com.fox.music.core.model.music.Tag>>
+
+    suspend fun getRecommendedPostTags(
+        content: String? = null,
+        musicId: Long? = null,
+        limit: Int = 20,
+    ): Result<List<com.fox.music.core.model.music.Tag>>
 
     suspend fun createPost(
         content: String,
         images: List<String> = emptyList(),
+        media: List<com.fox.music.core.model.social.PostMedia> = emptyList(),
+        tags: List<String> = emptyList(),
+        tagIds: List<Long> = emptyList(),
         musicId: Long? = null,
         title: String? = null,
         status: String = "published",
@@ -49,11 +62,21 @@ interface SocialRepository {
         id: Long,
         content: String,
         images: List<String> = emptyList(),
+        media: List<com.fox.music.core.model.social.PostMedia>? = null,
+        tags: List<String>? = null,
+        tagIds: List<Long>? = null,
+        musicId: Long? = null,
         title: String? = null,
         status: String? = null,
     ): Result<Post>
 
     suspend fun togglePostLike(id: Long): Result<Unit>
+
+    suspend fun getPostLikes(
+        id: Long,
+        page: Int = 1,
+        limit: Int = 20,
+    ): Result<PagedData<com.fox.music.core.model.user.User>>
 
     suspend fun togglePostFavorite(id: Long): Result<Unit>
 
