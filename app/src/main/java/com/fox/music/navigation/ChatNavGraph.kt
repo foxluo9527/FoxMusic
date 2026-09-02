@@ -16,7 +16,6 @@ import com.fox.music.feature.chat.CHAT_DETAIL_ROUTE
 import com.fox.music.feature.chat.CHAT_SEARCH_ROUTE
 import com.fox.music.feature.chat.CHAT_SETTINGS_ROUTE
 import com.fox.music.feature.chat.FRIENDS_ROUTE
-import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.chat.NOTIFICATION_CATEGORY_ROUTE
 import com.fox.music.feature.chat.NOTIFICATION_SETTINGS_ROUTE
 import com.fox.music.feature.chat.SEARCH_USER_ROUTE
@@ -54,32 +53,6 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
     val navController = context.navController
     val musicController = context.musicController
 
-    composableStack(MESSAGES_ROUTE) {
-        MessagesScreen(
-            modifier = Modifier.fillMaxSize(),
-            onBack = { navController.popBackStack() },
-            onNavigateToFriends = { navController.navigate(FRIENDS_ROUTE) },
-            onNavigateToCommentNotifications = {
-                navController.navigate(notificationCategoryRoute("comment"))
-            },
-            onNavigateToLikeNotifications = {
-                navController.navigate(notificationCategoryRoute("like"))
-            },
-            onNavigateToSystemAnnouncements = {
-                navController.navigate(notificationCategoryRoute("system"))
-            },
-            onNavigateToNotificationSettings = {
-                navController.navigate(NOTIFICATION_SETTINGS_ROUTE)
-            },
-            onNavigateToChat = { userId ->
-                navController.navigate(chatDetailRoute(userId))
-            },
-            onNavigateToSearch = {
-                navController.navigate(chatSearchRoute())
-            },
-        )
-    }
-
     composableStack(NOTIFICATION_SETTINGS_ROUTE) {
         NotificationSettingsScreen(
             modifier = Modifier.fillMaxSize(),
@@ -110,8 +83,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
     composableStack(SEARCH_USER_ROUTE) {
         SearchUserScreen(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+                .fillMaxSize(),
             onBack = { navController.popBackStack() },
             onNavigateToUserProfile = { userId, nickname, avatar, signature, isFriend, isRequested ->
                 navController.navigate(
@@ -170,6 +142,12 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
             onNavigateToAddFriend = { userId, nickname ->
                 navController.navigate(addFriendRoute(userId, nickname))
             },
+            onNavigateToUserHome = { userId ->
+                navController.navigate(com.fox.music.feature.profile.ui.screen.userHomeRoute(userId))
+            },
+            onShareProfile = { userId, nickname, signature ->
+                context.profileShareActionsViewModel.shareProfile(userId, nickname, signature)
+            },
         )
     }
 
@@ -185,8 +163,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
     ) {
         AddFriendRequestScreen(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+                .fillMaxSize(),
             onBack = { navController.popBackStack() },
             onRequestSent = {
                 navController.previousBackStackEntry
@@ -205,7 +182,7 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onNavigateToPostDetail = { postId ->
-                navController.navigate(postDetailRoute(postId))
+                navController.navigateToDetail(postDetailRoute(postId))
             },
             onNavigateToMusicComment = { musicId, commentId ->
                 navController.navigate(musicCommentDetailRoute(musicId, commentId))
@@ -275,13 +252,16 @@ fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
                                 }
                             val startIndex = musicList.indexOfFirst { it.id == data.id }.coerceAtLeast(0)
                             musicController.setPlaylist(musicList, startIndex, "chat_music")
-                            navController.navigate(PLAYER_ROUTE)
+                            navController.navigateToPlayer()
                         }
                     }
                     "playlist" -> navController.navigate(playlistDetailRoute(shareId))
                     "album" -> navController.navigate(playlistDetailRoute(shareId, DetailType.ALBUM))
                     "artist" -> navController.navigate(artistDetailRoute(shareId))
-                    "post" -> navController.navigate(postDetailRoute(shareId))
+                    "post" -> navController.navigateToDetail(postDetailRoute(shareId))
+                    "user" -> navController.navigate(
+                        com.fox.music.feature.profile.ui.screen.userHomeRoute(shareId),
+                    )
                 }
             },
         )

@@ -26,8 +26,9 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.ProfileRelationshipBottomBar
 import com.fox.music.feature.chat.ui.component.UserStatusChip
 import com.fox.music.feature.chat.viewmodel.UserProfileEffect
 import com.fox.music.feature.chat.viewmodel.UserProfileIntent
@@ -82,6 +84,8 @@ fun UserProfileScreen(
     onBack: () -> Unit = {},
     onNavigateToChat: (Long, String?, String?) -> Unit = { _, _, _ -> },
     onNavigateToAddFriend: (Long, String?) -> Unit = { _, _ -> },
+    onNavigateToUserHome: (Long) -> Unit = {},
+    onShareProfile: (Long, String?, String?) -> Unit = { _, _, _ -> },
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -108,6 +112,7 @@ fun UserProfileScreen(
                 is UserProfileEffect.NavigateToAddFriend -> {
                     onNavigateToAddFriend(effect.userId, effect.nickname)
                 }
+                is UserProfileEffect.NavigateToUserHome -> onNavigateToUserHome(effect.userId)
             }
         }
     }
@@ -122,6 +127,21 @@ fun UserProfileScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
+                actions = {
+                    if (state.userId > 0L) {
+                        IconButton(
+                            onClick = {
+                                onShareProfile(
+                                    state.userId,
+                                    state.displayName,
+                                    state.signature,
+                                )
+                            },
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "分享名片")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     scrolledContainerColor = MaterialTheme.colorScheme.surface,
@@ -131,9 +151,10 @@ fun UserProfileScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         bottomBar = {
             if (!state.isSelf) {
-                ProfileBottomAction(
+                ProfileRelationshipBottomBar(
                     isFriend = state.isFriend,
                     isRequested = state.isRequested,
+                    isPrivateAccount = state.isPrivate,
                     onSendMessage = viewModel::onSendMessageClick,
                     onAddFriend = viewModel::onAddFriendClick,
                 )
@@ -176,6 +197,13 @@ fun UserProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 ProfileInfoCard {
+                    ProfileInfoRow(
+                        icon = Icons.Default.Home,
+                        label = "主页",
+                        value = "查看 TA 的个人主页",
+                        onClick = viewModel::onUserHomeClick,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ProfileInfoRow(
                         icon = Icons.Default.Tag,
                         label = "用户 ID",
@@ -401,81 +429,6 @@ private fun ProfileInfoRow(
         if (trailing != null) {
             Spacer(modifier = Modifier.width(12.dp))
             trailing()
-        }
-    }
-}
-
-@Composable
-private fun ProfileBottomAction(
-    isFriend: Boolean,
-    isRequested: Boolean,
-    onSendMessage: () -> Unit,
-    onAddFriend: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 8.dp,
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            when {
-                isFriend -> {
-                    Button(
-                        onClick = onSendMessage,
-                        modifier = Modifier
-                            .padding(bottom = 20.dp)
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Chat,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("发送消息", style = MaterialTheme.typography.titleSmall)
-                    }
-                }
-                isRequested -> {
-                    Button(
-                        onClick = {},
-                        enabled = false,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(24.dp),
-                    ) {
-                        Text("已发送申请", style = MaterialTheme.typography.titleSmall)
-                    }
-                }
-                else -> {
-                    Button(
-                        onClick = onAddFriend,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(24.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PersonAdd,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("添加好友", style = MaterialTheme.typography.titleSmall)
-                    }
-                }
-            }
         }
     }
 }

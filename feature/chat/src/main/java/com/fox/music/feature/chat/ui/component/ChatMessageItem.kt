@@ -73,9 +73,15 @@ import com.fox.music.core.model.chat.MessageStatus
 import com.fox.music.core.model.chat.MessageType
 import com.fox.music.core.model.chat.postBodyText
 import com.fox.music.core.model.chat.postCoverImage
+import com.fox.music.core.model.chat.userCoverImage
+import com.fox.music.core.model.chat.userDisplayName
+import com.fox.music.core.model.chat.userSignature
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.feature.chat.ui.util.ChatMessageMediaViewer
 import com.fox.music.feature.chat.ui.util.parseFileContentName
+import com.fox.music.core.ui.component.PostLiveBadge
 import com.fox.music.feature.chat.ui.util.resolveMediaPreviewType
+import com.fox.music.feature.chat.ui.util.resolveVideoPreviewUrl
 import com.fox.music.feature.chat.ui.util.resolveMediaPreviewUrl
 import com.fox.music.feature.chat.util.formatMessageDate
 import kotlinx.coroutines.Dispatchers
@@ -521,6 +527,14 @@ private fun ChatMessageContent(
     onLongClick: () -> Unit = {},
     onBubbleClick: () -> Unit = {},
 ) {
+    if (message.isRecalled) {
+        TextMessageBubble(
+            text = message.content.takeIf { it.isNotBlank() } ?: "消息已撤回",
+            onLongClick = onLongClick,
+            onBubbleClick = onBubbleClick,
+        )
+        return
+    }
     when (val previewType = message.resolveMediaPreviewType()) {
         ChatMediaPreviewType.IMAGE -> ImageMessageBubble(
             message = message,
@@ -533,6 +547,13 @@ private fun ChatMessageContent(
             onClick = onMediaClick,
             onLongClick = onLongClick,
             onBubbleClick = onBubbleClick,
+        )
+        ChatMediaPreviewType.LIVE -> ImageMessageBubble(
+            message = message,
+            onClick = onMediaClick,
+            onLongClick = onLongClick,
+            onBubbleClick = onBubbleClick,
+            isLivePhoto = true,
         )
         null -> when (message.type) {
             MessageType.AUDIO -> AudioMessageBubble(message, onLongClick = onLongClick, onBubbleClick = onBubbleClick)
@@ -561,52 +582,72 @@ private fun ImageMessageBubble(
     onClick: (ChatMessageMediaViewer) -> Unit,
     onLongClick: () -> Unit = {},
     onBubbleClick: () -> Unit = {},
+    isLivePhoto: Boolean = false,
 ) {
     val previewUrl = message.resolveMediaPreviewUrl()
+    val videoUrl = message.resolveVideoPreviewUrl()
+    val previewType = if (isLivePhoto || message.resolveMediaPreviewType() == ChatMediaPreviewType.LIVE) {
+        ChatMediaPreviewType.LIVE
+    } else {
+        ChatMediaPreviewType.IMAGE
+    }
     val fileName = message.localMediaFileName ?: parseFileContentName(message.content)
     var imageRatio by remember(previewUrl) { mutableStateOf(1f) }
-    SubcomposeAsyncImage(
-        model = previewUrl,
-        contentDescription = "图片消息",
-        modifier = Modifier
-            .fillMaxWidth(0.5f)
-            .aspectRatio(imageRatio)
-            .clip(RoundedCornerShape(8.dp))
-            .combinedClickable(
-                enabled = previewUrl != null,
-                onClick = {
-                    onBubbleClick()
-                    previewUrl?.let { url ->
-                        onClick(
-                            ChatMessageMediaViewer(
-                                previewType = ChatMediaPreviewType.IMAGE,
-                                mediaUrl = url,
-                                fileName = fileName,
-                            ),
-                        )
-                    }
-                },
-                onLongClick = onLongClick,
-            ),
-        contentScale = ContentScale.Fit,
-        loading = {
-            Box(
+    Box(
+        modifier = Modifier.fillMaxWidth(0.5f),
+    ) {
+        SubcomposeAsyncImage(
+            model = previewUrl,
+            contentDescription = "图片消息",
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(imageRatio)
+                .clip(RoundedCornerShape(8.dp))
+                .combinedClickable(
+                    enabled = previewUrl != null,
+                    onClick = {
+                        onBubbleClick()
+                        previewUrl?.let { url ->
+                            onClick(
+                                ChatMessageMediaViewer(
+                                    previewType = previewType,
+                                    mediaUrl = url,
+                                    videoUrl = videoUrl,
+                                    fileName = fileName,
+                                    messageLocalId = message.localId,
+                                ),
+                            )
+                        }
+                    },
+                    onLongClick = onLongClick,
+                ),
+            contentScale = ContentScale.Fit,
+            loading = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                }
+            },
+            onSuccess = { success ->
+                val width = success.result.drawable.intrinsicWidth
+                val height = success.result.drawable.intrinsicHeight
+                if (width > 0 && height > 0) {
+                    imageRatio = width.toFloat() / height.toFloat()
+                }
+            },
+        )
+        if (previewType == ChatMediaPreviewType.LIVE) {
+            PostLiveBadge(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            }
-        },
-        onSuccess = { success ->
-            val width = success.result.drawable.intrinsicWidth
-            val height = success.result.drawable.intrinsicHeight
-            if (width > 0 && height > 0) {
-                imageRatio = width.toFloat() / height.toFloat()
-            }
-        },
-    )
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+            )
+        }
+    }
 }
 
 @Composable
@@ -650,6 +691,7 @@ private fun VideoMessageBubble(
                                 previewType = ChatMediaPreviewType.VIDEO,
                                 mediaUrl = url,
                                 fileName = fileName,
+                                messageLocalId = message.localId,
                             ),
                         )
                     }
@@ -855,6 +897,16 @@ private fun ShareMessageBubble(
         )
         return
     }
+    if (shareType == "user") {
+        UserProfileShareMessageBubble(
+            message = message,
+            shareData = shareData,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            onBubbleClick = onBubbleClick,
+        )
+        return
+    }
     val typeLabel = when (shareType) {
         "music" -> "🎵 音乐"
         "playlist" -> "📋 歌单"
@@ -993,6 +1045,91 @@ private fun PostShareMessageBubble(
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
+            } else {
+                Text(
+                    text = "该内容已删除",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserProfileShareMessageBubble(
+    message: Message,
+    shareData: com.fox.music.core.model.chat.ShareData?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    onBubbleClick: () -> Unit = {},
+) {
+    val hasData = shareData != null
+    val coverUrl = shareData?.userCoverImage
+    val displayName = shareData?.userDisplayName
+        ?: message.content.takeIf { it.isNotBlank() }
+        ?: if (hasData) "用户" else "该内容已删除"
+    val signature = shareData?.userSignature
+
+    Row(
+        modifier = Modifier
+            .combinedClickable(
+                onClick = { onBubbleClick(); if (hasData) onClick() },
+                onLongClick = onLongClick,
+            )
+            .widthIn(max = 240.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (!coverUrl.isNullOrBlank()) {
+            CachedImage(
+                imageUrl = coverUrl,
+                contentDescription = "用户封面",
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(6.dp)),
+                shape = RoundedCornerShape(6.dp),
+            )
+        } else if (hasData) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = "分享了一个用户",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (hasData) {
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (!signature.isNullOrBlank()) {
+                    Text(
+                        text = signature,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             } else {
                 Text(
                     text = "该内容已删除",

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 fun PostMoreBottomSheet(
     isOwnPost: Boolean,
     onDismiss: () -> Unit,
+    onShare: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     onReport: () -> Unit = {},
@@ -44,6 +46,14 @@ fun PostMoreBottomSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
+            PostMoreActionRow(
+                icon = Icons.Default.Share,
+                label = "分享",
+                onClick = {
+                    onDismiss()
+                    onShare()
+                },
+            )
             if (isOwnPost) {
                 PostMoreActionRow(
                     icon = Icons.Default.Edit,

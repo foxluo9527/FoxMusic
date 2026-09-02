@@ -11,6 +11,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
 import com.fox.music.feature.home.HOME_ROUTE
@@ -25,6 +27,7 @@ import com.fox.music.feature.profile.ui.screen.DESKTOP_WIDGET_ROUTE
 import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
 import com.fox.music.feature.profile.ui.screen.DesktopLyricSettingsScreen
 import com.fox.music.feature.profile.ui.screen.DesktopWidgetSettingsScreen
+import com.fox.music.feature.profile.ui.screen.DownloadScreen
 import com.fox.music.feature.profile.ui.screen.WidgetPinOption
 import com.fox.music.feature.profile.ui.screen.EDIT_PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.EditProfileScreen
@@ -36,7 +39,10 @@ import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.SettingsScreen
 import com.fox.music.feature.profile.ui.screen.THEME_SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.ThemeSettingsScreen
-import com.fox.music.feature.profile.ui.screen.DownloadScreen
+import com.fox.music.feature.profile.ui.screen.PRIVACY_SETTINGS_ROUTE
+import com.fox.music.feature.profile.ui.screen.PrivacySettingsScreen
+import com.fox.music.feature.profile.ui.screen.USER_HOME_ROUTE
+import com.fox.music.feature.profile.ui.screen.UserHomeScreen
 import com.fox.music.realtime.BackgroundPermissionGuide
 import com.fox.music.ui.BackgroundPermissionGuideDialog
 import com.fox.music.car.CarModeActivity
@@ -70,6 +76,7 @@ fun NavGraphBuilder.profileNavGraph(
             onManageLibrary = { navController.navigate(MANAGE_ROUTER) },
             onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
             onReportHistory = { navController.navigate(REPORT_HISTORY_ROUTE) },
+            onPrivacySettings = { navController.navigate(PRIVACY_SETTINGS_ROUTE) },
             onInstallApk = context.viewModel::requestInstall,
             onLogout = {
                 navController.navigate(LOGIN_ROUTE) {
@@ -143,7 +150,7 @@ fun NavGraphBuilder.profileNavGraph(
                 DownloadScreen(
                     modifier = it,
                     onBack = { navController.popBackStack() },
-                    onNavigateToPlayer = { navController.navigate(PLAYER_ROUTE) },
+                    onNavigateToPlayer = { navController.navigateToPlayer() },
                 )
             }
         }
@@ -154,6 +161,71 @@ fun NavGraphBuilder.profileNavGraph(
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
         )
+    }
+
+    composableStack(PRIVACY_SETTINGS_ROUTE) {
+        PrivacySettingsScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composableStack(
+        route = USER_HOME_ROUTE,
+        arguments = listOf(navArgument("userId") { type = NavType.LongType }),
+    ) {
+        with(sharedTransitionScope) {
+            MainScreenWithBottomBar(
+                navController = navController,
+                musicController = musicController,
+                playerState = playerState,
+                showMiniPlayer = showBottomBar,
+                sharedTransitionScope = this@with,
+            ) {
+                UserHomeScreen(
+                    modifier = it,
+                    currentUserId = context.currentUserId,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToEditProfile = { navController.navigate(EDIT_PROFILE_ROUTE) },
+                    onNavigateToPrivacySettings = { navController.navigate(PRIVACY_SETTINGS_ROUTE) },
+                    onNavigateToChat = { userId, nickname, avatar ->
+                        navController.navigate(
+                            com.fox.music.feature.chat.chatDetailRoute(userId, nickname, avatar),
+                        )
+                    },
+                    onNavigateToAddFriend = { userId, nickname ->
+                        navController.navigate(
+                            com.fox.music.feature.chat.addFriendRoute(userId, nickname),
+                        )
+                    },
+                    onNavigateToPlaylist = { id ->
+                        navController.navigate(
+                            com.fox.music.feature.playlist.ui.component.playlistDetailRoute(id),
+                        )
+                    },
+                    onNavigateToPostDetail = { postId ->
+                        navController.navigateToDetail(
+                            com.fox.music.feature.social.ui.screen.postDetailRoute(postId),
+                        )
+                    },
+                    onSharePost = context.postActionsViewModel::sharePost,
+                    onShareProfile = { profile ->
+                        context.profileShareActionsViewModel.shareProfile(
+                            userId = profile.id,
+                            nickname = profile.nickname,
+                            signature = profile.signature,
+                        )
+                    },
+                    onReportPost = context.postActionsViewModel::showReportSheet,
+                    onDeletePost = context.postActionsViewModel::showDeleteDialog,
+                    onEditPost = { postId ->
+                        navController.navigate(
+                            com.fox.music.feature.social.ui.screen.createPostRoute(postId),
+                        )
+                    },
+                )
+            }
+        }
     }
 
     composableStack(EDIT_PROFILE_ROUTE) {

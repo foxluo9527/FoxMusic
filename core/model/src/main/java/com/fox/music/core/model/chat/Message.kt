@@ -24,6 +24,7 @@ data class Message(
     val readAt: String? = null,
     val errorMessage: String? = null,
     val localMediaUri: String? = null,
+    val localVideoUri: String? = null,
     val localMediaFileName: String? = null,
     val remoteMediaUrl: String? = null,
     val fileType: String? = null,
@@ -35,6 +36,8 @@ data class Message(
     val shareId: Long? = null,
     @SerialName("share_data")
     val shareData: ShareData? = null,
+    @SerialName("video_url")
+    val videoUrl: String? = null,
 )
 
 @Serializable
@@ -133,3 +136,16 @@ val ShareData.postBodyText: String?
     get() = content?.takeIf { it.isNotBlank() }
         ?: description?.takeIf { it.isNotBlank() }
         ?: title?.takeIf { it.isNotBlank() }
+
+/** 用户名片展示名 */
+val ShareData.userDisplayName: String?
+    get() = name?.takeIf { it.isNotBlank() }
+
+/** 用户名片封面：优先主页背景，其次头像 */
+val ShareData.userCoverImage: String?
+    get() = coverImage?.takeIf { it.isNotBlank() }
+        ?: avatar?.takeIf { it.isNotBlank() }
+
+/** 用户个性签名 */
+val ShareData.userSignature: String?
+    get() = description?.takeIf { it.isNotBlank() }

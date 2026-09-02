@@ -1,24 +1,37 @@
 package com.fox.music.feature.social.ui.screen
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -39,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,44 +61,68 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlayerState
+import com.fox.music.core.model.user.User
 import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.social.Post
+import com.fox.music.core.model.social.PostMedia
 import com.fox.music.core.model.social.displayAuthorAvatar
 import com.fox.music.core.model.social.displayAuthorName
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.CommentMoreBottomSheet
 import com.fox.music.core.ui.component.ErrorView
-import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.MiniPlayer
 import com.fox.music.core.ui.component.PostCommentInputBar
-import com.fox.music.core.ui.component.PostContentBody
-import com.fox.music.core.ui.component.PostImagePreviewDialog
+import com.fox.music.core.ui.component.PostMediaCarousel
+import com.fox.music.core.ui.component.PostMediaPreviewDialog
 import com.fox.music.core.ui.component.PostMoreBottomSheet
+import com.fox.music.core.ui.component.PostMusicBarExtended
+import com.fox.music.core.ui.component.PostTagsRow
 import com.fox.music.feature.social.viewmodel.PostDetailEffect
+import com.fox.music.feature.social.viewmodel.PostDetailFeedTab
 import com.fox.music.feature.social.viewmodel.PostDetailIntent
 import com.fox.music.feature.social.viewmodel.PostDetailViewModel
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 const val POST_DETAIL_ROUTE = "post_detail/{postId}"
 
 fun postDetailRoute(postId: Long) = "post_detail/$postId"
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** MiniPlayer 悬浮于详情内容底部时，为列表预留的滚动间距 */
+private val PostDetailMiniPlayerScrollPadding = 104.dp
+
+private val PostDetailMediaMaxHeight = 560.dp
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PostDetailScreen(
     modifier: Modifier = Modifier,
     viewModel: PostDetailViewModel = hiltViewModel(),
     currentUserId: Long? = null,
+    playerState: PlayerState = PlayerState(),
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     onBack: () -> Unit = {},
     onSharePost: (Post) -> Unit = {},
     onEditPost: (Long) -> Unit = {},
     onReportPost: (Post) -> Unit = {},
     onDeletePost: (Post) -> Unit = {},
     onCommentDeleted: () -> Unit = {},
+    onPlayMusic: (Post) -> Unit = {},
+    onNavigateToPlayer: () -> Unit = {},
+    onTogglePlay: () -> Unit = {},
+    onNextTrack: () -> Unit = {},
+    onTagClick: (String) -> Unit = {},
+    onAddMusicToPlaylist: (Music) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
-    val commentsPaging = state.comments.collectAsLazyPagingItems()
+    val commentsPaging = viewModel.commentsPagingFlow.collectAsLazyPagingItems()
+    val likesPaging = viewModel.likesPagingFlow.collectAsLazyPagingItems()
     val context = LocalContext.current
-    var previewImages by remember { mutableStateOf<List<String>?>(null) }
+    var previewMedia by remember { mutableStateOf<List<PostMedia>?>(null) }
     var previewIndex by remember { mutableIntStateOf(0) }
     var showMoreSheet by remember { mutableStateOf(false) }
     var showCommentMoreSheet by remember { mutableStateOf(false) }
@@ -94,6 +132,12 @@ fun PostDetailScreen(
     LaunchedEffect(state.commentsRefreshTrigger) {
         if (state.commentsRefreshTrigger > 0) {
             commentsPaging.refresh()
+        }
+    }
+
+    LaunchedEffect(state.likesRefreshTrigger) {
+        if (state.likesRefreshTrigger > 0) {
+            likesPaging.refresh()
         }
     }
 
@@ -113,11 +157,11 @@ fun PostDetailScreen(
         }
     }
 
-    previewImages?.let { images ->
-        PostImagePreviewDialog(
-            images = images,
+    previewMedia?.let { media ->
+        PostMediaPreviewDialog(
+            media = media,
             initialIndex = previewIndex,
-            onDismiss = { previewImages = null },
+            onDismiss = { previewMedia = null },
         )
     }
 
@@ -127,6 +171,7 @@ fun PostDetailScreen(
         PostMoreBottomSheet(
             isOwnPost = isOwn,
             onDismiss = { showMoreSheet = false },
+            onShare = { onSharePost(post) },
             onEdit = { onEditPost(post.id) },
             onDelete = { onDeletePost(post) },
             onReport = { onReportPost(post) },
@@ -179,31 +224,35 @@ fun PostDetailScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            FoxTopBar(
-                title = "动态详情",
-                showBackButton = true,
-                onBackClick = onBack,
-                actions = {
-                    if (post != null) {
-                        IconButton(onClick = { showMoreSheet = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                        }
-                    }
-                },
+            PostDetailTopBar(
+                post = post,
+                onBack = onBack,
+                onMore = { showMoreSheet = true },
             )
         },
         bottomBar = {
-            Column(modifier = Modifier.navigationBarsPadding().imePadding()) {
-                PostCommentInputBar(
-                    value = state.commentInput,
-                    onValueChange = { viewModel.sendIntent(PostDetailIntent.UpdateCommentInput(it)) },
-                    onSend = { viewModel.sendIntent(PostDetailIntent.SendComment) },
-                    placeholder = state.replyHint ?: "写评论...",
+            if (post != null) {
+                PostDetailBottomBar(
+                    post = post,
+                    commentInput = state.commentInput,
+                    replyHint = state.replyHint,
                     isSending = state.isCommentSending,
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .imePadding(),
+                    onCommentChange = {
+                        viewModel.sendIntent(PostDetailIntent.UpdateCommentInput(it))
+                    },
+                    onSend = { viewModel.sendIntent(PostDetailIntent.SendComment) },
+                    onLike = { viewModel.sendIntent(PostDetailIntent.ToggleLike) },
+                    onFavorite = { viewModel.sendIntent(PostDetailIntent.ToggleFavorite) },
                 )
             }
         },
     ) { innerPadding ->
+        val showMiniPlayer = playerState.currentMusic != null &&
+            sharedTransitionScope != null &&
+            animatedContentScope != null
         when {
             state.isLoading -> LoadingIndicator(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -215,48 +264,100 @@ fun PostDetailScreen(
             )
             else -> {
                 val pendingIds = state.pendingComments.map { it.id }.toSet()
-                PullToRefreshBox(
-                    isRefreshing = state.isRefreshing,
-                    onRefresh = { viewModel.sendIntent(PostDetailIntent.Refresh) },
+                val miniPlayerScrollPadding = if (showMiniPlayer) {
+                    PostDetailMiniPlayerScrollPadding
+                } else {
+                    0.dp
+                }
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
                 ) {
-                    LazyColumn(
+                    PullToRefreshBox(
+                        isRefreshing = state.isRefreshing,
+                        onRefresh = { viewModel.sendIntent(PostDetailIntent.Refresh) },
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        item(key = "post_content") {
-                            PostContentBody(
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = miniPlayerScrollPadding),
+                        ) {
+                        item(key = "media") {
+                            if (post.displayMedia.isNotEmpty()) {
+                                PostMediaCarousel(
+                                    media = post.displayMedia,
+                                    cornerRadius = 0.dp,
+                                    maxHeight = PostDetailMediaMaxHeight,
+                                    onMediaClick = { index ->
+                                        previewMedia = post.displayMedia
+                                        previewIndex = index
+                                    },
+                                )
+                            }
+                        }
+                        post.music?.let { music ->
+                            val isCurrentTrack = playerState.currentMusic?.id == music.id
+                            val isPlaying = isCurrentTrack && playerState.isPlaying
+                            stickyHeader(key = "music") {
+                                PostMusicBarExtended(
+                                    music = music,
+                                    isCurrentTrack = isCurrentTrack,
+                                    isPlaying = isPlaying,
+                                    onRowClick = {
+                                        onPlayMusic(post)
+                                        onNavigateToPlayer()
+                                    },
+                                    onPlayClick = {
+                                        if (isCurrentTrack) {
+                                            onTogglePlay()
+                                        } else {
+                                            onPlayMusic(post)
+                                        }
+                                    },
+                                    onFavoriteClick = {
+                                        viewModel.sendIntent(PostDetailIntent.ToggleMusicFavorite)
+                                    },
+                                    onAddToPlaylistClick = { onAddMusicToPlaylist(music) },
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+                        item(key = "body") {
+                            PostDetailBody(
                                 post = post,
-                                onPostClick = {},
-                                onLikeClick = { viewModel.sendIntent(PostDetailIntent.ToggleLike) },
-                                onCommentClick = {},
-                                onShareClick = { onSharePost(post) },
-                                onUserClick = {},
-                                showMoreButton = false,
-                                onImageClick = { index ->
-                                    previewImages = post.images
-                                    previewIndex = index
-                                },
+                                onTagClick = onTagClick,
                             )
                         }
-                        item(key = "comments_header") {
-                            Text(
-                                text = "评论",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                            )
+                        item(key = "feed_tabs") {
+                            if (state.canViewLikeList) {
+                                PostDetailFeedTabs(
+                                    selectedTab = state.feedTab,
+                                    commentCount = post.commentCount,
+                                    likeCount = post.likeCount,
+                                    onSelectTab = {
+                                        viewModel.sendIntent(PostDetailIntent.SelectFeedTab(it))
+                                    },
+                                )
+                            } else {
+                                Text(
+                                    text = "评论 ${post.commentCount}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                )
+                            }
                         }
+                        if (!state.canViewLikeList || state.feedTab == PostDetailFeedTab.COMMENTS) {
                         state.pendingComments.forEach { comment ->
                             item(key = "pending_comment_${comment.id}") {
                                 PostDetailCommentItem(
                                     comment = comment,
                                     isExpanded = comment.id in state.expandedCommentIds,
                                     onToggleExpand = {
-                                        viewModel.sendIntent(PostDetailIntent.ToggleExpandReplies(comment.id))
+                                        viewModel.sendIntent(
+                                            PostDetailIntent.ToggleExpandReplies(comment.id),
+                                        )
                                     },
                                     onReply = {
                                         viewModel.sendIntent(
@@ -303,7 +404,9 @@ fun PostDetailScreen(
                                 comment = comment,
                                 isExpanded = comment.id in state.expandedCommentIds,
                                 onToggleExpand = {
-                                    viewModel.sendIntent(PostDetailIntent.ToggleExpandReplies(comment.id))
+                                    viewModel.sendIntent(
+                                        PostDetailIntent.ToggleExpandReplies(comment.id),
+                                    )
                                 },
                                 onReply = {
                                     viewModel.sendIntent(
@@ -340,10 +443,212 @@ fun PostDetailScreen(
                             )
                         }
                         if (commentsPaging.loadState.append is LoadState.Loading) {
-                            item { LoadingIndicator(useLottie = false) }
+                            item(key = "comments_loading") {
+                                LoadingIndicator(useLottie = false)
+                            }
+                        }
+                        } else if (state.canViewLikeList) {
+                            if (likesPaging.loadState.refresh is LoadState.Loading &&
+                                likesPaging.itemCount == 0
+                            ) {
+                                item(key = "likes_refreshing") {
+                                    LoadingIndicator(useLottie = false)
+                                }
+                            } else if (likesPaging.itemCount == 0 &&
+                                likesPaging.loadState.refresh !is LoadState.Loading
+                            ) {
+                                item(key = "likes_empty") {
+                                    Text(
+                                        text = "暂无点赞",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
+                                    )
+                                }
+                            }
+                            items(
+                                count = likesPaging.itemCount,
+                                key = likesPaging.itemKey { it.id },
+                            ) { index ->
+                                val liker = likesPaging[index] ?: return@items
+                                PostLikerRow(user = liker)
+                            }
+                            if (likesPaging.loadState.append is LoadState.Loading) {
+                                item(key = "likes_loading") {
+                                    LoadingIndicator(useLottie = false)
+                                }
+                            }
+                        }
+                        }
+                    }
+                    if (showMiniPlayer) {
+                        with(sharedTransitionScope) {
+                            MiniPlayer(
+                                playerState = playerState,
+                                sharedTransitionScope = this@with,
+                                animatedContentScope = animatedContentScope,
+                                onPlayPauseClick = onTogglePlay,
+                                onNextClick = onNextTrack,
+                                onClick = onNavigateToPlayer,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 10.dp)
+                                    .fillMaxWidth(),
+                            )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PostDetailTopBar(
+    post: Post?,
+    onBack: () -> Unit,
+    onMore: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .statusBarsPadding()
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+        }
+        if (post != null) {
+            CachedImage(
+                imageUrl = post.authorAvatar,
+                contentDescription = post.authorName,
+                modifier = Modifier.size(32.dp),
+                shape = CircleShape,
+                placeholderIcon = Icons.Default.Person,
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = post.authorName ?: "用户",
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onMore) {
+                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+            }
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun PostDetailBody(
+    post: Post,
+    onTagClick: (String) -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        val title = post.title?.takeIf { it.isNotBlank() && it != "无标题" }
+        if (title != null) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+        val bodyText = post.content.trim().takeIf { content ->
+            content.isNotBlank() && content != title
+        }
+        if (bodyText != null) {
+            Text(
+                text = bodyText,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+        if (post.tags.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            PostTagsRow(tags = post.tags.map { it.name }, onTagClick = onTagClick)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = formatPostDetailTime(post.createdAt),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PostDetailBottomBar(
+    post: Post,
+    commentInput: String,
+    replyHint: String?,
+    isSending: Boolean,
+    modifier: Modifier = Modifier,
+    onCommentChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onLike: () -> Unit,
+    onFavorite: () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                PostCommentInputBar(
+                    value = commentInput,
+                    onValueChange = onCommentChange,
+                    onSend = onSend,
+                    placeholder = replyHint ?: "说点什么...",
+                    isSending = isSending,
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable(onClick = onLike)
+                    .padding(horizontal = 8.dp),
+            ) {
+                Icon(
+                    imageVector = if (post.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "点赞",
+                    tint = if (post.isLiked) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+                Text(
+                    text = post.likeCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable(onClick = onFavorite)
+                    .padding(horizontal = 8.dp),
+            ) {
+                Icon(
+                    imageVector = if (post.isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
+                    contentDescription = "收藏",
+                    tint = if (post.isFavorited) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+                Text(
+                    text = "收藏",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -359,10 +664,11 @@ private fun PostDetailCommentItem(
     onLongClick: () -> Unit = {},
     repliesContent: (@Composable () -> Unit)?,
 ) {
+    val previewReply = comment.replies.firstOrNull()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Row(
             modifier = Modifier
@@ -393,15 +699,35 @@ private fun PostDetailCommentItem(
                 )
             }
         }
-        if (comment.replyCount > 0) {
-            Text(
-                text = if (isExpanded) "收起回复" else "查看 ${comment.replyCount} 条回复",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .padding(top = 4.dp, start = 46.dp)
-                    .clickable(onClick = onToggleExpand),
+        if (!isExpanded && previewReply != null) {
+            PostReplyItem(
+                reply = previewReply,
+                onReply = onReply,
+                onLongClick = onLongClick,
+                modifier = Modifier.padding(start = 46.dp, top = 8.dp),
             )
+        }
+        if (comment.replyCount > 0) {
+            val remaining = if (!isExpanded && previewReply != null) {
+                (comment.replyCount - 1).coerceAtLeast(0)
+            } else {
+                comment.replyCount
+            }
+            val label = when {
+                isExpanded -> "收起回复"
+                remaining > 0 -> "展开 $remaining 条回复"
+                else -> "展开回复"
+            }
+            if (isExpanded || remaining > 0 || previewReply == null) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(top = 4.dp, start = 46.dp)
+                        .clickable(onClick = onToggleExpand),
+                )
+            }
         }
         repliesContent?.invoke()
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
@@ -487,5 +813,94 @@ private fun PostReplyItem(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun PostDetailFeedTabs(
+    selectedTab: PostDetailFeedTab,
+    commentCount: Int,
+    likeCount: Int,
+    onSelectTab: (PostDetailFeedTab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PostDetailFeedTabItem(
+            text = "评论 $commentCount",
+            selected = selectedTab == PostDetailFeedTab.COMMENTS,
+            onClick = { onSelectTab(PostDetailFeedTab.COMMENTS) },
+        )
+        PostDetailFeedTabItem(
+            text = "点赞 $likeCount",
+            selected = selectedTab == PostDetailFeedTab.LIKES,
+            onClick = { onSelectTab(PostDetailFeedTab.LIKES) },
+        )
+    }
+    HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.35f))
+}
+
+@Composable
+private fun PostDetailFeedTabItem(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        color = if (selected) scheme.onSurface else scheme.onSurfaceVariant,
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+}
+
+@Composable
+private fun PostLikerRow(
+    user: User,
+    modifier: Modifier = Modifier,
+) {
+    val displayName = user.nickname?.takeIf { it.isNotBlank() }
+        ?: user.username.takeIf { it.isNotBlank() }
+        ?: "用户${user.id}"
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CachedImage(
+            imageUrl = user.avatar,
+            contentDescription = displayName,
+            modifier = Modifier.size(40.dp),
+            shape = CircleShape,
+            placeholderIcon = Icons.Default.Person,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = displayName,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun formatPostDetailTime(createdAt: String?): String {
+    if (createdAt == null) return ""
+    return try {
+        val postTime = ZonedDateTime.parse(createdAt, DateTimeFormatter.ISO_DATE_TIME)
+        postTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+    } catch (_: Exception) {
+        createdAt
     }
 }

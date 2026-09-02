@@ -19,6 +19,7 @@ import com.fox.music.core.network.model.FriendRequestDto
 import com.fox.music.core.network.model.MessageDto
 import com.fox.music.core.network.model.NotificationDto
 import com.fox.music.core.network.model.PostDto
+import com.fox.music.core.network.model.PostMediaDto
 import com.fox.music.core.network.model.SearchedUserDto
 
 fun FriendDto.toFriend(): Friend = Friend(
@@ -53,8 +54,14 @@ fun SearchedUserDto.toSearchedUser(): SearchedUser = SearchedUser(
 fun PostDto.toPost(): Post = Post(
     id = id,
     userId = userId,
+    title = title,
     content = content,
     images = images,
+    media = media.map { it.toPostMedia() },
+    tags = when {
+        tagItems.isNotEmpty() -> tagItems.map { it.toTag() }
+        else -> tags.map { com.fox.music.core.model.music.Tag(id = 0L, name = it) }
+    },
     music = music?.toMusic(),
     likeCount = likeCount,
     commentCount = commentCount,
@@ -66,6 +73,41 @@ fun PostDto.toPost(): Post = Post(
     updatedAt = updatedAt,
     authorName = authorName,
     authorAvatar = authorAvatar
+)
+
+fun com.fox.music.core.network.model.PostLikerDto.toPostLikerUser(): com.fox.music.core.model.user.User {
+    val displayName = nickname?.takeIf { it.isNotBlank() } ?: "用户$id"
+    return com.fox.music.core.model.user.User(
+        id = id,
+        username = displayName,
+        nickname = displayName,
+        avatar = avatar,
+    )
+}
+
+fun PostMediaDto.toPostMedia(): com.fox.music.core.model.social.PostMedia {
+    val mediaType = when (type.lowercase()) {
+        "video" -> com.fox.music.core.model.social.PostMediaType.VIDEO
+        "live" -> com.fox.music.core.model.social.PostMediaType.LIVE
+        else -> com.fox.music.core.model.social.PostMediaType.IMAGE
+    }
+    return com.fox.music.core.model.social.PostMedia(
+        type = mediaType,
+        url = url,
+        videoUrl = videoUrl,
+        coverUrl = coverUrl,
+    )
+}
+
+fun com.fox.music.core.model.social.PostMedia.toDto(): PostMediaDto = PostMediaDto(
+    type = when (type) {
+        com.fox.music.core.model.social.PostMediaType.VIDEO -> "video"
+        com.fox.music.core.model.social.PostMediaType.LIVE -> "live"
+        else -> "image"
+    },
+    url = url,
+    videoUrl = videoUrl,
+    coverUrl = coverUrl,
 )
 
 fun FavoriteDto.toFavorite(): Favorite = Favorite(
@@ -134,6 +176,7 @@ fun MessageDto.toMessage(): Message = Message(
         "audio" -> MessageType.AUDIO
         "file" -> MessageType.FILE
         "music" -> MessageType.MUSIC
+        "share" -> MessageType.SHARE
         else -> MessageType.TEXT
         }
     },
@@ -155,6 +198,7 @@ fun MessageDto.toMessage(): Message = Message(
     shareType = shareType,
     shareId = shareId,
     shareData = shareData?.toDomain(),
+    videoUrl = videoUrl,
 )
 
 fun ConversationDto.toChatConversation(): ChatConversation = ChatConversation(

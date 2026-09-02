@@ -38,6 +38,7 @@ import com.fox.music.MainActivityViewModel
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
@@ -53,6 +54,8 @@ import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
 import com.fox.music.feature.social.ui.screen.createPostRoute
 import com.fox.music.navigation.NavGraphContext
 import com.fox.music.navigation.appNavGraph
+import com.fox.music.navigation.navigateToPlayer
+import com.fox.music.ui.TAB_ROOT_ROUTES
 import com.fox.music.update.ApkInstallHelper
 import com.fox.music.update.ApkInstallResult
 
@@ -65,6 +68,7 @@ fun MainScreen(
     deepLinkRoute: String = HOME_ROUTE,
     musicActionsViewModel: MusicActionsViewModel = hiltViewModel(),
     postActionsViewModel: PostActionsViewModel = hiltViewModel(),
+    profileShareActionsViewModel: ProfileShareActionsViewModel = hiltViewModel(),
 ) {
     val musicController = viewModel.musicController
     val authState by viewModel.authState.collectAsStateWithLifecycle()
@@ -89,11 +93,18 @@ fun MainScreen(
     val currentUserId = postActionsState.currentUserId
 
     val playlistState by viewModel.playlistState.collectAsState()
+    val messagesUnreadCount by viewModel.totalUnreadCount.collectAsStateWithLifecycle()
 
     LaunchedEffect(deepLinkRoute) {
         if (deepLinkRoute.isNotBlank() && deepLinkRoute != HOME_ROUTE) {
             navController.navigate(deepLinkRoute) {
-                launchSingleTop = true
+                if (deepLinkRoute in TAB_ROOT_ROUTES) {
+                    popUpTo(HOME_ROUTE) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                } else {
+                    launchSingleTop = true
+                }
             }
         }
     }
@@ -123,6 +134,9 @@ fun MainScreen(
             }
             postActionsViewModel.uiState.value.showSelectFriend -> {
                 postActionsViewModel.sendSharePost(friendId)
+            }
+            profileShareActionsViewModel.uiState.value.showSelectFriend -> {
+                profileShareActionsViewModel.sendShareProfile(friendId)
             }
             else -> {
                 try {
@@ -184,11 +198,16 @@ fun MainScreen(
         }
     }
 
-    fun onMusicClick(music: Music, list: List<Music>, key: String) {
+    fun onMusicClick(
+        music: Music,
+        list: List<Music>,
+        key: String,
+        source: PlaybackPlaylistSource? = null,
+    ) {
         val playlist = list.takeIf { it.isNotEmpty() } ?: listOf(music)
         val startIndex = playlist.indexOfFirst { it.id == music.id }.coerceAtLeast(0)
-        musicController.setPlaylist(playlist, startIndex, key)
-        navController.navigate(PLAYER_ROUTE)
+        musicController.setPlaylist(playlist, startIndex, key, source)
+        navController.navigateToPlayer()
     }
 
     fun onUpdateMusicList(musicList: List<Music>, key: String) {
@@ -258,12 +277,14 @@ fun MainScreen(
         authState = authState,
         playerState = playerState,
         showBottomBar = showBottomBar,
+        messagesUnreadCount = messagesUnreadCount,
         currentUserId = currentUserId,
         profileRefreshKey = profileRefreshKey,
         plazaRefreshTrigger = plazaRefreshTrigger,
         hideMiniPlayerInSelection = hideMiniPlayerInSelection,
         musicActionsViewModel = musicActionsViewModel,
         postActionsViewModel = postActionsViewModel,
+        profileShareActionsViewModel = profileShareActionsViewModel,
         onProfileRefreshKeyIncrement = { profileRefreshKey++ },
         onPlazaRefreshTriggerIncrement = { plazaRefreshTrigger++ },
         onHideMiniPlayerInSelectionChange = { hideMiniPlayerInSelection = it },
@@ -316,6 +337,13 @@ fun MainScreen(
             }
         },
         viewModel = postActionsViewModel,
+    )
+
+    ProfileShareActionsHost(
+        onNavigateToSelectFriend = {
+            navController.navigate(selectFriendRoute())
+        },
+        viewModel = profileShareActionsViewModel,
     )
 
     if (showCreatePlaylistBottomSheet) {
