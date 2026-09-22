@@ -27,6 +27,8 @@ dependencies {
     implementation(project(":core:network-android"))
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
+    // 跨端映射层（DTO ↔ 领域模型），从本模块抽出
+    implementation(project(":core:mapper"))
     
     // Hilt
     implementation(libs.hilt.android)
