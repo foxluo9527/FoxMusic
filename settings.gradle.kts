@@ -54,6 +54,8 @@ include(":core:network-android")
 include(":core:database")
 include(":core:datastore")
 include(":core:player")
+// iOS 宿主共享框架（SwiftUI 外壳 iosApp/ 消费的 FoxShared.framework 由它产出）
+include(":iosShared")
 // Feature modules
 include(":feature:home")
 include(":feature:auth")

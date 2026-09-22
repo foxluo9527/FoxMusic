@@ -1,0 +1,44 @@
+// :iosShared —— iOS 宿主（iosApp/ 的 SwiftUI 外壳）消费的共享框架。
+//
+// 只做 iOS target：产出 FoxShared.framework，export 已跨端的 core 模块，
+// 让 Swift 能直接看到 MusicDto 等类型。Android 端完全不依赖本模块，零影响。
+//
+// 网络传输用 Ktor（Darwin 引擎）：Android 的 Retrofit/OkHttp 是 JVM-only，
+// 而 DTO（core:network commonMain 的 @Serializable 类）两端共用 ——
+// 这正是计划里"播放相关接口走 Ktor"的最小落地。后续 UI 迁移阶段再考虑
+// 把 Ktor service 层下沉到 :core:network commonMain 统一两端传输。
+plugins {
+    alias(libs.plugins.kotlin.multiplatform)
+}
+
+kotlin {
+    iosArm64()
+    iosSimulatorArm64()
+
+    @Suppress("UNCHECKED_CAST")
+    targets.withType(org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget::class.java)
+        .configureEach {
+            binaries.framework {
+                baseName = "FoxShared"
+                isStatic = true
+                // 导出传递依赖，否则 Swift 看不到 core 模块里的类型
+                export(project(":core:network"))
+                export(project(":core:common"))
+                export(project(":core:model"))
+            }
+        }
+
+    sourceSets {
+        iosMain.dependencies {
+            // export 到框架的依赖必须声明为 api（否则链接器拒绝导出）
+            api(project(":core:network"))
+            api(project(":core:common"))
+            api(project(":core:model"))
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+        }
+    }
+}
