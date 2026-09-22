@@ -35,10 +35,13 @@ kotlin {
             api(project(":core:common"))
             api(project(":core:model"))
             implementation(libs.kotlinx.coroutines.core)
+            // 批次 14：paging-common 是 KMP，PagingSource / Pager / PagingData /
+            // cachedIn 全都能进 commonMain，32 个分页文件随之跨端。
+            api(libs.paging.common)
         }
 
-        // 分页（PagingSource/Pager/PagingData）与 android.net.Uri、java.io.File
-        // 相关的 5 个仓库接口 + 18 个 UseCase 放 androidMain，暂不做跨端化。
+        // 只剩 android.net.Uri / java.io.File 相关的 5 个仓库接口 + 3 个 UseCase
+        // 留在 androidMain（paging-runtime 是 Android 专属 artifact，Room 分页还要用）。
         androidMain.dependencies {
             implementation(libs.paging)
         }

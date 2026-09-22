@@ -33,6 +33,9 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(libs.kotlinx.serialization.json)
+            // paging-common 是 KMP（含 iOS 变体），commonMain 暴露后
+            // core:domain 的 PagingSource/PagingData 才能进跨端源集。
+            api(libs.paging.common)
         }
 
         androidMain.dependencies {

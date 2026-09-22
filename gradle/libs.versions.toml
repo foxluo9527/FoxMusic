@@ -183,7 +183,10 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 androidx-compose-material3-adaptive-navigation-suite = { group = "androidx.compose.material3", name = "material3-adaptive-navigation-suite", version.ref = "material3AdaptiveNavigationSuite" }
 
 #Paging3
+# paging-runtime 只有 Android 变体，留在 androidMain；
+# paging-common / paging-compose 是 KMP（含 iosArm64、iosSimulatorArm64），放 commonMain。
 paging = { group = "androidx.paging", name = "paging-runtime", version.ref = "pagingVersion" }
+paging-common = { group = "androidx.paging", name = "paging-common", version.ref = "pagingVersion" }
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "pagingVersion" }
 
 videocache = { module = "com.danikula:videocache", version.ref = "videocache" }
