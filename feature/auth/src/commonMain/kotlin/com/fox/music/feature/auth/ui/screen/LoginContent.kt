@@ -1,6 +1,5 @@
 package com.fox.music.feature.auth.ui.screen
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -70,15 +69,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.ui.theme.FoxDisplayFont
 import com.fox.music.core.ui.theme.FoxSemanticColors
 import com.fox.music.core.ui.theme.FoxShapes
 import com.fox.music.core.ui.theme.FoxSpacing
-import com.fox.music.feature.auth.viewmodel.AuthEffect
 import com.fox.music.feature.auth.viewmodel.AuthIntent
 import com.fox.music.feature.auth.viewmodel.AuthState
-import com.fox.music.feature.auth.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
 
 const val LOGIN_ROUTE = "login"
@@ -89,6 +85,12 @@ private enum class AuthMode {
     Reset,
 }
 
+// 跨端邮箱校验：Android 原本用 android.util.Patterns（平台 API），这里换成
+// 等价的正则，两端行为一致。
+private val EMAIL_PATTERN = Regex(
+    "[a-zA-Z0-9+\\._%\\-]{1,256}@[a-zA-Z0-9][a-zA-Z0-9\\-]{0,64}(\\.[a-zA-Z0-9][a-zA-Z0-9\\-]{0,25})+"
+)
+
 private fun AuthState.toMode(): AuthMode = when {
     isResetMode -> AuthMode.Reset
     isLoginMode -> AuthMode.Login
@@ -96,13 +98,13 @@ private fun AuthState.toMode(): AuthMode = when {
 }
 
 @Composable
-fun LoginScreen(
+fun LoginContent(
+    state: AuthState,
+    onIntent: (AuthIntent) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: AuthViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -112,7 +114,7 @@ fun LoginScreen(
     val emailHasErrors by remember {
         derivedStateOf {
             state.email.isNotEmpty() &&
-                !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches()
+                !EMAIL_PATTERN.matches(state.email)
         }
     }
     val verifyError by remember {
@@ -133,19 +135,13 @@ fun LoginScreen(
     LaunchedEffect(state.waitingSecond) {
         if (state.waitingSecond > 0) {
             delay(1000)
-            viewModel.sendIntent(AuthIntent.UpdateWaiting(state.waitingSecond - 1))
+            onIntent(AuthIntent.UpdateWaiting(state.waitingSecond - 1))
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.effect.collect {
-            when (it) {
-                is AuthEffect.NavigateToHome -> onNavigateToHome()
-            }
-        }
-    }
 
-    BackHandler(onBack = onNavigateBack)
+    // 返回键是平台行为：Android 由 LoginScreen 外壳的 BackHandler 处理，
+    // iOS 交给 SwiftUI 导航的侧滑手势，因此这里不直接调用。
 
     val mode = state.toMode()
     val scheme = MaterialTheme.colorScheme
@@ -215,7 +211,7 @@ fun LoginScreen(
                         if (!state.isLoginMode || state.isResetMode) {
                             AuthTextField(
                                 value = state.email,
-                                onValueChange = { viewModel.sendIntent(AuthIntent.EmailChange(it)) },
+                                onValueChange = { onIntent(AuthIntent.EmailChange(it)) },
                                 label = "邮箱",
                                 leadingIcon = Icons.Outlined.Email,
                                 isError = emailHasErrors,
@@ -236,15 +232,15 @@ fun LoginScreen(
                                 waitingSecond = state.waitingSecond,
                                 enabled = !emailHasErrors && state.email.isNotEmpty() && state.waitingSecond <= 0,
                                 isError = verifyError,
-                                onCodeChange = { viewModel.sendIntent(AuthIntent.VerifyChange(it)) },
-                                onSend = { viewModel.sendIntent(AuthIntent.SendVerify) },
+                                onCodeChange = { onIntent(AuthIntent.VerifyChange(it)) },
+                                onSend = { onIntent(AuthIntent.SendVerify) },
                             )
                         }
 
                         if (!state.isResetMode) {
                             AuthTextField(
                                 value = state.username,
-                                onValueChange = { viewModel.sendIntent(AuthIntent.UsernameChange(it)) },
+                                onValueChange = { onIntent(AuthIntent.UsernameChange(it)) },
                                 label = if (state.isLoginMode) "用户名或邮箱" else "用户名",
                                 leadingIcon = Icons.Outlined.Person,
                                 keyboardOptions = KeyboardOptions(
@@ -259,7 +255,7 @@ fun LoginScreen(
 
                         AuthTextField(
                             value = state.password,
-                            onValueChange = { viewModel.sendIntent(AuthIntent.PasswordChange(it)) },
+                            onValueChange = { onIntent(AuthIntent.PasswordChange(it)) },
                             label = if (state.isResetMode) "新密码" else "密码",
                             leadingIcon = Icons.Outlined.Lock,
                             isError = passwordError,
@@ -289,7 +285,7 @@ fun LoginScreen(
                             keyboardActions = KeyboardActions(
                                 onDone = {
                                     focusManager.clearFocus()
-                                    if (canSubmit) viewModel.sendIntent(AuthIntent.Submit)
+                                    if (canSubmit) onIntent(AuthIntent.Submit)
                                 },
                             ),
                         )
@@ -311,7 +307,7 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(FoxSpacing.sectionSpacing))
 
                 Button(
-                    onClick = { viewModel.sendIntent(AuthIntent.Submit) },
+                    onClick = { onIntent(AuthIntent.Submit) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -338,8 +334,8 @@ fun LoginScreen(
 
                 AuthModeLinks(
                     mode = mode,
-                    onToggleRegister = { viewModel.sendIntent(AuthIntent.ToggleToRegisterMode) },
-                    onToggleReset = { viewModel.sendIntent(AuthIntent.ToggleToResetMode) },
+                    onToggleRegister = { onIntent(AuthIntent.ToggleToRegisterMode) },
+                    onToggleReset = { onIntent(AuthIntent.ToggleToResetMode) },
                 )
             }
         }

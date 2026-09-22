@@ -60,6 +60,7 @@ include(":iosShared")
 // Feature modules
 include(":feature:home")
 include(":feature:auth")
+include(":feature:auth-android")
 include(":feature:player")
 include(":feature:playlist")
 include(":feature:search")

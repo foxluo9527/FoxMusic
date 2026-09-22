@@ -2,9 +2,6 @@ package com.fox.music.feature.auth.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.usecase.ForgotPasswordUseCase
 import com.fox.music.core.domain.usecase.LoginUseCase
 import com.fox.music.core.domain.usecase.RegisterUseCase
@@ -13,34 +10,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class AuthState(
-    val username: String = "",
-    val password: String = "",
-    val email: String = "",
-    val verifyCode: String = "",
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val isLoginMode: Boolean = true,
-    val isResetMode: Boolean = false,
-    val waitingSecond: Int = 0
-) : UiState
-
-sealed interface AuthIntent : UiIntent {
-    data class UsernameChange(val value: String) : AuthIntent
-    data class PasswordChange(val value: String) : AuthIntent
-    data class EmailChange(val value: String) : AuthIntent
-    data class VerifyChange(val value: String) : AuthIntent
-    data class UpdateWaiting(val value: Int) : AuthIntent
-    data object Submit : AuthIntent
-    data object SendVerify : AuthIntent
-    data object ToggleToRegisterMode : AuthIntent
-    data object ToggleToResetMode : AuthIntent
-}
-
-sealed interface AuthEffect : UiEffect {
-    data object NavigateToHome : AuthEffect
-}
-
+// 状态机与异步逻辑留在 Android 侧：它依赖 Hilt 注入的 UseCase 与
+// androidx.lifecycle 的 viewModelScope。MVI 契约本身在 AuthContract.kt（跨端）。
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,

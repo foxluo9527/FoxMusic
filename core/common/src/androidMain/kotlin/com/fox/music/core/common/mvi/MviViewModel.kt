@@ -10,42 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
-interface UiState
-interface UiIntent
-interface UiEffect
-
-/**
- * 仅用于单页数据获取，多页数据请使用paging
- */
-data class LoadState<T>(
-    var page: Int = 1,
-    val limit: Int = 20,
-    val data: T? = null,
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val isSuccess: Boolean = false,
-) {
-    fun success(data: T?): LoadState<T> {
-        return this.copy(
-            data = data,
-            isLoading = false,
-            error = null,
-            isSuccess = true
-        )
-    }
-
-    fun error(error: String?): LoadState<T> {
-        return this.copy(
-            data = null,
-            isLoading = false,
-            error = error,
-            isSuccess = false
-        )
-    }
-
-    fun onLoading() = this.copy(data = null, isLoading = true, error = null, isSuccess = false)
-}
-
+// MVI 契约（UiState / UiIntent / UiEffect / LoadState）在 MviContract.kt（跨端）。
+// 这里的状态机依赖 androidx.lifecycle.ViewModel 与 viewModelScope，故留在 Android 侧。
 abstract class MviViewModel<S : UiState, I : UiIntent, E : UiEffect>(
     initialState: S
 ) : ViewModel() {
