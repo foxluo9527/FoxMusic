@@ -104,6 +104,9 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":core:domain"))
+    // UseCase 的 Hilt 显式装配（UseCaseModule，78 个 @Provides）。
+    // :core:domain 是 KMP 模块，无法承载 Dagger 产物。
+    implementation(project(":core:domain-android"))
     implementation(project(":core:data"))
     implementation(project(":core:datastore"))
     implementation(project(":core:player"))

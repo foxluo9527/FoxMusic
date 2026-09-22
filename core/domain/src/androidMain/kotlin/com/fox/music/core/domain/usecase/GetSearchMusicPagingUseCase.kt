@@ -1,0 +1,30 @@
+package com.fox.music.core.domain.usecase
+
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import com.fox.music.core.domain.paging.SearchMusicPagingSource
+import com.fox.music.core.domain.repository.SearchRepository
+import com.fox.music.core.model.music.Music
+import kotlinx.coroutines.flow.Flow
+
+class GetSearchMusicPagingUseCase constructor(
+    private val searchRepository: SearchRepository
+) {
+    operator fun invoke(keyword: String, platform: String? = null): Flow<PagingData<Music>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = 20,
+                enablePlaceholders = false,
+                initialLoadSize = 20
+            ),
+            pagingSourceFactory = {
+                SearchMusicPagingSource(
+                    repo = searchRepository,
+                    keyword = keyword,
+                    platform = platform
+                )
+            }
+        ).flow
+    }
+}
