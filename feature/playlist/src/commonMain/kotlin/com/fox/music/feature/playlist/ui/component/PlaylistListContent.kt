@@ -38,7 +38,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.DetailType
@@ -46,39 +45,28 @@ import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
-import com.fox.music.feature.playlist.viewmodel.PlaylistListEffect
 import com.fox.music.feature.playlist.viewmodel.PlaylistListIntent
-import com.fox.music.feature.playlist.viewmodel.PlaylistListViewModel
+import com.fox.music.feature.playlist.viewmodel.PlaylistListState
 
 const val PLAYLIST_LIST_ROUTE = "playlist_list"
 
 fun playlistDetailRoute(playlistId: Long, type: DetailType = DetailType.PLAYLIST) =
     "playlist_detail/$playlistId/${type.name}"
 
+/** 歌单广场页纯界面：state + onIntent 驱动，外壳负责 hiltViewModel() 与 effect 收集。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaylistListScreen(
-    modifier: Modifier = Modifier,
+fun PlaylistListContent(
+    state: PlaylistListState,
+    onIntent: (PlaylistListIntent) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    viewModel: PlaylistListViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier,
     onPlaylistClick: (Playlist) -> Unit = {},
     onBackClick: () -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val playlistPagingItems = state.playlists.collectAsLazyPagingItems()
-
-    // Effect handlers
-    LaunchedEffect(Unit) {
-        viewModel.sendIntent(PlaylistListIntent.Load)
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                is PlaylistListEffect.NavigateToPlaylist -> onPlaylistClick(effect.playlist)
-                is PlaylistListEffect.NavigateBack -> onBackClick()
-            }
-        }
-    }
 
     Column(modifier = modifier.fillMaxSize()) {
         // Top App Bar
@@ -95,7 +83,7 @@ fun PlaylistListScreen(
                         // Fixed first tab: 推荐歌单
                         Tab(
                             selected = state.selectedCategoryIndex == 0,
-                            onClick = { viewModel.sendIntent(PlaylistListIntent.SelectCategory(0)) },
+                            onClick = { onIntent(PlaylistListIntent.SelectCategory(0)) },
                             text = { Text("推荐歌单") }
                         )
 
@@ -104,7 +92,7 @@ fun PlaylistListScreen(
                             Tab(
                                 selected = state.selectedCategoryIndex == index + 1,
                                 onClick = {
-                                    viewModel.sendIntent(
+                                    onIntent(
                                         PlaylistListIntent.SelectCategory(
                                             index + 1
                                         )
@@ -117,7 +105,7 @@ fun PlaylistListScreen(
                 }
             },
             navigationIcon = {
-                IconButton(onClick = { viewModel.onBackClick() }) {
+                IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
                         contentDescription = "返回"
@@ -141,7 +129,7 @@ fun PlaylistListScreen(
                     modifier = Modifier.fillMaxSize(),
                     message = (playlistPagingItems.loadState.refresh as LoadState.Error).error.message
                         ?: "加载失败",
-                    onRetry = { viewModel.sendIntent(PlaylistListIntent.Load) }
+                    onRetry = { onIntent(PlaylistListIntent.Load) }
                 )
             }
 
@@ -174,7 +162,7 @@ fun PlaylistListScreen(
                                     playlist = playlist,
                                     sharedTransitionScope = sharedTransitionScope,
                                     animatedContentScope = animatedContentScope,
-                                    onClick = { viewModel.onPlaylistClick(playlist) },
+                                    onClick = { onPlaylistClick(playlist) },
                                 )
                             }
                         }

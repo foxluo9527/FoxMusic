@@ -4,36 +4,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.usecase.GetPlaylistCategoriesUseCase
 import com.fox.music.core.domain.usecase.GetPlaylistsPagingUseCase
 import com.fox.music.core.model.music.Playlist
-import com.fox.music.core.model.music.PlaylistCategory
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-data class PlaylistListState(
-    val categories: List<PlaylistCategory> = emptyList(),
-    val selectedCategoryIndex: Int = 0,
-    val playlists: Flow<PagingData<Playlist>> = flowOf(PagingData.empty()),
-    val isLoading: Boolean = false,
-    val error: String? = null
-) : UiState
-
-sealed interface PlaylistListIntent : UiIntent {
-    data object Load : PlaylistListIntent
-    data class SelectCategory(val index: Int) : PlaylistListIntent
-}
-
-sealed interface PlaylistListEffect : UiEffect {
-    data class NavigateToPlaylist(val playlist: Playlist) : PlaylistListEffect
-    data object NavigateBack : PlaylistListEffect
-}
 
 @HiltViewModel
 class PlaylistListViewModel @Inject constructor(

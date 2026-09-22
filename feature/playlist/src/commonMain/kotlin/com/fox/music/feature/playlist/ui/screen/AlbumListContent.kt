@@ -27,51 +27,37 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
-import com.fox.music.feature.playlist.viewmodel.AlbumListEffect
 import com.fox.music.feature.playlist.viewmodel.AlbumListIntent
-import com.fox.music.feature.playlist.viewmodel.AlbumListViewModel
+import com.fox.music.feature.playlist.viewmodel.AlbumListState
 
 const val ALBUM_LIST_ROUTE = "album_list"
 
+/** 推荐专辑页纯界面：state + onIntent 驱动，外壳负责 hiltViewModel() 与 effect 收集。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumListScreen(
-    modifier: Modifier = Modifier,
+fun AlbumListContent(
+    state: AlbumListState,
+    onIntent: (AlbumListIntent) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    viewModel: AlbumListViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
     onBackClick: () -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val albumPagingItems = state.albums.collectAsLazyPagingItems()
-
-    LaunchedEffect(Unit) {
-        viewModel.sendIntent(AlbumListIntent.Load)
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                is AlbumListEffect.NavigateToAlbum -> onAlbumClick(effect.album)
-                is AlbumListEffect.NavigateBack -> onBackClick()
-            }
-        }
-    }
 
     Column(modifier = modifier.fillMaxSize()) {
         TopAppBar(
@@ -79,7 +65,7 @@ fun AlbumListScreen(
                 Text("推荐专辑")
             },
             navigationIcon = {
-                IconButton(onClick = { viewModel.onBackClick() }) {
+                IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
                         contentDescription = "返回"
@@ -102,7 +88,7 @@ fun AlbumListScreen(
                     modifier = Modifier.fillMaxSize(),
                     message = (albumPagingItems.loadState.refresh as LoadState.Error).error.message
                         ?: "加载失败",
-                    onRetry = { viewModel.sendIntent(AlbumListIntent.Load) }
+                    onRetry = { onIntent(AlbumListIntent.Load) }
                 )
             }
 
@@ -135,7 +121,7 @@ fun AlbumListScreen(
                                     album = album,
                                     sharedTransitionScope = sharedTransitionScope,
                                     animatedContentScope = animatedContentScope,
-                                    onClick = { viewModel.onAlbumClick(album) },
+                                    onClick = { onAlbumClick(album) },
                                 )
                             }
                         }
