@@ -41,6 +41,10 @@ val generateFoxBuildConfig = tasks.register("generateFoxBuildConfig") {
 }
 
 kotlin {
+    // iOS 真机 + Apple Silicon 模拟器。iosMain 共享代码放 src/iosMain/kotlin。
+    iosArm64()
+    iosSimulatorArm64()
+
     androidLibrary {
         namespace = "com.fox.music.core.common"
         compileSdk = 36

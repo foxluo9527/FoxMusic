@@ -45,6 +45,10 @@ val generateFoxNetworkConfig = tasks.register("generateFoxNetworkConfig") {
 }
 
 kotlin {
+    // iOS 真机 + Apple Silicon 模拟器。iosMain 共享代码放 src/iosMain/kotlin。
+    iosArm64()
+    iosSimulatorArm64()
+
     androidLibrary {
         namespace = "com.fox.music.core.network"
         compileSdk = 36
