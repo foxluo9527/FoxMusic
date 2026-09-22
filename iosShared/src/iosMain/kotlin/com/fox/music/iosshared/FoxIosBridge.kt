@@ -1,9 +1,15 @@
 package com.fox.music.iosshared
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.window.ComposeUIViewController
 import com.fox.music.core.common.util.MediaUrlResolver
 import com.fox.music.core.network.model.MusicDto
+import com.fox.music.iosshared.ui.FoxSongsScreen
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import platform.UIKit.UIViewController
 
 /**
  * 暴露给 SwiftUI 外壳的门面（纯数据链路）。
@@ -51,6 +57,35 @@ object FoxIosBridge {
             durationMillis = music.duration,
         )
     }
+
+    // ---------- 共享 UI（Compose Multiplatform）----------
+
+    /**
+     * 把 Compose 写的歌曲列表包成 UIViewController 交给 SwiftUI 外壳展示。
+     *
+     * Swift 侧用 UIViewControllerRepresentable 包一层就能放进 SwiftUI 层级——
+     * 这是 KMP 项目里"共享 UI + 平台原生外壳"的标准接法。
+     */
+    fun makeSongsViewController(
+        songs: List<PlayableSong>,
+        onPlaySong: (PlayableSong) -> Unit,
+    ): UIViewController = ComposeUIViewController {
+        FoxSongsScreen(
+            songs = songs,
+            currentSongId = FoxComposeState.currentSongId,
+            isPlaying = FoxComposeState.isPlaying,
+            onPlaySong = onPlaySong,
+        )
+    }
+}
+
+/**
+ * 播放状态由 Swift 的 PlayerModel 持有，通过这里回灌给 Compose（Swift → Kotlin → 重组）。
+ * 单向数据流，避免两边各持一份状态打架。
+ */
+object FoxComposeState {
+    var currentSongId: String? by mutableStateOf(null)
+    var isPlaying: Boolean by mutableStateOf(false)
 }
 
 /** Swift 侧直接消费的可播放条目（比 MusicDto 小，避免 Swift 感知完整 DTO 结构）。 */

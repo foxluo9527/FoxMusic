@@ -48,8 +48,15 @@ final class PlayerModel: ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
         rateObserver = player?.observe(\.rate, options: [.new]) { [weak self] p, _ in
-            DispatchQueue.main.async { self?.isPlaying = p.rate != 0 }
+            DispatchQueue.main.async {
+                self?.isPlaying = p.rate != 0
+                FoxComposeState.shared.isPlaying = p.rate != 0
+            }
         }
+
+        // 回灌给共享 UI（Swift 持有播放状态 → Kotlin state → Compose 重组）
+        FoxComposeState.shared.currentSongId = song.id
+        FoxComposeState.shared.isPlaying = true
 
         player?.play()
         print("PlayerModel: 开始播放《\(song.title)》- \(song.artist)\n  url=\(song.audioUrl)")

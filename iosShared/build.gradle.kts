@@ -9,6 +9,10 @@
 // 把 Ktor service 层下沉到 :core:network commonMain 统一两端传输。
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
+    // Compose Multiplatform：iOS 端共享 UI 的可行性验证（批次 8）
+    // CMP 1.6.10+ 要求同时应用 Kotlin 官方的 compose 编译器插件
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.compose.multiplatform)
 }
 
 kotlin {
@@ -34,7 +38,11 @@ kotlin {
             api(project(":core:network"))
             api(project(":core:common"))
             api(project(":core:model"))
-            implementation(libs.kotlinx.coroutines.core)
+            // Compose Multiplatform（iOS 侧 UI，与 Android 的 androidx Compose 无关）
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.darwin)
             implementation(libs.ktor.client.content.negotiation)

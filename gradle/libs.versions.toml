@@ -9,6 +9,9 @@ coreKtx = "1.17.0"
 appcompat = "1.7.1"
 
 # Compose
+# CMP（Compose Multiplatform）版本必须与 Kotlin 对齐：1.10.x 对应 Kotlin 2.3.x。
+# 只给 :iosShared 用（iOS 端共享 UI），Android 端仍走 androidx Compose BOM，互不影响。
+composeMultiplatform = "1.10.3"
 composeBom = "2026.01.01"
 activityCompose = "1.12.3"
 navigationCompose = "2.9.7"
@@ -244,6 +247,7 @@ media3 = [
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

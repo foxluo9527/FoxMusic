@@ -18,6 +18,12 @@
 	<string>0.1</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<!--
+		Compose Multiplatform 的硬性校验：高刷屏 iPhone 上必须关闭最小帧时长限制，
+		否则 ComposeUIViewController 初始化时直接抛 IllegalStateException。
+	-->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

@@ -16,24 +16,12 @@ struct ContentView: View {
                 } else if songs.isEmpty {
                     ProgressView("加载歌曲中…")
                 } else {
-                    List(songs, id: \.id) { song in
-                        Button {
-                            PlayerModel.shared.play(song)
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(song.title).font(.headline)
-                                    Text(song.artist)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if player.current?.id == song.id {
-                                    Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "speaker.fill")
-                                }
-                            }
-                        }
+                    // 列表本体由共享层 Compose 渲染（批次 8 验证点），
+                    // 点击回调回到 Swift 播放，播放状态再回灌给 Compose。
+                    ComposeSongsView(songs: songs) { song in
+                        PlayerModel.shared.play(song)
                     }
+                    .ignoresSafeArea(edges: .bottom)
                 }
             }
             .navigationTitle("FoxMusic")
