@@ -376,7 +376,9 @@ private fun SearchBarPreview() {
     }
 }
 
-@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+// 原为 uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES，
+// 该常量是 Android 专属，进 commonMain 后去掉（仅影响预览，不影响运行时）。
+@Preview(showBackground = true)
 @Composable
 private fun SearchBarDarkPreview() {
     MaterialTheme {

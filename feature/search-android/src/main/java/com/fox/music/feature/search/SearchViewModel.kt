@@ -4,9 +4,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.usecase.TogglePostLikeUseCase
@@ -35,72 +32,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-enum class SearchResultTab {
-    MUSIC,
-    ARTIST,
-    ALBUM,
-    POST,
-}
-
-enum class SearchMusicPlatform(val apiValue: String?, val label: String) {
-    FOX(null, "平台曲库"),
-    QQ("qq", "QQ 音乐"),
-    NETEASE("netease", "网易云")
-}
-
-data class SearchState(
-    val query: String = "",
-    val selectedTab: SearchResultTab = SearchResultTab.MUSIC,
-    val selectedMusicPlatform: SearchMusicPlatform = SearchMusicPlatform.FOX,
-    val postTag: String? = null,
-    val postSort: String = "latest",
-    val musicResults: Flow<PagingData<Music>> = flowOf(PagingData.empty()),
-    val artistResults: Flow<PagingData<Artist>> = flowOf(PagingData.empty()),
-    val albumResults: Flow<PagingData<Album>> = flowOf(PagingData.empty()),
-    val postResults: Flow<PagingData<Post>> = flowOf(PagingData.empty()),
-    val searchHistory: List<SearchHistory> = emptyList(),
-    val isHistoryExpanded: Boolean = false,
-    val hotKeywords: List<HotKeyword> = emptyList(),
-    val hotKeywordsHasMore: Boolean = false,
-    val isLoadingHotKeywords: Boolean = false,
-    val suggestions: List<SearchSuggest> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val hasSearched: Boolean = false,
-    val isSearchFocused: Boolean = false,
-    val postLikeOverrides: Map<Long, Pair<Boolean, Int>> = emptyMap(),
-) : UiState {
-    /** 聚焦或尚未搜索时展示推荐/建议面板；失焦且已搜索时展示结果 */
-    val showRecommendPanel: Boolean
-        get() = isSearchFocused || !hasSearched
-}
-
-sealed interface SearchIntent : UiIntent {
-    data class QueryChange(val query: String) : SearchIntent
-    data object Search : SearchIntent
-    data class SelectHistory(val keyword: String) : SearchIntent
-    data class SelectHotKeyword(val keyword: String) : SearchIntent
-    data class SelectSuggest(val suggest: SearchSuggest) : SearchIntent
-    data class FocusChanged(val focused: Boolean) : SearchIntent
-    data class SelectTab(val tab: SearchResultTab) : SearchIntent
-    data class SelectMusicPlatform(val platform: SearchMusicPlatform) : SearchIntent
-    data object ToggleHistoryExpanded : SearchIntent
-    data object ClearHistory : SearchIntent
-    data object RefreshHotKeywords : SearchIntent
-    data object ClearPostTag : SearchIntent
-    data class FilterPostTag(val tag: String) : SearchIntent
-    data class TogglePostLike(val post: Post) : SearchIntent
-}
-
-sealed interface SearchEffect : UiEffect {
-    data class NavigateToMusic(val music: Music, val musicList: List<Music>) : SearchEffect
-    data class NavigateToArtist(val artistId: Long) : SearchEffect
-    data class NavigateToAlbum(val album: Album) : SearchEffect
-    data class NavigateToPost(val postId: Long) : SearchEffect
-    /** 请求 UI 清除搜索框焦点（收起软键盘） */
-    data object ClearSearchFocus : SearchEffect
-}
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -512,9 +443,11 @@ class SearchViewModel @Inject constructor(
     }
 
     companion object {
-        const val HISTORY_COLLAPSED_MAX = 6
-        const val HISTORY_COLLAPSED_ROWS = 3
-        const val HOT_KEYWORD_PAGE_SIZE = 8
-        const val HOT_KEYWORD_MAX_ROWS = 4
+        // 真正的定义在 :feature:search 的 SearchContract.kt（commonMain），
+        // UI 与 ViewModel 共用同一组阈值，这里保留旧名字做兼容。
+        const val HISTORY_COLLAPSED_MAX = SEARCH_HISTORY_COLLAPSED_MAX
+        const val HISTORY_COLLAPSED_ROWS = SEARCH_HISTORY_COLLAPSED_ROWS
+        const val HOT_KEYWORD_PAGE_SIZE = SEARCH_HOT_KEYWORD_PAGE_SIZE
+        const val HOT_KEYWORD_MAX_ROWS = SEARCH_HOT_KEYWORD_MAX_ROWS
     }
 }

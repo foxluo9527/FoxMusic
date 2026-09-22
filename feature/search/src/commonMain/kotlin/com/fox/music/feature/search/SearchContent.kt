@@ -1,6 +1,5 @@
 package com.fox.music.feature.search
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.LinearEasing
@@ -18,30 +17,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,53 +43,26 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.paging.LoadState
-import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
-import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.ui.component.AlbumListItem
 import com.fox.music.core.ui.component.ArtistListItem
 import com.fox.music.core.ui.component.CachedImage
-import com.fox.music.core.ui.component.ErrorView
-import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
-import com.fox.music.core.ui.component.PostNoteGridCard
 import com.fox.music.core.ui.component.SearchBar
-
-const val SEARCH_ROUTE = "search?tab={tab}&query={query}&tag={tag}&sort={sort}"
-
-fun searchRoute(
-    tab: SearchResultTab? = null,
-    query: String? = null,
-    tag: String? = null,
-    sort: String? = null,
-): String {
-    val encodedQuery = android.net.Uri.encode(query.orEmpty())
-    val encodedTag = android.net.Uri.encode(tag.orEmpty())
-    val encodedSort = android.net.Uri.encode(sort.orEmpty())
-    return "search?tab=${tab?.name.orEmpty()}&query=$encodedQuery&tag=$encodedTag&sort=$encodedSort"
-}
 
 private val searchTabs = listOf(
     SearchResultTab.MUSIC to "单曲",
@@ -108,73 +71,49 @@ private val searchTabs = listOf(
     SearchResultTab.POST to "帖子",
 )
 
+/**
+ * 搜索页纯界面：state + onIntent 驱动。
+ *
+ * 三处平台相关逻辑留在外壳（:feature:search-android 的 SearchScreen）：
+ *   1. BackHandler            —— androidx.activity，Android 专属
+ *   2. LocalFocusManager      —— 软键盘收起交给外壳的 onClearFocus
+ *   3. 帖子结果列表            —— PostNoteGridCard 依赖 PostVideoCover 等安卓组件，
+ *                               由外壳以 postResultsContent 插槽注入
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(
-    modifier: Modifier = Modifier,
-    viewModel: SearchViewModel = hiltViewModel(),
+fun SearchContent(
+    state: SearchState,
+    onIntent: (SearchIntent) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
-    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
+    onMusicClick: (Music) -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onAlbumClick: (Album) -> Unit = {},
-    onPostClick: (Long) -> Unit = {},
-    onBack: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
+    onClearFocus: () -> Unit = {},
+    onMusicListChanged: (List<Music>) -> Unit = {},
+    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
+    applyPostOverrides: (Post) -> Post = { it },
+    onPostLikeClick: (Post) -> Unit = {},
+    onPostTagClick: (String) -> Unit = {},
+    postResultsContent: (@Composable () -> Unit)? = null,
 ) {
-    val state by viewModel.uiState.collectAsState()
     val musicResults = state.musicResults.collectAsLazyPagingItems()
     val artistResults = state.artistResults.collectAsLazyPagingItems()
     val albumResults = state.albumResults.collectAsLazyPagingItems()
-    val postResults = state.postResults.collectAsLazyPagingItems()
     val playlistKey = SEARCH_ROUTE + "-${state.query}"
-    val focusManager = LocalFocusManager.current
     val showRecommendPanel = state.showRecommendPanel
     val canDismissToResults = state.hasSearched && state.isSearchFocused
 
     fun handleBack() {
         if (canDismissToResults) {
-            focusManager.clearFocus()
-            viewModel.sendIntent(SearchIntent.FocusChanged(false))
+            onClearFocus()
+            onIntent(SearchIntent.FocusChanged(false))
         } else {
             onBack()
-        }
-    }
-
-    BackHandler(onBack = { handleBack() })
-
-    LaunchedEffect(musicResults.itemCount) {
-        if (state.hasSearched && state.selectedTab == SearchResultTab.MUSIC) {
-            viewModel.updateCurrentMusicList(musicResults.itemSnapshotList.items)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                is SearchEffect.NavigateToMusic -> {
-                    val playlist = effect.musicList.ifEmpty { listOf(effect.music) }
-                    onMusicClick(effect.music, playlist, playlistKey, null)
-                }
-
-                is SearchEffect.NavigateToArtist -> onArtistClick(effect.artistId)
-                is SearchEffect.NavigateToAlbum -> onAlbumClick(effect.album)
-                is SearchEffect.NavigateToPost -> onPostClick(effect.postId)
-                SearchEffect.ClearSearchFocus -> focusManager.clearFocus()
-            }
-        }
-    }
-
-    LaunchedEffect(
-        musicResults.itemSnapshotList.items, state.selectedTab, state.hasSearched, playlistKey
-    ) {
-        if (state.hasSearched && state.selectedTab == SearchResultTab.MUSIC) {
-            val items = musicResults.itemSnapshotList.items
-            viewModel.updateCurrentMusicList(items)
-            if (items.isNotEmpty()) {
-                updateMusicList(items, playlistKey)
-            }
         }
     }
 
@@ -188,11 +127,9 @@ fun SearchScreen(
                 title = {
                     SearchBar(
                         query = state.query,
-                        onQueryChange = { viewModel.sendIntent(SearchIntent.QueryChange(it)) },
-                        onSearch = { viewModel.sendIntent(SearchIntent.Search) },
-                        onFocusChanged = {
-                            viewModel.sendIntent(SearchIntent.FocusChanged(it))
-                        },
+                        onQueryChange = { onIntent(SearchIntent.QueryChange(it)) },
+                        onSearch = { onIntent(SearchIntent.Search) },
+                        onFocusChanged = { onIntent(SearchIntent.FocusChanged(it)) },
                     )
                 },
                 navigationIcon = {
@@ -222,7 +159,7 @@ fun SearchScreen(
                     searchTabs.forEach { (tab, label) ->
                         Tab(
                             selected = state.selectedTab == tab,
-                            onClick = { viewModel.sendIntent(SearchIntent.SelectTab(tab)) },
+                            onClick = { onIntent(SearchIntent.SelectTab(tab)) },
                             text = { Text(label) },
                         )
                     }
@@ -232,7 +169,7 @@ fun SearchScreen(
             if (showResultsChrome && state.selectedTab == SearchResultTab.MUSIC) {
                 MusicPlatformSelector(
                     selected = state.selectedMusicPlatform,
-                    onSelect = { viewModel.sendIntent(SearchIntent.SelectMusicPlatform(it)) },
+                    onSelect = { onIntent(SearchIntent.SelectMusicPlatform(it)) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
@@ -247,52 +184,46 @@ fun SearchScreen(
                         isLoadingHotKeywords = state.isLoadingHotKeywords,
                         searchHistory = state.searchHistory,
                         isHistoryExpanded = state.isHistoryExpanded,
-                        onHotKeywordClick = {
-                            viewModel.sendIntent(SearchIntent.SelectHotKeyword(it))
-                        },
-                        onRefreshHotKeywords = {
-                            viewModel.sendIntent(SearchIntent.RefreshHotKeywords)
-                        },
-                        onHistoryClick = {
-                            viewModel.sendIntent(SearchIntent.SelectHistory(it))
-                        },
-                        onSuggestClick = {
-                            viewModel.sendIntent(SearchIntent.SelectSuggest(it))
-                        },
+                        onHotKeywordClick = { onIntent(SearchIntent.SelectHotKeyword(it)) },
+                        onRefreshHotKeywords = { onIntent(SearchIntent.RefreshHotKeywords) },
+                        onHistoryClick = { onIntent(SearchIntent.SelectHistory(it)) },
+                        onSuggestClick = { onIntent(SearchIntent.SelectSuggest(it)) },
                         onToggleHistoryExpanded = {
-                            viewModel.sendIntent(SearchIntent.ToggleHistoryExpanded)
+                            onIntent(SearchIntent.ToggleHistoryExpanded)
                         },
-                        onClearHistory = {
-                            viewModel.sendIntent(SearchIntent.ClearHistory)
-                        },
+                        onClearHistory = { onIntent(SearchIntent.ClearHistory) },
                     )
 
                     state.selectedTab == SearchResultTab.MUSIC -> MusicSearchResults(
-                        musicResults = musicResults,
+                        pagingItems = musicResults,
                         sharedTransitionScope = this@with,
                         animatedContentScope = animatedContentScope,
-                        onMusicClick = { viewModel.onMusicClick(it) },
+                        onMusicClick = onMusicClick,
                         onMusicMoreClick = onMusicMoreClick,
                         onArtistClick = onArtistClick,
+                        onMusicListChanged = onMusicListChanged,
+                        updateMusicList = updateMusicList,
+                        playlistKey = playlistKey,
+                        hasSearched = state.hasSearched,
                     )
 
                     state.selectedTab == SearchResultTab.ARTIST -> ArtistSearchResults(
-                        artistResults = artistResults,
-                        onArtistClick = { viewModel.onArtistClick(it) },
+                        pagingItems = artistResults,
+                        onArtistClick = onArtistClick,
                     )
 
                     state.selectedTab == SearchResultTab.ALBUM -> AlbumSearchResults(
-                        albumResults = albumResults,
-                        onAlbumClick = { viewModel.onAlbumClick(it) },
+                        pagingItems = albumResults,
+                        onAlbumClick = onAlbumClick,
                     )
 
-                    state.selectedTab == SearchResultTab.POST -> PostSearchResults(
-                        postResults = postResults,
-                        applyOverrides = viewModel::applyPostOverrides,
-                        onPostClick = { viewModel.onPostClick(it) },
-                        onLikeClick = { viewModel.onPostLikeClick(it) },
-                        onTagClick = { viewModel.onPostTagClick(it) },
-                    )
+                    state.selectedTab == SearchResultTab.POST -> {
+                        postResultsContent?.invoke() ?: PostSearchResultsFallback(
+                            applyOverrides = applyPostOverrides,
+                            onPostLikeClick = onPostLikeClick,
+                            onPostTagClick = onPostTagClick,
+                        )
+                    }
                 }
             }
         }
@@ -447,9 +378,9 @@ private fun SearchRecommendContent(
     val visibleHistory = if (isHistoryExpanded) {
         historyKeywords
     } else {
-        historyKeywords.take(SearchViewModel.HISTORY_COLLAPSED_MAX)
+        historyKeywords.take(SEARCH_HISTORY_COLLAPSED_MAX)
     }
-    val canExpandHistory = historyKeywords.size > SearchViewModel.HISTORY_COLLAPSED_MAX
+    val canExpandHistory = historyKeywords.size > SEARCH_HISTORY_COLLAPSED_MAX
 
     Column(
         modifier = Modifier
@@ -496,7 +427,7 @@ private fun SearchRecommendContent(
             ) {
                 TwoColumnKeywordGrid(
                     keywords = visibleHistory,
-                    maxRows = if (isHistoryExpanded) null else SearchViewModel.HISTORY_COLLAPSED_ROWS,
+                    maxRows = if (isHistoryExpanded) null else SEARCH_HISTORY_COLLAPSED_ROWS,
                     onKeywordClick = onHistoryClick,
                 )
             }
@@ -538,7 +469,7 @@ private fun SearchRecommendContent(
             ) {
                 TwoColumnKeywordGrid(
                     keywords = hotKeywords.map { it.keyword },
-                    maxRows = SearchViewModel.HOT_KEYWORD_MAX_ROWS,
+                    maxRows = SEARCH_HOT_KEYWORD_MAX_ROWS,
                     onKeywordClick = onHotKeywordClick,
                 )
             }
@@ -633,223 +564,5 @@ private fun KeywordChip(
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         )
-    }
-}
-
-@Composable
-private fun MusicSearchResults(
-    musicResults: LazyPagingItems<Music>,
-    sharedTransitionScope: SharedTransitionScope,
-    animatedContentScope: AnimatedContentScope,
-    onMusicClick: (Music) -> Unit,
-    onMusicMoreClick: (Music) -> Unit,
-    onArtistClick: (Long) -> Unit,
-) {
-    PagingResultList(
-        pagingItems = musicResults,
-        emptyMessage = "未找到相关单曲",
-    ) { index ->
-        val music = musicResults[index]
-        if (music != null) {
-            MusicListItem(
-                music = music,
-                modifier = Modifier.padding(start = 12.dp, end = 8.dp),
-                sharedTransitionScope = sharedTransitionScope,
-                animatedContentScope = animatedContentScope,
-                onClick = { onMusicClick(music) },
-                onMoreClick = { onMusicMoreClick(music) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun ArtistSearchResults(
-    artistResults: LazyPagingItems<Artist>,
-    onArtistClick: (Long) -> Unit,
-) {
-    PagingResultList(
-        pagingItems = artistResults,
-        emptyMessage = "未找到相关歌手",
-    ) { index ->
-        val artist = artistResults[index]
-        if (artist != null) {
-            ArtistListItem(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                artist = artist,
-                onClick = { onArtistClick(artist.id) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun AlbumSearchResults(
-    albumResults: LazyPagingItems<Album>,
-    onAlbumClick: (Album) -> Unit,
-) {
-    PagingResultList(
-        pagingItems = albumResults,
-        emptyMessage = "未找到相关专辑",
-    ) { index ->
-        val album = albumResults[index]
-        if (album != null) {
-            AlbumListItem(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                album = album,
-                onClick = { onAlbumClick(album) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun PostSearchResults(
-    postResults: LazyPagingItems<Post>,
-    applyOverrides: (Post) -> Post,
-    onPostClick: (Long) -> Unit,
-    onLikeClick: (Post) -> Unit,
-    onTagClick: (String) -> Unit,
-) {
-    when {
-        postResults.loadState.refresh is LoadState.Loading -> {
-            LoadingIndicator(useLottie = false)
-        }
-
-        postResults.loadState.refresh is LoadState.Error -> {
-            ErrorView(
-                modifier = Modifier.fillMaxSize(),
-                message = (postResults.loadState.refresh as LoadState.Error).error.message
-                    ?: "搜索失败",
-                onRetry = { postResults.retry() },
-            )
-        }
-
-        postResults.loadState.refresh is LoadState.NotLoading && postResults.itemCount == 0 -> {
-            ErrorView(
-                modifier = Modifier.fillMaxSize(),
-                message = "未找到相关帖子",
-                showIcon = false,
-            )
-        }
-
-        else -> {
-            LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalItemSpacing = 8.dp,
-            ) {
-                items(
-                    count = postResults.itemCount,
-                    key = postResults.itemKey { it.id },
-                ) { index ->
-                    val post = postResults[index] ?: return@items
-                    val displayPost = applyOverrides(post)
-                    PostNoteGridCard(
-                        post = displayPost,
-                        onClick = { onPostClick(displayPost.id) },
-                        onLikeClick = { onLikeClick(displayPost) },
-                        onTagClick = onTagClick,
-                    )
-                }
-                if (postResults.loadState.append is LoadState.Loading) {
-                    item(
-                        key = "loading_more",
-                        span = StaggeredGridItemSpan.FullLine,
-                    ) {
-                        LoadingIndicator(useLottie = false)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun <T : Any> PagingResultList(
-    pagingItems: LazyPagingItems<T>,
-    emptyMessage: String,
-    itemContent: @Composable (index: Int) -> Unit,
-) {
-    when {
-        pagingItems.loadState.refresh is LoadState.Loading -> {
-            LoadingIndicator(useLottie = false)
-        }
-
-        pagingItems.loadState.refresh is LoadState.Error -> {
-            ErrorView(
-                modifier = Modifier.fillMaxSize(),
-                message = (pagingItems.loadState.refresh as LoadState.Error).error.message
-                    ?: "搜索失败",
-                onRetry = { pagingItems.retry() },
-            )
-        }
-
-        pagingItems.loadState.refresh is LoadState.NotLoading && pagingItems.itemCount == 0 -> {
-            ErrorView(
-                modifier = Modifier.fillMaxSize(),
-                message = emptyMessage,
-                showIcon = false,
-            )
-        }
-
-        else -> {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
-            ) {
-                items(
-                    count = pagingItems.itemCount,
-                    key = { index ->
-                        pagingItems.peek(index)?.let { item ->
-                            (item as? Music)?.id?.toString()
-                                ?: (item as? Artist)?.id?.toString()
-                                ?: (item as? Album)?.id?.toString()
-                                ?: (item as? Post)?.id?.toString()
-                                ?: "search_item_$index"
-                        } ?: "search_placeholder_$index"
-                    },
-                ) { index ->
-                    itemContent(index)
-                }
-
-                when (pagingItems.loadState.append) {
-                    is LoadState.Loading -> {
-                        item(key = "loading_more") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                LoadingIndicator(useLottie = false)
-                            }
-                        }
-                    }
-
-                    is LoadState.Error -> {
-                        item(key = "error_more") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = "加载失败，点击重试",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.clickable { pagingItems.retry() },
-                                )
-                            }
-                        }
-                    }
-
-                    else -> {}
-                }
-            }
-        }
     }
 }
