@@ -1,9 +1,10 @@
 package com.fox.music.iosshared.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,101 +12,84 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fox.music.core.model.music.Music
+import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.core.ui.theme.FoxMusicTheme
 import com.fox.music.iosshared.PlayableSong
 
 /**
- * 用 Compose Multiplatform 写的歌曲列表 —— 运行在 iOS 上（iOS 模拟器/真机）。
+ * 用**共享组件库**（:core:ui）渲染的歌曲列表 —— 与 Android 端同一份代码。
  *
- * 这是 UI 迁移阶段的可行性验证：证明"同一份 Kotlin UI 代码"能在这套
- * Kotlin 2.3.21 + AGP 9 的组合下渲染到 iOS，而不只是 Android。
- * 后续正式 UI 迁移时，这里的排版应换成 core:designsystem 的中性组件
- * （当前 Android 端仍是 Material Design，迁移时会同步走 iOS HIG）。
+ * 批次 9 的关键验证点：不再是批次 8 那种在 iosShared 里手写的 demo UI，
+ * 而是直接复用 Android 端在用的 FoxMusicTheme / MusicListItem / CachedImage。
+ * CachedImage 内部的图片加载在 iOS 上走 Ktor + Skia 解码（见 core:ui 的 iosMain）。
  */
 @Composable
 fun FoxSongsScreen(
-    songs: List<PlayableSong>,
-    currentSongId: String?,
+    songs: List<Music>,
+    playingId: String?,
     isPlaying: Boolean,
     onPlaySong: (PlayableSong) -> Unit,
+    playableOf: (Music) -> PlayableSong?,
 ) {
-    MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Text(
-                    text = "FoxMusic · 共享 Compose UI",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
-                if (songs.isEmpty()) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text("加载中…", style = MaterialTheme.typography.bodyMedium)
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(songs, key = { it.id }) { song ->
-                            SongRow(
-                                song = song,
-                                isCurrent = song.id == currentSongId,
-                                isPlaying = isPlaying,
-                                onClick = { onPlaySong(song) },
-                            )
-                            HorizontalDivider()
+    FoxMusicTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            Text(
+                text = "FoxMusic · 共享组件 core:ui",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+            if (songs.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("加载中…", style = MaterialTheme.typography.bodyMedium)
+                }
+            } else {
+                // MusicListItem 需要共享元素动画作用域，这里提供最小宿主
+                SharedTransitionLayout {
+                    AnimatedContent(targetState = songs.size, label = "songs") {
+                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(songs, key = { it.id }) { music ->
+                                val isCurrent = playingId != null && music.sourceId == playingId
+                                MusicListItem(
+                                    music = music,
+                                    sharedTransitionScope = this@SharedTransitionLayout,
+                                    animatedContentScope = this@AnimatedContent,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(
+                                            if (isCurrent) {
+                                                Modifier.background(
+                                                    if (isPlaying) {
+                                                        MaterialTheme.colorScheme.primaryContainer
+                                                    } else {
+                                                        MaterialTheme.colorScheme.surfaceVariant
+                                                    },
+                                                )
+                                            } else {
+                                                Modifier
+                                            },
+                                        ),
+                                    onClick = {
+                                        playableOf(music)?.let(onPlaySong)
+                                    },
+                                )
+                                HorizontalDivider()
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SongRow(
-    song: PlayableSong,
-    isCurrent: Boolean,
-    isPlaying: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (isCurrent) {
-            Text(
-                text = if (isPlaying) "播放中" else "已暂停",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
         }
     }
 }

@@ -2,27 +2,20 @@ package com.fox.music.core.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.fox.music.core.ui.R
 
-/** 品牌展示字体 — Fraunces（衬线，用于大标题 / Logo） */
-val FoxDisplayFont = FontFamily(
-    Font(R.font.fraunces, FontWeight.Normal),
-    Font(R.font.fraunces, FontWeight.Medium),
-    Font(R.font.fraunces, FontWeight.SemiBold),
-    Font(R.font.fraunces, FontWeight.Bold),
-)
+/**
+ * 品牌展示字体 — Fraunces（衬线，用于大标题 / Logo）。
+ *
+ * 字体文件是平台资源（Android 走 res/font，iOS 走 Bundle / composeResources），
+ * 因此字体家族用 expect/actual 提供；排版尺度表本身在 commonMain 复用。
+ */
+expect val FoxDisplayFont: FontFamily
 
 /** 正文字体 — Manrope（无衬线，可读） */
-val FoxBodyFont = FontFamily(
-    Font(R.font.manrope_regular, FontWeight.Normal),
-    Font(R.font.manrope_regular, FontWeight.Medium),
-    Font(R.font.manrope_regular, FontWeight.SemiBold),
-    Font(R.font.manrope_regular, FontWeight.Bold),
-)
+expect val FoxBodyFont: FontFamily
 
 val FoxMusicTypography = Typography(
     displayLarge = TextStyle(

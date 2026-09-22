@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.common.util.MediaUrlResolver
-import coil.compose.SubcomposeAsyncImage
 
 @Composable
 fun CachedImage(
@@ -42,26 +41,29 @@ fun CachedImage(
     LaunchedEffect(imageUrl) {
         model = imageUrl
     }
-    SubcomposeAsyncImage(
-        model = processUrl(model),
+    val resolved = processUrl(model)
+    if (resolved == null) {
+        PlaceholderBox(modifier.clip(shape), icon = placeholderIcon)
+        return
+    }
+    PlatformAsyncImage(
+        url = resolved,
         contentDescription = contentDescription,
         modifier = modifier.clip(shape),
         contentScale = contentScale,
-        loading = {
+        onError = {
+            errorImageUrl?.let { model = it }
+        },
+        loadingContent = {
             PlaceholderBox(modifier = Modifier.matchParentSize(), icon = placeholderIcon)
         },
-        error = {
+        errorContent = {
             PlaceholderBox(modifier = Modifier.matchParentSize(), icon = Icons.Filled.BrokenImage)
         },
-        onError = {
-            errorImageUrl?.let {
-                model = it
-            }
-        }
     )
 }
 
-private fun processUrl(url: String?): Any? {
+private fun processUrl(url: String?): String? {
     if (url.isNullOrBlank()) return null
     return MediaUrlResolver.resolve(url) ?: url
 }

@@ -99,6 +99,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.coil.compose)
     // Core modules
     implementation(project(":core:common"))
     implementation(project(":core:model"))

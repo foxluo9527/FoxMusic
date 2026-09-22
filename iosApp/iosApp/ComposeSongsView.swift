@@ -10,7 +10,7 @@ import FoxShared
 /// 播放状态不经过这里：PlayerModel 直接写 FoxComposeState，Compose 内部重组。
 /// 因此 updateUIViewController 无需做任何事——重建 controller 反而会丢失滚动位置。
 struct ComposeSongsView: UIViewControllerRepresentable {
-    let songs: [PlayableSong]
+    let songs: [Music]
     let onPlaySong: (PlayableSong) -> Void
 
     func makeUIViewController(context: Context) -> UIViewController {

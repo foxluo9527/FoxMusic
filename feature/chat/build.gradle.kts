@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.ucrop)
     implementation(libs.xxpermissions)
     implementation(libs.coil.video)
+    implementation(libs.coil.compose)
     implementation(libs.androidx.media3.transformer)
     implementation(libs.ffmpeg.kit.min.gpl)
 

@@ -38,6 +38,8 @@ kotlin {
             api(project(":core:network"))
             api(project(":core:common"))
             api(project(":core:model"))
+            // 跨端设计系统层（批次 9 已 KMP 化）：两端共用同一套 Compose 组件
+            api(project(":core:ui"))
             // Compose Multiplatform（iOS 侧 UI，与 Android 的 androidx Compose 无关）
             implementation(compose.runtime)
             implementation(compose.foundation)

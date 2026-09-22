@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.ComposeUIViewController
 import com.fox.music.core.common.util.MediaUrlResolver
+import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.Music
 import com.fox.music.core.network.model.MusicDto
 import com.fox.music.iosshared.ui.FoxSongsScreen
 import kotlinx.coroutines.MainScope
@@ -47,6 +49,23 @@ object FoxIosBridge {
      * 把一首 MusicDto 折成 Swift 可直接播放的最小结构：
      * 用 commonMain 的 MediaUrlResolver 把相对路径补全成完整 URL（跨端复用点）。
      */
+    /**
+     * 把 DTO 折成领域模型，供共享 UI 组件（core:ui）渲染。
+     *
+     * 注意：Android 侧同名映射在 core:data 的 DtoMappers.kt（含第三方平台 ID 解析等
+     * Android 逻辑），那份还没跨端化。这里只填 UI 需要的字段，
+     * 等 core:data 迁移到 KMP 后应合并成一份。
+     */
+    fun toMusic(music: MusicDto): Music = Music(
+        id = stableId(music.id),
+        sourceId = music.id,
+        title = music.title,
+        url = music.audioUrl?.takeIf { it.isNotBlank() } ?: music.url.orEmpty(),
+        coverImage = music.coverUrl ?: music.coverImage,
+        duration = music.duration,
+        artists = music.artists.map { Artist(id = it.id ?: 0L, name = it.name) },
+    )
+
     fun toPlayableSong(music: MusicDto): PlayableSong? {
         val url = MediaUrlResolver.resolve(music.audioUrl ?: music.url) ?: return null
         return PlayableSong(
@@ -67,16 +86,35 @@ object FoxIosBridge {
      * 这是 KMP 项目里"共享 UI + 平台原生外壳"的标准接法。
      */
     fun makeSongsViewController(
-        songs: List<PlayableSong>,
+        songs: List<Music>,
         onPlaySong: (PlayableSong) -> Unit,
     ): UIViewController = ComposeUIViewController {
         FoxSongsScreen(
             songs = songs,
-            currentSongId = FoxComposeState.currentSongId,
+            playingId = FoxComposeState.currentSongId,
             isPlaying = FoxComposeState.isPlaying,
             onPlaySong = onPlaySong,
+            playableOf = { music -> toPlayableSongFromMusic(music) },
         )
     }
+
+    /** MusicListItem 点击后要把领域模型折回可播放结构交给 Swift 的 AVPlayer。 */
+    private fun toPlayableSongFromMusic(music: Music): PlayableSong? {
+        val url = MediaUrlResolver.resolve(music.url) ?: return null
+        return PlayableSong(
+            id = music.sourceId,
+            title = music.title,
+            artist = music.artists.joinToString(" / ") { it.name }.ifBlank { "未知艺术家" },
+            audioUrl = url,
+            durationMillis = music.duration,
+        )
+    }
+}
+
+/** 后端 id 是字符串（如 "1789673428265_6tem71"），领域模型要 Long —— 取稳定哈希。 */
+private fun stableId(raw: String?): Long {
+    val s = raw?.takeIf { it.isNotBlank() } ?: return 0L
+    return s.fold(0L) { acc, c -> acc * 31 + c.code }
 }
 
 /**

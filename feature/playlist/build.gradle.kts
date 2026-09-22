@@ -24,6 +24,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.coil.compose)
     implementation(project(":core:common"))
     implementation(project(":core:model"))
     implementation(project(":core:ui"))
