@@ -121,9 +121,9 @@ dependencies {
     implementation(project(":feature:playlist-android"))
     implementation(project(":feature:search-android"))
     implementation(project(":feature:discover-android"))
-    implementation(project(":feature:social"))
+    implementation(project(":feature:social-android"))
     implementation(project(":feature:chat"))
-    implementation(project(":feature:profile"))
+    implementation(project(":feature:profile-android"))
     implementation(project(":feature:automotive"))
 
     // AndroidX Core

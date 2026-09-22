@@ -1,47 +1,49 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// :feature:profile —— 个人中心 / 设置 / 用户主页的跨端部分。
+//
+//   commonMain：路由常量（LyricSettingsRoutes / UserHomeRoutes）+ 干净组件
+//              （SettingsItems / UserHomeCoverSpec）
+//   :feature:profile-android：11 个 @HiltViewModel + 全部屏幕外壳
+//     （EditProfileScreen / UserHomeScreen 依赖 android.net.Uri + uCrop，
+//      ThemeSettingsScreen / DownloadScreen 等依赖 LocalContext / Toast，只能留安卓侧）
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kotlin.multiplatform)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
+    alias(libs.plugins.compose.multiplatform)
 }
 
-android {
-    namespace = "com.fox.music.feature.profile"
-    compileSdk = 36
+kotlin {
+    iosArm64()
+    iosSimulatorArm64()
 
-    defaultConfig {
+    androidLibrary {
+        namespace = "com.fox.music.feature.profile"
+        compileSdk = 36
         minSdk = 26
+
+        withHostTestBuilder { }.configure { }
+
+        compilations.all {
+            compileTaskProvider.configure {
+                compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+            }
+        }
     }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+    sourceSets {
+        commonMain.dependencies {
+            implementation(project(":core:common"))
+            implementation(project(":core:model"))
+            implementation(project(":core:ui"))
+            implementation(project(":core:domain"))
+
+            api(compose.runtime)
+            api(compose.foundation)
+            api(compose.material3)
+            api(compose.ui)
+            api(compose.materialIconsExtended)
+        }
     }
-
-    buildFeatures {
-        compose = true
-    }
-}
-
-dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":core:model"))
-    implementation(project(":core:ui"))
-    implementation(project(":core:domain"))
-    implementation(project(":core:data"))
-    implementation(project(":core:player"))
-
-    // Hilt
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.android.compiler)
-    implementation(libs.hilt.navigation.compose)
-    
-    // Coroutines
-    implementation(libs.bundles.coroutines)
-
-    implementation(libs.ucrop)
-    implementation(libs.paging.compose)
-    
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
 }
