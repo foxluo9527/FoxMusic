@@ -1,7 +1,5 @@
 package com.fox.music.core.model.app
 
-import java.io.File
-
 data class AppUpdateInfo(
     val hasUpdate: Boolean,
     val latestVersionCode: Int,
@@ -19,12 +17,5 @@ data class AppUpdateInfo(
         forceUpdate || localVersionCode < minSupportedVersionCode
 }
 
-sealed interface ApkDownloadState {
-    data class Downloading(
-        val progress: Int,
-        val downloadedBytes: Long = 0,
-        val totalBytes: Long = 0,
-    ) : ApkDownloadState
-    data class Completed(val file: File) : ApkDownloadState
-    data class Failed(val message: String) : ApkDownloadState
-}
+// ApkDownloadState 依赖 java.io.File（APK 下载安装属 Android 专有流程），
+// 已拆分到 androidMain 的 ApkDownloadState.kt。
