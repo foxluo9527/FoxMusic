@@ -3,8 +3,8 @@
 agp = "9.0.0"
 bintrayRelease = "0.4.0"
 gson = "2.13.2"
-kotlin = "2.3.0"
-ksp = "2.3.3"
+kotlin = "2.3.21"
+ksp = "2.3.12"
 coreKtx = "1.17.0"
 appcompat = "1.7.1"
 
@@ -242,3 +242,5 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 room = { id = "androidx.room", version.ref = "room" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+android-kotlin-multiplatform = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
