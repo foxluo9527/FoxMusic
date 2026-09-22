@@ -4,8 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 //
 // 沿用批次 12 确立的 feature 层迁移标准模式：
 //   commonMain：MVI 契约（*Contract）+ 路由常量 + 纯 Compose 界面（*Content）
-//   :feature:discover-android：4 个 Hilt ViewModel、hiltViewModel() 外壳、
-//                              以及强依赖 androidx.paging 的热门歌手页（paging 只在 androidMain）
+//   :feature:discover-android：4 个 Hilt ViewModel + hiltViewModel() 外壳 + Toast
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform)
@@ -38,6 +37,10 @@ kotlin {
             implementation(project(":core:model"))
             implementation(project(":core:domain"))
             implementation(project(":core:ui"))
+
+            // 热门歌手页的分页列表（批次 14 后 paging-common / paging-compose 已在 commonMain）
+            api(libs.paging.common)
+            api(libs.paging.compose)
 
             api(compose.runtime)
             api(compose.foundation)

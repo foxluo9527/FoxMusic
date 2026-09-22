@@ -115,7 +115,7 @@ dependencies {
     // 后者 api 依赖前者，所以这里只依赖一个即可拿到全部类型。
     implementation(project(":core:network-android"))
     // Feature modules
-    implementation(project(":feature:home"))
+    implementation(project(":feature:home-android"))
     implementation(project(":feature:auth-android"))
     implementation(project(":feature:player"))
     implementation(project(":feature:playlist"))

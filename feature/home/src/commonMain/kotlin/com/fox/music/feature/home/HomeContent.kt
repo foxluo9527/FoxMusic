@@ -33,8 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,11 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Music
-import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
@@ -60,47 +56,34 @@ import com.fox.music.core.ui.theme.SearchBarShape
 
 const val HOME_ROUTE = "home"
 
+/**
+ * 首页纯界面：state + onIntent 驱动。
+ *
+ * 分页列表由 [HomeState.recommendedMusic] 的 Flow<PagingData<Music>> 驱动——
+ * 批次 14 之后 paging-common / paging-compose 已在 commonMain，因此这块 UI 能跨端。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    modifier: Modifier = Modifier,
+fun HomeContent(
+    state: HomeState,
+    onIntent: (HomeIntent) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    viewModel: HomeViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
-    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
-    onPlaylistClick: (Long) -> Unit = {},
-    onAlbumClick: (Long) -> Unit = {},
+    modifier: Modifier = Modifier,
+    onMusicClick: (Music) -> Unit = {},
     onSearchClick: () -> Unit = {},
-    onPlaylistCategoryClick: () -> Unit = {},
-    onAlbumCategoryClick: () -> Unit = {},
+    onPlaylistMoreClick: () -> Unit = {},
+    onAlbumMoreClick: () -> Unit = {},
     onRecommendClick: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
+    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
+    onRecommendedMusicChanged: (List<Music>) -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsState()
     val recommendedMusicPagingItems = state.recommendedMusic.collectAsLazyPagingItems()
-
-    LaunchedEffect(Unit) {
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                is HomeEffect.NavigateToMusic -> onMusicClick(
-                    effect.music,
-                    effect.musicList,
-                    HOME_ROUTE,
-                    null,
-                )
-                is HomeEffect.NavigateToPlaylist -> onPlaylistClick(effect.playlistId)
-                is HomeEffect.NavigateToAlbum -> onAlbumClick(effect.albumId)
-                is HomeEffect.NavigateToSearch -> onSearchClick()
-                is HomeEffect.NavigateToPlaylistCategory -> onPlaylistCategoryClick()
-                is HomeEffect.NavigateToAlbumCategory -> onAlbumCategoryClick()
-            }
-        }
-    }
 
     LaunchedEffect(recommendedMusicPagingItems.itemSnapshotList.items) {
         val items = recommendedMusicPagingItems.itemSnapshotList.items
-        viewModel.updateCurrentMusicList(items)
+        onRecommendedMusicChanged(items)
         if (items.isNotEmpty()) {
             updateMusicList(items, HOME_ROUTE)
         }
@@ -109,7 +92,7 @@ fun HomeScreen(
     with(sharedTransitionScope) {
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
-            onRefresh = { viewModel.sendIntent(HomeIntent.Refresh) },
+            onRefresh = { onIntent(HomeIntent.Refresh) },
             modifier = modifier.fillMaxSize(),
         ) {
             LazyVerticalGrid(
@@ -130,7 +113,7 @@ fun HomeScreen(
                     contentType = "hero",
                 ) {
                     HomeBrandHero(
-                        onSearchClick = { viewModel.onSearchClick() },
+                        onSearchClick = onSearchClick,
                         hotHint = state.hotKeywords.firstOrNull()?.keyword,
                     )
                 }
@@ -150,7 +133,7 @@ fun HomeScreen(
                     ) {
                         RecentPlaysRow(
                             recentPlays = state.recentPlays,
-                            onMusicClick = { music -> viewModel.onMusicClick(music) },
+                            onMusicClick = onMusicClick,
                         )
                     }
                 }
@@ -163,7 +146,7 @@ fun HomeScreen(
                     ) {
                         SectionHeader(
                             title = "推荐歌单",
-                            onMoreClick = { viewModel.onPlaylistMoreClick() },
+                            onMoreClick = onPlaylistMoreClick,
                         )
                     }
                     items(
@@ -176,7 +159,7 @@ fun HomeScreen(
                             playlist = playlist,
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
-                            onClick = { viewModel.sendIntent(HomeIntent.OnPlaylistClick(playlist)) },
+                            onClick = { onIntent(HomeIntent.OnPlaylistClick(playlist)) },
                         )
                     }
                 }
@@ -203,7 +186,7 @@ fun HomeScreen(
                             music = music,
                             sharedTransitionScope = this@with,
                             animatedContentScope = animatedContentScope,
-                            onClick = { viewModel.onMusicClick(music) },
+                            onClick = { onMusicClick(music) },
                             onMoreClick = { onMusicMoreClick(music) },
                         )
                     }
@@ -217,7 +200,7 @@ fun HomeScreen(
                     ) {
                         SectionHeader(
                             title = "热门专辑",
-                            onMoreClick = { viewModel.onAlbumMoreClick() },
+                            onMoreClick = onAlbumMoreClick,
                         )
                     }
                     items(
@@ -230,7 +213,7 @@ fun HomeScreen(
                             album = album,
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
-                            onClick = { viewModel.sendIntent(HomeIntent.OnAlbumClick(album)) },
+                            onClick = { onIntent(HomeIntent.OnAlbumClick(album)) },
                         )
                     }
                 }

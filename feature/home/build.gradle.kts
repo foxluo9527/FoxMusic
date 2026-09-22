@@ -1,42 +1,51 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// :feature:home —— 首页的跨端部分。
+//
+// 批次 14 把 paging-common / paging-compose 拉进 commonMain 之后，
+// 首页那条 Flow<PagingData<Music>> 的「为你精选」列表也能进 commonMain 了。
+//   commonMain：HomeContract + HOME_ROUTE + HomeContent（纯 Compose，含分页列表）
+//   :feature:home-android：HomeViewModel（Hilt）+ hiltViewModel() 外壳
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kotlin.multiplatform)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
+    alias(libs.plugins.compose.multiplatform)
 }
 
-android {
-    namespace = "com.fox.music.feature.home"
-    compileSdk = 36
+kotlin {
+    iosArm64()
+    iosSimulatorArm64()
 
-    defaultConfig {
+    androidLibrary {
+        namespace = "com.fox.music.feature.home"
+        compileSdk = 36
         minSdk = 26
+
+        withHostTestBuilder { }.configure { }
+
+        compilations.all {
+            compileTaskProvider.configure {
+                compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+            }
+        }
     }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
+    sourceSets {
+        commonMain.dependencies {
+            implementation(project(":core:common"))
+            implementation(project(":core:model"))
+            implementation(project(":core:domain"))
+            implementation(project(":core:ui"))
 
-    buildFeatures {
-        compose = true
-    }
-}
+            api(libs.paging.common)
+            api(libs.paging.compose)
 
-dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":core:model"))
-    implementation(project(":core:ui"))
-    implementation(project(":core:domain"))
-    
-    // Hilt
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.android.compiler)
-    implementation(libs.hilt.navigation.compose)
-    
-    // Coroutines
-    implementation(libs.bundles.coroutines)
-    
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
+            api(compose.runtime)
+            api(compose.foundation)
+            api(compose.material3)
+            api(compose.ui)
+            api(compose.materialIconsExtended)
+        }
+    }
 }

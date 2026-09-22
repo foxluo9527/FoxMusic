@@ -59,6 +59,7 @@ include(":core:player")
 include(":iosShared")
 // Feature modules
 include(":feature:home")
+include(":feature:home-android")
 include(":feature:auth")
 include(":feature:auth-android")
 include(":feature:player")
