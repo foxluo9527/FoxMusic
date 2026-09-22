@@ -19,10 +19,10 @@ import com.fox.music.core.ui.R
 import com.fox.music.core.ui.theme.FoxMusicTheme
 
 @Composable
-fun LoadingIndicator(
-    modifier: Modifier = Modifier.fillMaxSize(),
-    useLottie: Boolean = false,
-    useSkeleton: Boolean = true,
+actual fun LoadingIndicator(
+    modifier: Modifier,
+    useLottie: Boolean,
+    useSkeleton: Boolean,
 ) {
     Box(
         modifier = modifier,

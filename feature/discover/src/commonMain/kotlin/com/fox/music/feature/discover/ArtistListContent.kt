@@ -17,54 +17,41 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.ui.component.AlphabetIndexBar
 import com.fox.music.core.ui.component.ArtistListItem
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.SectionLetterHeader
-import androidx.compose.material3.TopAppBarDefaults
+import kotlinx.coroutines.launch
 
-const val ALL_ARTIST_LIST_ROUTE = "all_artist_list"
-
+/**
+ * 全部歌手页纯界面：state + onIntent 驱动，字母索引滚动逻辑完全跨端。
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ArtistListScreen(
+fun ArtistListContent(
+    state: ArtistListState,
+    onIntent: (ArtistListIntent) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: ArtistListViewModel = hiltViewModel(),
     onArtistClick: (Long) -> Unit = {},
     onBackClick: () -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        viewModel.sendIntent(ArtistListIntent.Load)
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                is ArtistListEffect.NavigateToArtist -> onArtistClick(effect.artistId)
-                ArtistListEffect.NavigateBack -> onBackClick()
-            }
-        }
-    }
 
     Column(modifier = modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("全部歌手") },
             navigationIcon = {
-                IconButton(onClick = { viewModel.onBackClick() }) {
+                IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
                         contentDescription = "返回",
@@ -84,7 +71,7 @@ fun ArtistListScreen(
                 ErrorView(
                     modifier = Modifier.fillMaxSize(),
                     message = state.error ?: "加载失败",
-                    onRetry = { viewModel.sendIntent(ArtistListIntent.Load) },
+                    onRetry = { onIntent(ArtistListIntent.Load) },
                 )
             }
 
@@ -118,7 +105,7 @@ fun ArtistListScreen(
                             ) { artist ->
                                 ArtistListItem(
                                     artist = artist,
-                                    onClick = { viewModel.onArtistClick(artist.id) },
+                                    onClick = { onArtistClick(artist.id) },
                                 )
                             }
                         }

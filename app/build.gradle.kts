@@ -120,7 +120,7 @@ dependencies {
     implementation(project(":feature:player"))
     implementation(project(":feature:playlist"))
     implementation(project(":feature:search"))
-    implementation(project(":feature:discover"))
+    implementation(project(":feature:discover-android"))
     implementation(project(":feature:social"))
     implementation(project(":feature:chat"))
     implementation(project(":feature:profile"))

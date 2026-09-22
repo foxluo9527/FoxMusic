@@ -1,6 +1,5 @@
 package com.fox.music.feature.discover
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
@@ -18,8 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -43,7 +42,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,42 +51,39 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.Music
-import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
 import com.fox.music.core.ui.component.SectionHeader
 
-const val ARTIST_DETAIL_ROUTE = "artist_detail/{artistId}"
-
-fun artistDetailRoute(artistId: Long) = "artist_detail/$artistId"
-
+/**
+ * 歌手详情页纯界面。
+ *
+ * Toast 不在这里弹——[ArtistDetailEffect.ShowToast] 由 Android 外壳用 LocalContext 处理，
+ * 这样这块 UI 才能进 commonMain（LocalContext 是 Android 专属）。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ArtistDetailScreen(
-    modifier: Modifier = Modifier,
+fun ArtistDetailContent(
+    state: ArtistDetailState,
+    onIntent: (ArtistDetailIntent) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    viewModel: ArtistDetailViewModel = hiltViewModel(),
-    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
-    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
+    modifier: Modifier = Modifier,
+    onMusicClick: (Music) -> Unit = {},
     onAlbumClick: (Album) -> Unit = {},
     onBack: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
-    onArtistClick: (Long) -> Unit = {},
+    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
 ) {
-    val state by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
     val artist = state.artist
     val playlistKey = "artist_detail/${artist?.id ?: 0}"
     val listState = rememberLazyListState()
@@ -103,21 +98,6 @@ fun ArtistDetailScreen(
     LaunchedEffect(state.hotMusics, artist?.id) {
         if (state.hotMusics.isNotEmpty()) {
             updateMusicList(state.hotMusics, playlistKey)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                is ArtistDetailEffect.NavigateToMusic -> {
-                    onMusicClick(effect.music, effect.musicList, playlistKey, null)
-                }
-
-                is ArtistDetailEffect.NavigateToAlbum -> onAlbumClick(effect.album)
-                is ArtistDetailEffect.ShowToast -> {
-                    Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
-                }
-            }
         }
     }
 
@@ -160,7 +140,7 @@ fun ArtistDetailScreen(
                 actions = {
                     if (artist != null) {
                         IconButton(
-                            onClick = { viewModel.sendIntent(ArtistDetailIntent.ToggleFavorite) },
+                            onClick = { onIntent(ArtistDetailIntent.ToggleFavorite) },
                             enabled = !state.isFavoriteLoading,
                         ) {
                             if (showCollapsedTitle) {
@@ -203,7 +183,7 @@ fun ArtistDetailScreen(
                         .fillMaxSize()
                         .padding(innerPadding),
                     message = state.error ?: "加载失败",
-                    onRetry = { viewModel.sendIntent(ArtistDetailIntent.Load) },
+                    onRetry = { onIntent(ArtistDetailIntent.Load) },
                 )
             }
 
@@ -215,11 +195,11 @@ fun ArtistDetailScreen(
                     listState = listState,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
-                    onMusicClick = viewModel::onMusicClick,
-                    onAlbumClick = viewModel::onAlbumClick,
+                    onMusicClick = onMusicClick,
+                    onAlbumClick = onAlbumClick,
                     onMusicMoreClick = onMusicMoreClick,
                     onFavoriteClick = {
-                        viewModel.sendIntent(ArtistDetailIntent.ToggleFavorite)
+                        onIntent(ArtistDetailIntent.ToggleFavorite)
                     },
                     onHeaderHeightMeasured = { headerHeightPx = it },
                     isFavoriteLoading = state.isFavoriteLoading,
@@ -260,7 +240,7 @@ private fun ArtistDetailBody(
                 isFavoriteLoading = isFavoriteLoading,
                 modifier = Modifier.onGloballyPositioned { coordinates ->
                     onHeaderHeightMeasured(coordinates.size.height.toFloat())
-                }
+                },
             )
         }
 
@@ -320,7 +300,7 @@ private fun ArtistDetailHeader(
     artist: Artist,
     modifier: Modifier = Modifier,
     onFavoriteClick: () -> Unit,
-    isFavoriteLoading: Boolean
+    isFavoriteLoading: Boolean,
 ) {
     Row(
         modifier = modifier

@@ -1,42 +1,49 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// :feature:discover —— 发现 / 歌手列表 / 歌手详情的跨端部分。
+//
+// 沿用批次 12 确立的 feature 层迁移标准模式：
+//   commonMain：MVI 契约（*Contract）+ 路由常量 + 纯 Compose 界面（*Content）
+//   :feature:discover-android：4 个 Hilt ViewModel、hiltViewModel() 外壳、
+//                              以及强依赖 androidx.paging 的热门歌手页（paging 只在 androidMain）
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kotlin.multiplatform)
+    // CMP 1.6.10+ 要求同时应用 Kotlin 官方的 compose 编译器插件
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
+    alias(libs.plugins.compose.multiplatform)
 }
 
-android {
-    namespace = "com.fox.music.feature.discover"
-    compileSdk = 36
+kotlin {
+    iosArm64()
+    iosSimulatorArm64()
 
-    defaultConfig {
+    androidLibrary {
+        namespace = "com.fox.music.feature.discover"
+        compileSdk = 36
         minSdk = 26
+
+        withHostTestBuilder { }.configure { }
+
+        compilations.all {
+            compileTaskProvider.configure {
+                compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+            }
+        }
     }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+    sourceSets {
+        commonMain.dependencies {
+            implementation(project(":core:common"))
+            implementation(project(":core:model"))
+            implementation(project(":core:domain"))
+            implementation(project(":core:ui"))
+
+            api(compose.runtime)
+            api(compose.foundation)
+            api(compose.material3)
+            api(compose.ui)
+            api(compose.materialIconsExtended)
+        }
     }
-
-    buildFeatures {
-        compose = true
-    }
-}
-
-dependencies {
-    implementation(project(":core:common"))
-    implementation(project(":core:model"))
-    implementation(project(":core:ui"))
-    implementation(project(":core:domain"))
-
-    // Hilt
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.android.compiler)
-    implementation(libs.hilt.navigation.compose)
-    
-    // Coroutines
-    implementation(libs.bundles.coroutines)
-    
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
 }

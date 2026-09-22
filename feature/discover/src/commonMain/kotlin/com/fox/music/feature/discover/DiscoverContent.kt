@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,11 +17,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -33,73 +33,43 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.Music
-import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.core.ui.component.CachedImage
-import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.component.HotKeywordsCarousel
 import com.fox.music.core.ui.component.MusicListItem
 import com.fox.music.core.ui.component.SectionHeader
+import com.fox.music.core.ui.theme.FoxSpacing
 
-const val DISCOVER_ROUTE = "discover"
-
+/**
+ * 发现页纯界面：只依赖 [DiscoverState] 与 [DiscoverIntent]，不碰 Hilt / ViewModel。
+ * Android 外壳（:feature:discover-android 的 DiscoverScreen）负责 hiltViewModel() 与 effect 收集。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiscoverScreen(
-    modifier: Modifier = Modifier,
-    viewModel: DiscoverViewModel = hiltViewModel(),
+fun DiscoverContent(
+    state: DiscoverState,
+    onIntent: (DiscoverIntent) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
-    onMusicClick: (Music, List<Music>, String, PlaybackPlaylistSource?) -> Unit = { _, _, _, _ -> },
-    updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
-    onRankClick: (Long) -> Unit = {},
-    onArtistClick: (Long) -> Unit = {},
+    modifier: Modifier = Modifier,
     onSearchClick: () -> Unit = {},
-    onNewMusicMore:()->Unit={},
+    onNewMusicMore: () -> Unit = {},
     onHotArtistMore: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
 ) {
-    val state by viewModel.uiState.collectAsState()
-
-    LaunchedEffect(Unit) {
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                is DiscoverEffect.NavigateToMusic -> onMusicClick(
-                    effect.music,
-                    state.newMusic,
-                    DISCOVER_ROUTE,
-                    null,
-                )
-                is DiscoverEffect.NavigateToRank -> onRankClick(effect.rankId)
-                is DiscoverEffect.NavigateToArtist -> onArtistClick(effect.artistId)
-                is DiscoverEffect.NavigateToSearch -> { onSearchClick() }
-            }
-        }
-    }
-
-    LaunchedEffect(state.newMusic) {
-        if (state.newMusic.isNotEmpty()) {
-            updateMusicList(state.newMusic, DISCOVER_ROUTE)
-        }
-    }
-
     with(sharedTransitionScope) {
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
-            onRefresh = { viewModel.sendIntent(DiscoverIntent.Refresh) },
+            onRefresh = { onIntent(DiscoverIntent.Refresh) },
             modifier = modifier.fillMaxSize(),
         ) {
             LazyVerticalGrid(
@@ -134,7 +104,7 @@ fun DiscoverScreen(
                         )
                         HotKeywordsCarousel(
                             keywords = state.hotKeywords,
-                            onSearchClick = { viewModel.onSearchClick() },
+                            onSearchClick = onSearchClick,
                         )
                     }
                 }
@@ -145,7 +115,7 @@ fun DiscoverScreen(
                     item(
                         span = { GridItemSpan(4) },
                         key = "rank_header",
-                        contentType = "section_header"
+                        contentType = "section_header",
                     ) {
                         SectionHeader(
                             title = "热门榜单",
@@ -157,13 +127,13 @@ fun DiscoverScreen(
                     item(
                         span = { GridItemSpan(4) },
                         key = "rank_pager",
-                        contentType = "rank_pager"
+                        contentType = "rank_pager",
                     ) {
                         RankPager(
                             ranks = state.ranks,
                             rankDetails = state.rankDetails,
                             onRankClick = { rank ->
-                                viewModel.sendIntent(DiscoverIntent.OnRankClick(rank))
+                                onIntent(DiscoverIntent.OnRankClick(rank))
                             },
                             modifier = Modifier.padding(vertical = 8.dp),
                         )
@@ -176,7 +146,7 @@ fun DiscoverScreen(
                     item(
                         span = { GridItemSpan(4) },
                         key = "new_music_header",
-                        contentType = "section_header"
+                        contentType = "section_header",
                     ) {
                         SectionHeader(
                             title = "新歌速递",
@@ -190,7 +160,7 @@ fun DiscoverScreen(
                         count = minOf(state.newMusic.size, 5),
                         key = { index -> "new_music_${state.newMusic[index].id}" },
                         span = { GridItemSpan(4) },
-                        contentType = { "music_item" }
+                        contentType = { "music_item" },
                     ) { index ->
                         val music = state.newMusic[index]
                         MusicListItem(
@@ -198,7 +168,7 @@ fun DiscoverScreen(
                             music = music,
                             sharedTransitionScope = this@with,
                             animatedContentScope = animatedContentScope,
-                            onClick = { viewModel.sendIntent(DiscoverIntent.OnMusicClick(music)) },
+                            onClick = { onIntent(DiscoverIntent.OnMusicClick(music)) },
                             onMoreClick = { onMusicMoreClick(music) },
                         )
                     }
@@ -210,7 +180,7 @@ fun DiscoverScreen(
                     item(
                         span = { GridItemSpan(4) },
                         key = "artist_header",
-                        contentType = "section_header"
+                        contentType = "section_header",
                     ) {
                         SectionHeader(
                             title = "热门歌手",
@@ -223,12 +193,12 @@ fun DiscoverScreen(
                     items(
                         count = state.hotArtists.size,
                         key = { index -> "artist_${state.hotArtists[index].id}" },
-                        contentType = { "artist_item" }
+                        contentType = { "artist_item" },
                     ) { index ->
                         val artist = state.hotArtists[index]
                         ArtistGridItem(
                             artist = artist,
-                            onClick = { viewModel.sendIntent(DiscoverIntent.OnArtistClick(artist)) },
+                            onClick = { onIntent(DiscoverIntent.OnArtistClick(artist)) },
                         )
                     }
                 }
@@ -336,7 +306,7 @@ private fun RankCard(
                     }
                 }
                 if (detail.tracks.list.size < 4) {
-                    repeat(4-detail.tracks.list.size){
+                    repeat(4 - detail.tracks.list.size) {
                         Spacer(modifier = Modifier.height(46.dp))
                     }
                 }
@@ -361,7 +331,11 @@ private fun RankMusicItem(
             text = index.toString().padStart(2, '0'),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = if (index <= 3) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (index <= 3) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
             modifier = Modifier.width(24.dp),
             textAlign = TextAlign.Center,
         )
