@@ -24,34 +24,10 @@ app/keystore/
 .kotlin/
 .cursor/
 app/release/
-# Project exclude paths
-/core/common/build/
-/core/common/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/core/data/build/
-/core/data/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/core/database/build/
-/core/database/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/core/datastore/build/
-/core/datastore/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/core/domain/build/
-/core/domain/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/core/model/build/
-/core/network/build/
-/core/network/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/core/player/build/
-/core/player/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/core/ui/build/
-/feature/auth/build/
-/feature/auth/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/feature/chat/build/
-/feature/discover/build/
-/feature/discover/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/feature/home/build/
-/feature/home/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
-/feature/player/build/
-/feature/playlist/build/
-/feature/profile/build/
-/feature/search/build/
-/feature/social/build/
-/feature/automotive/build/
-/feature/automotive/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
+
+# Gradle 构建产物。
+# 原先这里是逐模块列举（/core/common/build/、/feature/home/build/ …），每新增一个模块
+# 都要记得补一行，否则 git add -A 会把整个 build/ 目录提交进去 —— KMP 迁移期间新增模块
+# 很频繁，已经踩过一次（一次 add -A 带进了 885 个产物文件）。改成通配规则后，
+# 任意层级、任意模块的 build/ 都会被忽略，新增模块无需再改本文件。
+build/

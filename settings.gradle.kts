@@ -43,11 +43,13 @@ include(":app")
 
 // Core modules
 include(":core:common")
+include(":core:common-android")
 include(":core:model")
 include(":core:ui")
 include(":core:domain")
 include(":core:data")
 include(":core:network")
+include(":core:network-android")
 include(":core:database")
 include(":core:datastore")
 include(":core:player")

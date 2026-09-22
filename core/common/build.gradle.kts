@@ -4,10 +4,9 @@ plugins {
     // AGP 9 下 com.android.library 不能与 KMP 插件共存，改用 KMP 专用的 Android 库插件
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform)
-    // 注意：本模块不能应用 Hilt 的 Gradle 插件 —— 它会报
-    // "The Hilt Android Gradle plugin can only be applied to an Android project."
-    // 因此也不再用 KSP。模块内的 @Module @InstallIn 类由 :app 侧的 Hilt 聚合处理发现，
-    // 若发现不到会在 :app 编译期以 MissingBinding 报错（已验证通过）。
+    // 这里不能用 KSP/Hilt：KMP 模块没有 Java 编译任务，而 Hilt/Dagger 生成的
+    // hilt_aggregated_deps 存根与 *Factory.java 都是 Java，放进来会被静默丢弃。
+    // 带 Dagger 注解的文件因此挪到了 :core:common-android。
 }
 
 // 原先走 AGP 的 buildConfigField，但 BuildConfig 是 Android 专有产物，
@@ -74,17 +73,17 @@ kotlin {
             }
         }
 
-        androidMain.dependencies {
-            api(libs.androidx.core.ktx)
-            api(libs.kotlinx.coroutines.android)
-            api(libs.timber)
-            api(libs.bundles.lifecycle)
-            api(libs.utilcodex)
-            api(libs.xxpermissions)
-            api(libs.github.glide)
-            api(libs.glide.transformations)
-            // 仅需注解（@Module / @InstallIn），不需要注解处理器
-            implementation(libs.hilt.android)
+        androidMain {
+            dependencies {
+                api(libs.androidx.core.ktx)
+                api(libs.kotlinx.coroutines.android)
+                api(libs.timber)
+                api(libs.bundles.lifecycle)
+                api(libs.utilcodex)
+                api(libs.xxpermissions)
+                api(libs.github.glide)
+                api(libs.glide.transformations)
+            }
         }
 
         named("androidHostTest") {
