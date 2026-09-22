@@ -3,13 +3,13 @@ package com.fox.music.core.common.util
 import android.icu.text.Transliterator
 import java.util.Locale
 
-object PinyinUtils {
+actual object PinyinUtils {
 
     private val transliterator: Transliterator by lazy {
         Transliterator.getInstance("Han-Latin/Names")
     }
 
-    fun getInitialLetter(name: String): Char {
+    actual fun getInitialLetter(name: String): Char {
         if (name.isBlank()) return '#'
         val trimmed = name.trim()
         val first = trimmed.first()
@@ -27,7 +27,7 @@ object PinyinUtils {
         }
     }
 
-    fun getSortKey(name: String): String {
+    actual fun getSortKey(name: String): String {
         if (name.isBlank()) return ""
         return buildString {
             name.forEach { char ->
