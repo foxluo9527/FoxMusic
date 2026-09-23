@@ -117,7 +117,7 @@ dependencies {
     // Feature modules
     implementation(project(":feature:home-android"))
     implementation(project(":feature:auth-android"))
-    implementation(project(":feature:player"))
+    implementation(project(":feature:player-android"))
     implementation(project(":feature:playlist-android"))
     implementation(project(":feature:search-android"))
     implementation(project(":feature:discover-android"))
