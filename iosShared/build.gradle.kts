@@ -48,6 +48,7 @@ kotlin {
             api(project(":feature:home"))
             api(project(":feature:discover"))
             api(project(":feature:search"))
+            api(project(":feature:auth"))
             // Compose Multiplatform（iOS 侧 UI，与 Android 的 androidx Compose 无关）
             implementation(compose.runtime)
             implementation(compose.foundation)

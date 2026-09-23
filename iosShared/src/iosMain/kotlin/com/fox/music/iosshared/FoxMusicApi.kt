@@ -6,16 +6,30 @@ import com.fox.music.core.network.model.ApiResponse
 import com.fox.music.core.network.model.ArtistDetailDto
 import com.fox.music.core.network.model.ArtistDto
 import com.fox.music.core.model.music.HotKeyword
+import com.fox.music.core.network.model.ForgotPasswordRequest
+import com.fox.music.core.network.model.LoginRequest
+import com.fox.music.core.network.model.LoginResponse
 import com.fox.music.core.network.model.MusicDto
 import com.fox.music.core.network.model.PagedResponse
+import com.fox.music.core.network.model.PlayHistoryDto
 import com.fox.music.core.network.model.PlaylistDetailDto
 import com.fox.music.core.network.model.PlaylistDto
+import com.fox.music.core.network.model.RegisterRequest
+import com.fox.music.core.network.model.ResetPasswordRequest
+import com.fox.music.core.network.model.UserDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.darwin.Darwin
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
@@ -28,9 +42,9 @@ import kotlinx.serialization.json.Json
  * 注意：后端是纯 http://，iOS ATS 默认拦截明文请求 —— 例外在 iosApp 的
  * Info.plist（NSAllowsArbitraryLoads，与 Android 的全局明文放行对齐）。
  *
- * 未登录：最近在听（/api/music-history 系列接口）后端强制 req.user，iOS 侧暂不可用，
- * HomeState.recentPlays 置空即可（HomeContent 自带空态）；其余接口后端均为 noAuth
- * 或 optionalAuth。
+ * 登录态：`Authorization: Bearer <token>` 由 [defaultRequest] 在每次请求时从
+ * [FoxAuthStore] 现取，因此登录后无需重建 HttpClient。最近在听
+ * （api/music-history 系列）后端强制 req.user，故仅在已登录时有数据。
  */
 class FoxMusicApi {
 
@@ -43,6 +57,141 @@ class FoxMusicApi {
                 }
             )
         }
+        // defaultRequest 的 lambda 是「每次请求」求值，所以能读到运行期变化的令牌。
+        defaultRequest {
+            FoxAuthStore.token?.takeIf { it.isNotBlank() }?.let {
+                header(HttpHeaders.Authorization, "Bearer $it")
+            }
+        }
+    }
+
+    // ---------- 登录 / 注册 / 找回密码 ----------
+
+    /** POST api/auth/login —— 成功即写入 [FoxAuthStore]，失败返回后端 message。 */
+    suspend fun login(username: String, password: String): AuthResult = try {
+        val response: ApiResponse<LoginResponse> = client
+            .post("${FoxNetworkConfig.API_BASE_URL}api/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest(username = username, password = password))
+            }
+            .body()
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            AuthResult(
+                success = true,
+                message = null,
+                user = data.user.toAuthUser(),
+                token = data.token,
+                refreshToken = data.refreshToken,
+            )
+        } else {
+            AuthResult(
+                success = false,
+                message = response.message.ifBlank { "登录失败，请检查账号或密码" },
+                user = null,
+            )
+        }
+    } catch (e: Exception) {
+        AuthResult(success = false, message = e.readableMessage("登录失败，请稍后重试"), user = null)
+    }
+
+    /** POST api/auth/register —— 成功后后端同样返回 token + user。 */
+    suspend fun register(username: String, password: String, email: String): AuthResult = try {
+        val response: ApiResponse<LoginResponse> = client
+            .post("${FoxNetworkConfig.API_BASE_URL}api/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody(RegisterRequest(username = username, password = password, email = email))
+            }
+            .body()
+        val data = response.data
+        if (response.isSuccess && data != null) {
+            AuthResult(
+                success = true,
+                message = null,
+                user = data.user.toAuthUser(),
+                token = data.token,
+                refreshToken = data.refreshToken,
+            )
+        } else {
+            AuthResult(
+                success = false,
+                message = response.message.ifBlank { "注册失败，请检查填写内容" },
+                user = null,
+            )
+        }
+    } catch (e: Exception) {
+        AuthResult(success = false, message = e.readableMessage("注册失败，请稍后重试"), user = null)
+    }
+
+    /** POST api/auth/forgot-password —— 发送邮箱验证码。 */
+    suspend fun forgetPassword(email: String): AuthResult = try {
+        val response: ApiResponse<Unit> = client
+            .post("${FoxNetworkConfig.API_BASE_URL}api/auth/forgot-password") {
+                contentType(ContentType.Application.Json)
+                setBody(ForgotPasswordRequest(email = email))
+            }
+            .body()
+        if (response.isSuccess) {
+            AuthResult(success = true, message = null, user = null)
+        } else {
+            AuthResult(
+                success = false,
+                message = response.message.ifBlank { "验证码发送失败" },
+                user = null,
+            )
+        }
+    } catch (e: Exception) {
+        AuthResult(success = false, message = e.readableMessage("验证码发送失败"), user = null)
+    }
+
+    /** POST api/auth/reset-password —— 校验码 + 新密码。 */
+    suspend fun resetPassword(email: String, code: String, newPassword: String): AuthResult = try {
+        val response: ApiResponse<Unit> = client
+            .post("${FoxNetworkConfig.API_BASE_URL}api/auth/reset-password") {
+                contentType(ContentType.Application.Json)
+                setBody(
+                    ResetPasswordRequest(
+                        email = email,
+                        code = code,
+                        newPassword = newPassword,
+                    )
+                )
+            }
+            .body()
+        if (response.isSuccess) {
+            AuthResult(success = true, message = null, user = null)
+        } else {
+            AuthResult(
+                success = false,
+                message = response.message.ifBlank { "密码重置失败" },
+                user = null,
+            )
+        }
+    } catch (e: Exception) {
+        AuthResult(success = false, message = e.readableMessage("密码重置失败"), user = null)
+    }
+
+    /** GET api/auth/profile —— 用当前令牌换取用户资料（判断令牌是否仍有效）。 */
+    suspend fun fetchProfile(): UserDto? = try {
+        val response: ApiResponse<UserDto> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/auth/profile")
+            .body()
+        if (response.isSuccess) response.data else null
+    } catch (e: Exception) {
+        null
+    }
+
+    // ---------- 需登录的内容 ----------
+
+    /** GET api/music-history —— 最近在听（后端强制 req.user）。 */
+    suspend fun fetchPlayHistory(page: Int = 1, limit: Int = 20): List<PlayHistoryDto> {
+        val response: ApiResponse<PagedResponse<PlayHistoryDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/music-history") {
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data?.list.orEmpty()
     }
 
     /** GET /api/music —— 新歌/推荐歌曲分页（后端 noAuth）。 */
@@ -195,3 +344,16 @@ class FoxMusicApi {
         return response.data?.list.orEmpty()
     }
 }
+
+/** 网络层异常在 UI 上要可读：优先异常自带信息，缺省用兜底文案。 */
+private fun Exception.readableMessage(fallback: String): String =
+    message?.takeIf { it.isNotBlank() } ?: fallback
+
+/** UserDto → Swift 可直接消费的精简用户结构。 */
+fun UserDto.toAuthUser(): AuthUser = AuthUser(
+    id = id,
+    username = username,
+    nickname = nickname?.takeIf { it.isNotBlank() } ?: username,
+    avatarUrl = avatar,
+    email = email,
+)
