@@ -3,7 +3,6 @@ package com.fox.music.iosshared
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.window.ComposeUIViewController
 import com.fox.music.core.common.util.MediaUrlResolver
 import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.model.music.Music
@@ -71,6 +70,8 @@ object FoxIosBridge {
             durationMillis = music.duration,
             lyric = music.lyrics,
             lyricTrans = music.lyricsTrans,
+            commentCount = music.commentCount,
+            isFavorite = music.isFavorite ?: music.isFavoriteCompat ?: false,
         )
     }
 
@@ -85,7 +86,7 @@ object FoxIosBridge {
     fun makeSongsViewController(
         songs: List<Music>,
         onPlaySong: (PlayableSong) -> Unit,
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController {
         FoxSongsScreen(
             songs = songs,
             playingId = FoxComposeState.currentSongId,
@@ -107,6 +108,7 @@ object FoxIosBridge {
             durationMillis = music.duration,
             lyric = music.lyrics,
             lyricTrans = music.lyricsTrans,
+            commentCount = music.commentCount,
         )
     }
 }
@@ -121,7 +123,8 @@ object FoxComposeState {
 }
 
 /** Swift 侧直接消费的可播放条目（比 MusicDto 小，避免 Swift 感知完整 DTO 结构）。
- * coverUrl / lyric / lyricTrans 用于全屏播放器与歌词展示（Kotlin 侧只透传，解析在 Swift）。 */
+ * coverUrl / lyric / lyricTrans 用于全屏播放器与歌词展示（Kotlin 侧只透传，解析在 Swift）。
+ * commentCount / isFavorite 供播放器展示评论数与收藏态。 */
 data class PlayableSong(
     val id: String,
     val title: String,
@@ -131,4 +134,6 @@ data class PlayableSong(
     val durationMillis: Long,
     val lyric: String? = null,
     val lyricTrans: String? = null,
+    val commentCount: Int = 0,
+    val isFavorite: Boolean = false,
 )

@@ -11,6 +11,10 @@
 		B10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ContentView.swift */; };
 		B10000000000000000000003 /* PlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* PlayerModel.swift */; };
 		B10000000000000000000009 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000C /* PlayerView.swift */; };
+		B1000000000000000000000A /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000D /* AuthStore.swift */; };
+		B1000000000000000000000B /* ProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* ProfileTabView.swift */; };
+		B1000000000000000000000C /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* ToastCenter.swift */; };
+		B1000000000000000000000D /* PlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* PlayerSheets.swift */; };
 		B10000000000000000000004 /* FoxShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* FoxShared.framework */; };
 		B10000000000000000000005 /* ComposeSongsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* ComposeSongsView.swift */; };
 		B10000000000000000000006 /* FoxMusicUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* FoxMusicUITests.swift */; };
@@ -24,6 +28,10 @@
 		F10000000000000000000003 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F10000000000000000000004 /* PlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerModel.swift; sourceTree = "<group>"; };
 		F1000000000000000000000C /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000D /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
+		F1000000000000000000000E /* ProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTabView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000F /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
+		F10000000000000000000010 /* PlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSheets.swift; sourceTree = "<group>"; };
 		F10000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F10000000000000000000006 /* FoxShared.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FoxShared.framework; path = "../iosShared/build/xcode-frameworks/Debug/iphonesimulator/FoxShared.framework"; sourceTree = "<group>"; };
 		F10000000000000000000007 /* ComposeSongsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeSongsView.swift; sourceTree = "<group>"; };
@@ -72,6 +80,10 @@
 				F1000000000000000000000A /* HomeTabView.swift */,
 				F1000000000000000000000B /* PlaylistTabView.swift */,
 				F1000000000000000000000C /* PlayerView.swift */,
+				F1000000000000000000000D /* AuthStore.swift */,
+				F1000000000000000000000E /* ProfileTabView.swift */,
+				F1000000000000000000000F /* ToastCenter.swift */,
+				F10000000000000000000010 /* PlayerSheets.swift */,
 				F10000000000000000000005 /* Info.plist */,
 			);
 			path = iosApp;
@@ -229,6 +241,10 @@
 				B10000000000000000000007 /* HomeTabView.swift in Sources */,
 				B10000000000000000000008 /* PlaylistTabView.swift in Sources */,
 				B10000000000000000000009 /* PlayerView.swift in Sources */,
+				B1000000000000000000000A /* AuthStore.swift in Sources */,
+				B1000000000000000000000B /* ProfileTabView.swift in Sources */,
+				B1000000000000000000000C /* ToastCenter.swift in Sources */,
+				B1000000000000000000000D /* PlayerSheets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

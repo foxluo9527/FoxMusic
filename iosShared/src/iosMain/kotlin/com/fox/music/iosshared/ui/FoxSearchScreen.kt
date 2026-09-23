@@ -9,7 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.window.ComposeUIViewController
+import com.fox.music.iosshared.foxComposeViewController
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingSource
@@ -129,7 +129,7 @@ object FoxSearchScreen {
         onMusicClick: (PlayableSong?) -> Unit,
         onArtistClick: (Long) -> Unit,
         onAlbumClick: (Long) -> Unit,
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController(pageOwnsTopBar = true) {
         var query by remember { mutableStateOf("") }
         var committed by remember { mutableStateOf("") }
         var selectedTab by remember { mutableStateOf(SearchResultTab.MUSIC) }

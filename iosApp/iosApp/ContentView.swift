@@ -31,17 +31,17 @@ struct ContentView: View {
             PlaceholderTabView(title: "消息", icon: "envelope.fill")
                 .withMiniPlayer()
                 .tabItem { Label("消息", systemImage: "envelope") }
-            PlaceholderTabView(title: "我的", icon: "person.crop.circle.fill")
+            ProfileTabView()
                 .withMiniPlayer()
                 .tabItem { Label("我的", systemImage: "person.crop.circle") }
         }
-        // 顶部安全区（状态栏）补同色底：Compose 页面被 SwiftUI 按安全区缩进，
-        // 那条区域默认是系统白，会与页面浅紫底色割裂。两层都补，哪层生效都行。
-        .background(FoxTheme.pageBackground.ignoresSafeArea())
+        // 窗口/Tab 未覆盖区用渐变顶色，与 Compose foxTabPageBackground 对齐。
+        .background(FoxTheme.tabGradientTop.ignoresSafeArea())
         .onAppear(perform: FoxTheme.applyToWindowBackground)
         .fullScreenCover(isPresented: $playerUI.isFullPlayerPresented) {
             PlayerView()
         }
+        .withToast()
     }
 }
 
@@ -53,7 +53,7 @@ struct MiniPlayerModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.safeAreaInset(edge: .bottom) {
             if let current = player.current {
-                MiniPlayerBar(current: current, isPlaying: player.isPlaying)
+                MiniPlayerBar(current: current)
             }
         }
     }
@@ -63,56 +63,124 @@ extension View {
     func withMiniPlayer() -> some View { modifier(MiniPlayerModifier()) }
 }
 
-/// 全局迷你播放条（从旧 ContentView 抽成组件，跨 Tab 常驻）。
+/// 全局迷你播放条（跨 Tab 常驻）。
+/// 与 Android `core:ui` 的 MiniPlayer 对齐：封面缩略图 + 标题歌手 + 播放暂停（缓冲转圈）
+/// + 下一首 + 底部线性进度条。
 struct MiniPlayerBar: View {
+    @ObservedObject private var player = PlayerModel.shared
     let current: PlayableSong
-    let isPlaying: Bool
+
+    private var progress: Double {
+        guard player.duration > 0 else { return 0 }
+        return min(max(player.currentTime / player.duration, 0), 1)
+    }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(current.title).font(.headline).lineLimit(1)
-                    .accessibilityIdentifier("miniPlayer.title")
-                Text(current.artist)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                AsyncImage(url: current.coverUrl.flatMap(URL.init(string:))) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else {
+                        ZStack {
+                            Color.secondary.opacity(0.2)
+                            Image(systemName: "music.note")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(current.title).font(.system(size: 15, weight: .medium)).lineLimit(1)
+                        .accessibilityIdentifier("miniPlayer.title")
+                    Text(current.artist)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { PlayerUICoordinator.shared.isFullPlayerPresented = true }
+                // 必须 combine：容器不合并子元素时，identifier 会挂到子树多个元素上，
+                // XCUITest 查 miniPlayer.bar 会因"匹配到多个"而失败
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("miniPlayer.bar")
+
+                Spacer(minLength: 0)
+
+                Button {
+                    player.togglePlayPause()
+                } label: {
+                    ZStack {
+                        if player.isLoading {
+                            ProgressView().scaleEffect(0.85)
+                        } else {
+                            Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                .font(.system(size: 32))
+                        }
+                    }
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("miniPlayer.playPause")
+                .accessibilityLabel(player.isPlaying ? "暂停" : "播放")
+
+                Button {
+                    player.next()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 19))
+                        .frame(width: 38, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("miniPlayer.next")
+                .accessibilityLabel("下一首")
             }
-            .contentShape(Rectangle())
-            .onTapGesture { PlayerUICoordinator.shared.isFullPlayerPresented = true }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityIdentifier("miniPlayer.bar")
-            Spacer()
-            Button {
-                PlayerModel.shared.togglePlayPause()
-            } label: {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 36))
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+
+            // 线性进度：与 Android MiniPlayer 底部的 FoxLinearProgress 对应
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(Color.secondary.opacity(0.22))
+                    Rectangle().fill(Color.accentColor)
+                        .frame(width: geo.size.width * progress)
+                }
             }
-            .accessibilityIdentifier("miniPlayer.playPause")
-            .accessibilityLabel(isPlaying ? "pause.circle.fill" : "play.circle.fill")
+            .frame(height: 2)
+            .accessibilityIdentifier("miniPlayer.progress")
         }
-        .padding()
         .background(.bar)
     }
 }
 
-/// 占位 Tab（社区/消息/我的）：对应共享 Content 尚未接入，后续批次替换。
+/// 占位 Tab（社区/消息）：共享 Content 尚未接入；底用同一套渐变顶色，避免切 Tab 分层。
 struct PlaceholderTabView: View {
     let title: String
     let icon: String
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
-                Text("\(title)页迁移中")
-                    .foregroundStyle(.secondary)
+            ZStack {
+                LinearGradient(
+                    colors: [FoxTheme.tabGradientTop, FoxTheme.pageBackground],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+                VStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("\(title)页迁移中")
+                        .foregroundStyle(.secondary)
+                }
+                .navigationTitle(title)
             }
-            .navigationTitle(title)
         }
     }
 }
@@ -134,8 +202,12 @@ struct DiscoverTabView: View {
     var body: some View {
         NavigationStack(path: $path) {
             DiscoverComposeView(
-                onMusicClick: { song in
-                    if let song { PlayerModel.shared.play(song) }
+                onMusicClickFromList: { songs, index in
+                    PlayerModel.shared.play(
+                        queue: songs,
+                        startIndex: Int(index.int32Value),
+                        source: PlaybackSource(title: "新歌速递", coverUrl: nil, typeLabel: "发现页")
+                    )
                 },
                 onRankClick: { id, title in
                     path.append(.rankDetail(id: id, title: title))
@@ -147,7 +219,7 @@ struct DiscoverTabView: View {
                     path.append(.search)
                 }
             )
-        .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.top, .bottom])
         .navigationBarHidden(true)
         .themedPageBackground()
         .navigationDestination(for: DiscoverRoute.self) { route in
@@ -166,14 +238,14 @@ struct DiscoverTabView: View {
 
 /// 把 Kotlin 侧发现页 VC 包进 SwiftUI。
 struct DiscoverComposeView: UIViewControllerRepresentable {
-    let onMusicClick: (PlayableSong?) -> Void
+    let onMusicClickFromList: ([PlayableSong], KotlinInt) -> Void
     let onRankClick: (Int64, String) -> Void
     let onArtistClick: (Int64) -> Void
     let onSearchClick: () -> Void
 
     func makeUIViewController(context: Context) -> UIViewController {
         FoxDiscoverScreen.shared.makeDiscoverViewController(
-            onMusicClick: onMusicClick,
+            onMusicClickFromList: onMusicClickFromList,
             onRankClick: { id, title in
                 onRankClick(id.int64Value, title)
             },
@@ -202,7 +274,7 @@ struct ArtistDetailView: View {
             onAlbumClick: { _ in },
             onBack: { dismiss() }
         )
-        .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.top, .bottom])
         .navigationBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         .swipeBackEnabled()
@@ -244,7 +316,7 @@ struct SearchView: View {
             onArtistClick: onArtistClick,
             onAlbumClick: { _ in }
         )
-        .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.top, .bottom])
         .navigationBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         .swipeBackEnabled()
@@ -288,18 +360,32 @@ struct PlaylistDetailView: View {
         PlaylistDetailComposeView(
             playlistId: playlistId,
             isRank: isRank,
-            onMusicClick: { song in
-                if let song { PlayerModel.shared.play(song) }
+            onMusicClickFromList: { songs, index in
+                PlayerModel.shared.play(
+                    queue: songs,
+                    startIndex: Int(index.int32Value),
+                    source: PlaybackSource(
+                        title: title,
+                        coverUrl: nil,
+                        typeLabel: isRank ? "榜单" : "歌单"
+                    )
+                )
             },
             onPlayAll: { songs in
-                // 播放全部：从第一页曲目开始顺序播放
-                if let first = songs.first {
-                    PlayerModel.shared.play(first)
-                }
+                // 播放全部：整个列表入队，从第一首开始（带来源，播放列表里能显示"来自xx"）
+                PlayerModel.shared.play(
+                    queue: songs,
+                    startIndex: 0,
+                    source: PlaybackSource(
+                        title: title,
+                        coverUrl: nil,
+                        typeLabel: isRank ? "榜单" : "歌单"
+                    )
+                )
             },
             onBack: { dismiss() }
         )
-        .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.top, .bottom])
         .navigationBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         .swipeBackEnabled()
@@ -311,7 +397,7 @@ struct PlaylistDetailView: View {
 struct PlaylistDetailComposeView: UIViewControllerRepresentable {
     let playlistId: Int64
     let isRank: Bool
-    let onMusicClick: (PlayableSong?) -> Void
+    let onMusicClickFromList: ([PlayableSong], KotlinInt) -> Void
     let onPlayAll: ([PlayableSong]) -> Void
     let onBack: () -> Void
 
@@ -319,7 +405,7 @@ struct PlaylistDetailComposeView: UIViewControllerRepresentable {
         FoxPlaylistDetailScreen.shared.makePlaylistDetailViewController(
             playlistId: playlistId,
             useRankEndpoint: isRank,
-            onMusicClick: onMusicClick,
+            onMusicClickFromList: onMusicClickFromList,
             onPlayAll: onPlayAll,
             onBack: onBack
         )
@@ -379,21 +465,18 @@ extension View {
 
 // MARK: - 主题底色补色
 
-/// 页面主色（与 Compose 页面底色 = MaterialTheme.colorScheme.background 一致）。
-///
-/// 存在的理由：共享 Compose 页面被 SwiftUI 按安全区缩进，**状态栏那条区域**
-/// 不归 Compose 管，默认是系统白 —— 页面是浅紫(#FEF7FF)、上面却是白，就有割裂感。
-/// 这里把这个区域也补成同色。
+/// 与 FoxMusicTheme 默认「黑胶夜场」对齐：窗口补渐变顶色（primary 14% 叠在 background 上）。
 enum FoxTheme {
     static var pageBackground: Color {
-        // 注意：直接调用 Kotlin 函数时，Kotlin 的 Long 在 Swift 侧就是 Int64（不是 KotlinLong），
-        // 无需 .int64Value —— 只有传给 Kotlin 函数类型的闭包参数才需要 KotlinLong。
         Color(argb: UInt32(truncatingIfNeeded: FoxIosTheme.shared.pageBackgroundArgb()))
     }
 
-    /// 兜底：UIWindow 底色也一起改 —— 状态栏区域在部分层级下不由 SwiftUI 绘制。
+    static var tabGradientTop: Color {
+        Color(argb: UInt32(truncatingIfNeeded: FoxIosTheme.shared.tabGradientTopArgb()))
+    }
+
     static func applyToWindowBackground() {
-        let color = UIColor(pageBackground)
+        let color = UIColor(tabGradientTop)
         for scene in UIApplication.shared.connectedScenes {
             guard let windowScene = scene as? UIWindowScene else { continue }
             for window in windowScene.windows {
@@ -422,6 +505,6 @@ extension View {
     /// 注意：不能只挂在 TabView 上 —— TabView 自己会画一层不透明的系统底色，
     /// 把 `.background()` 盖掉，所以必须画在每个 Tab 内容（即 Compose 页面）这一层。
     func themedPageBackground() -> some View {
-        background(FoxTheme.pageBackground.ignoresSafeArea())
+        background(FoxTheme.tabGradientTop.ignoresSafeArea())
     }
 }

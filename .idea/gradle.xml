@@ -27,15 +27,24 @@
             <option value="$PROJECT_DIR$/core/ui" />
             <option value="$PROJECT_DIR$/feature" />
             <option value="$PROJECT_DIR$/feature/auth" />
+            <option value="$PROJECT_DIR$/feature/auth-android" />
             <option value="$PROJECT_DIR$/feature/automotive" />
             <option value="$PROJECT_DIR$/feature/chat" />
+            <option value="$PROJECT_DIR$/feature/chat-android" />
             <option value="$PROJECT_DIR$/feature/discover" />
+            <option value="$PROJECT_DIR$/feature/discover-android" />
             <option value="$PROJECT_DIR$/feature/home" />
+            <option value="$PROJECT_DIR$/feature/home-android" />
             <option value="$PROJECT_DIR$/feature/player" />
+            <option value="$PROJECT_DIR$/feature/player-android" />
             <option value="$PROJECT_DIR$/feature/playlist" />
+            <option value="$PROJECT_DIR$/feature/playlist-android" />
             <option value="$PROJECT_DIR$/feature/profile" />
+            <option value="$PROJECT_DIR$/feature/profile-android" />
             <option value="$PROJECT_DIR$/feature/search" />
+            <option value="$PROJECT_DIR$/feature/search-android" />
             <option value="$PROJECT_DIR$/feature/social" />
+            <option value="$PROJECT_DIR$/feature/social-android" />
             <option value="$PROJECT_DIR$/iosShared" />
           </set>
         </option>

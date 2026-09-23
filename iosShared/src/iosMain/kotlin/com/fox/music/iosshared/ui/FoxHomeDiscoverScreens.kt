@@ -9,7 +9,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.window.ComposeUIViewController
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingSource
@@ -20,6 +19,7 @@ import com.fox.music.core.data.mapper.toAlbum
 import com.fox.music.core.data.mapper.toArtist
 import com.fox.music.core.data.mapper.toArtistDetail
 import com.fox.music.core.data.mapper.toMusic
+import com.fox.music.core.data.mapper.toPlayHistory
 import com.fox.music.core.data.mapper.toPlaylist
 import com.fox.music.core.data.mapper.toPlaylistDetail
 import com.fox.music.core.model.music.Album
@@ -28,6 +28,7 @@ import com.fox.music.core.model.music.ArtistDetail
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlayHistory
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.feature.discover.DiscoverContent
@@ -42,9 +43,11 @@ import com.fox.music.feature.home.HomeState
 import com.fox.music.feature.playlist.ui.component.PlaylistDetailContent
 import com.fox.music.feature.playlist.viewmodel.HeaderInfo
 import com.fox.music.feature.playlist.viewmodel.PlaylistDetailState
+import com.fox.music.iosshared.FoxAuthStore
 import com.fox.music.iosshared.FoxIosBridge
 import com.fox.music.iosshared.FoxMusicApi
 import com.fox.music.iosshared.PlayableSong
+import com.fox.music.iosshared.foxComposeViewController
 import kotlinx.coroutines.MainScope
 import platform.UIKit.UIViewController
 
@@ -101,32 +104,45 @@ object FoxHomeScreen {
     }.flow.cachedIn(scope)
 
     fun makeHomeViewController(
-        onMusicClick: (PlayableSong?) -> Unit,
+        onMusicClickFromList: (List<PlayableSong>, Int) -> Unit,
         onPlaylistClick: (Long, String, Boolean) -> Unit,
         onSearchClick: () -> Unit,
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController {
         var hotKeywords by remember { mutableStateOf(emptyList<HotKeyword>()) }
         var playlists by remember { mutableStateOf(emptyList<Playlist>()) }
         var albums by remember { mutableStateOf(emptyList<Album>()) }
+        var recentPlays by remember { mutableStateOf(emptyList<PlayHistory>()) }
+        // "为你精选"当前已加载的完整列表：点某首歌时要拿它当播放队列，
+        // 否则 iOS 队列里只有一首，上一首/下一首失效（Android 端是 updatePlaylist 整列表入队）
+        var recommendedSnapshot by remember { mutableStateOf(emptyList<Music>()) }
+        val authRevision = FoxAuthStore.revision
 
-        LaunchedEffect(Unit) {
+        LaunchedEffect(authRevision) {
             try {
                 val kw = try {
                     api.fetchHotKeywords(8)
                 } catch (_: Exception) {
                     emptyList()
                 }
-                // 推荐歌单只展示 2 行：HomeContent 的网格是 GridCells.Fixed(4)（4 列），
-                // 8 个正好 2 行；同时也少拉一半数据（服务器带宽紧张）。
                 val pl = api.fetchRecommendedPlaylists(1, 8).map { it.toPlaylist() }
                 val al = try {
                     api.fetchAlbums(1, 8).map { it.toAlbum() }
                 } catch (_: Exception) {
                     emptyList()
                 }
+                val history = if (FoxAuthStore.isLoggedIn) {
+                    try {
+                        api.fetchPlayHistory(1, 20).map { it.toPlayHistory() }
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                } else {
+                    emptyList()
+                }
                 hotKeywords = kw
                 playlists = pl
                 albums = al
+                recentPlays = history
             } catch (e: Exception) {
                 println("FoxHomeScreen: 首页数据加载失败: ${e.message}")
             }
@@ -134,7 +150,7 @@ object FoxHomeScreen {
 
         val state = HomeState(
             hotKeywords = hotKeywords,
-            recentPlays = emptyList(), // 需登录接口，iOS 登录批次接入
+            recentPlays = recentPlays,
             recommendedPlaylists = playlists,
             recommendedMusic = recommendedMusic,
             recommendedAlbums = albums,
@@ -154,7 +170,11 @@ object FoxHomeScreen {
                     },
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedContentScope = this@AnimatedContent,
-                    onMusicClick = { music -> onMusicClick(FoxIosBridge.playableSong(music)) },
+                    onMusicClick = { music ->
+                        val (songs, index) = queueOf(recommendedSnapshot, music)
+                        onMusicClickFromList(songs, index)
+                    },
+                    onRecommendedMusicChanged = { recommendedSnapshot = it },
                     onSearchClick = onSearchClick,
                 )
             }
@@ -183,11 +203,11 @@ object FoxDiscoverScreen {
     )
 
     fun makeDiscoverViewController(
-        onMusicClick: (PlayableSong?) -> Unit,
+        onMusicClickFromList: (List<PlayableSong>, Int) -> Unit,
         onRankClick: (Long, String) -> Unit,
         onArtistClick: (Long) -> Unit,
         onSearchClick: () -> Unit,
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController {
 
         LaunchedEffect(Unit) {
             if (state.ranks.isNotEmpty()) return@LaunchedEffect
@@ -240,8 +260,11 @@ object FoxDiscoverScreen {
                         when (intent) {
                             is DiscoverIntent.OnRankClick ->
                                 onRankClick(intent.rank.id, intent.rank.title)
-                            is DiscoverIntent.OnMusicClick ->
-                                onMusicClick(FoxIosBridge.playableSong(intent.music))
+                            is DiscoverIntent.OnMusicClick -> {
+                                // 新歌速递整列表入队（与首页同一个道理）
+                                val (songs, index) = queueOf(state.newMusic, intent.music)
+                                onMusicClickFromList(songs, index)
+                            }
                             is DiscoverIntent.OnArtistClick ->
                                 onArtistClick(intent.artist.id)
                             else -> Unit
@@ -271,10 +294,10 @@ object FoxPlaylistDetailScreen {
     fun makePlaylistDetailViewController(
         playlistId: Long,
         useRankEndpoint: Boolean,
-        onMusicClick: (PlayableSong?) -> Unit,
+        onMusicClickFromList: (List<PlayableSong>, Int) -> Unit,
         onPlayAll: (List<PlayableSong>) -> Unit,
         onBack: () -> Unit,
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController(pageOwnsTopBar = true) {
         var header by remember { mutableStateOf<HeaderInfo?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
 
@@ -317,7 +340,11 @@ object FoxPlaylistDetailScreen {
                     canManagePlaylist = false, // 详情页管理能力（编辑/删除）随登录批次接入
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedContentScope = this@AnimatedContent,
-                    onMusicClick = { music -> onMusicClick(FoxIosBridge.playableSong(music)) },
+                    onMusicClick = { music ->
+                        // 点某一首：整份已加载曲目当队列，并定位到点中的那首
+                        val (songs, index) = queueOf(pagingItems.itemSnapshotList.items, music)
+                        onMusicClickFromList(songs, index)
+                    },
                     onPlayAll = {
                         val firstPage = pagingItems.itemSnapshotList.items
                         onPlayAll(firstPage.mapNotNull { FoxIosBridge.playableSong(it) })
@@ -386,7 +413,7 @@ object FoxArtistDetailScreen {
         onMusicClick: (PlayableSong?) -> Unit,
         onAlbumClick: (Long) -> Unit,
         onBack: () -> Unit,
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController(pageOwnsTopBar = true) {
         var detail by remember { mutableStateOf<ArtistDetail?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
 
@@ -423,4 +450,22 @@ object FoxArtistDetailScreen {
             }
         }
     }
+}
+
+/**
+ * 把"点中的一首歌 + 所在列表"折成"播放队列 + 起始下标"。
+ *
+ * 为什么需要这一步：Android 端点列表里任意一首都会把**整个列表**交给
+ * MusicController（updatePlaylist）后播放，上一首/下一首因此可用；
+ * iOS 早期只把单曲交给 AVPlayer，队列里永远只有一首。
+ *
+ * 兜底：万一列表里找不到目标（例如"最近在听"与"为你精选"是不同的数据源），
+ * 就把这首追加到队尾并播放它，而不是错误地播放列表第一首。
+ */
+private fun queueOf(list: List<Music>, target: Music): Pair<List<PlayableSong>, Int> {
+    val songs = list.mapNotNull { FoxIosBridge.playableSong(it) }
+    val index = list.indexOfFirst { it.sourceId == target.sourceId }
+    if (index >= 0 && songs.size == list.size) return songs to index
+    val single = FoxIosBridge.playableSong(target)
+    return if (single != null) (songs + single) to songs.size else songs to 0
 }

@@ -1,5 +1,9 @@
 package com.fox.music.iosshared
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+
 /**
  * Swift 侧可直接消费的登录用户精简结构（只带 UI 需要的字段）。
  */
@@ -47,24 +51,32 @@ object FoxAuthStore {
 
     val isLoggedIn: Boolean get() = !token.isNullOrEmpty()
 
-    /** Swift 启动时从 Keychain 恢复登录态；无令牌时传 null 即可。 */
+    /** Compose 观察此值即可在登录/登出后重组（首页最近在听、「我的」）。 */
+    var revision: Int by mutableIntStateOf(0)
+        private set
+
+    private fun bump() {
+        revision += 1
+    }
+
     fun restore(token: String?, refreshToken: String?, user: AuthUser?) {
         this.token = token
         this.refreshToken = refreshToken
         this.user = user
+        bump()
     }
 
-    /** 登录/注册成功后写入内存态（Swift 负责把它落到 Keychain）。 */
     fun update(token: String, refreshToken: String?, user: AuthUser) {
         this.token = token
         this.refreshToken = refreshToken
         this.user = user
+        bump()
     }
 
-    /** 登出：清空内存态（Swift 负责清 Keychain）。 */
     fun clear() {
         token = null
         refreshToken = null
         user = null
+        bump()
     }
 }

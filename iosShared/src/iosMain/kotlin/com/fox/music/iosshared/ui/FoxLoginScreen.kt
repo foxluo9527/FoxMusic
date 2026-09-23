@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.window.ComposeUIViewController
+import com.fox.music.iosshared.foxComposeViewController
 import com.fox.music.feature.auth.ui.screen.LoginContent
 import com.fox.music.feature.auth.viewmodel.AuthIntent
 import com.fox.music.feature.auth.viewmodel.AuthState
@@ -27,7 +27,7 @@ object FoxLoginScreen {
     fun makeLoginViewController(
         onLoginSuccess: (AuthUser) -> Unit,
         onBack: () -> Unit,
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController(applyTabGradient = false) {
         val holder = remember { mutableStateOf(AuthState()) }
         val api = remember { FoxMusicApi() }
         val scope = rememberCoroutineScope()

@@ -3,7 +3,6 @@ package com.fox.music.feature.discover
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
@@ -71,11 +70,7 @@ fun DiscoverContent(
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
             onRefresh = { onIntent(DiscoverIntent.Refresh) },
-            // 同 HomeContent：显式给页面底色，避免 iOS 上落到 SwiftUI 纯白、
-            // 与详情页/搜索页的 colorScheme.background 不一致。
-            modifier = modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+            modifier = modifier.fillMaxSize(),
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),

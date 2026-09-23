@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FoxMusic KMP 迁移进度看板</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #181b22; --panel2: #1f232c; --line: #2a2f3a;
+    --txt: #e6e9ef; --muted: #9aa3b2; --green: #3fb950; --amber: #d29922;
+    --blue: #58a6ff; --red: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--txt);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.6; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 18px; }
+  .card h2 { font-size: 16px; margin: 0 0 14px; color: var(--blue); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .done { background: rgba(63,185,80,.15); color: var(--green); }
+  .partial { background: rgba(210,153,34,.15); color: var(--amber); }
+  .todo { background: rgba(248,81,73,.13); color: var(--red); }
+  .bar { height: 8px; border-radius: 6px; background: var(--panel2); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg,var(--green),var(--blue)); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; }
+  .stat { background: var(--panel2); border-radius: 10px; padding: 14px; }
+  .stat b { font-size: 24px; display: block; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .note { font-size: 13px; color: var(--muted); }
+  code { background: var(--panel2); padding: 1px 6px; border-radius: 5px; color: #ffa657; font-size: 12.5px; }
+  ul { margin: 8px 0; padding-left: 20px; } li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FoxMusic · KMP 迁移进度看板</h1>
+  <div class="sub">生成于 2026-09-22 · 分支 kmp-migration · 栈：AGP 9.0 / Gradle 9.1 / Kotlin 2.3.21 / KSP 2.3.12 / CMP 1.10.3</div>
+
+  <div class="grid">
+    <div class="stat"><b>18</b><span>已完成批次</span></div>
+    <div class="stat"><b>8 / 13</b><span>已转 KMP 的 feature</span></div>
+    <div class="stat"><b>3</b><span>剩余大块 (player/chat/导航)</span></div>
+    <div class="stat"><b>✅</b><span>批次18 三验证全绿</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Feature 模块迁移状态</h2>
+    <table>
+      <thead><tr><th>模块</th><th>状态</th><th>跨端内容</th><th>安卓侧保留</th></tr></thead>
+      <tbody>
+        <tr><td>auth</td><td><span class="pill done">已完成</span></td><td>契约+Content</td><td>ViewModel+外壳</td></tr>
+        <tr><td>discover</td><td><span class="pill done">已完成</span></td><td>全部 8 文件</td><td>4 VM+4 外壳</td></tr>
+        <tr><td>home</td><td><span class="pill done">已完成</span></td><td>契约+Content</td><td>ViewModel+外壳</td></tr>
+        <tr><td>search</td><td><span class="pill done">已完成</span></td><td>契约+Content（插槽范式）</td><td>BackHandler/LocalFocus</td></tr>
+        <tr><td>playlist</td><td><span class="pill done">已完成</span></td><td>列表+详情+Album 跨端</td><td>EditScreen/Cropper（Uri/uCrop）</td></tr>
+        <tr><td>profile</td><td><span class="pill done">已完成</span></td><td>commonMain 4 文件</td><td>新建 -android：11 VM + 10 屏 + 2 裁剪</td></tr>
+        <tr><td>social</td><td><span class="pill done">已完成</span></td><td>commonMain 暂空壳（骨架）</td><td>新建 -android：8 VM + 7 屏</td></tr>
+        <tr><td>player</td><td><span class="pill todo">待做</span></td><td>—</td><td>Media3 绑定需平台抽象 (6,262 行)</td></tr>
+        <tr><td>chat</td><td><span class="pill todo">待做</span></td><td>—</td><td>WebSocket 走 Ktor (9,426 行)</td></tr>
+        <tr><td>automotive</td><td><span class="pill todo">保持</span></td><td>—</td><td>决策：Android-only (366 行)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>批次 18 交付内容（本轮）</h2>
+    <ul>
+      <li><b>18a · playlist 详情跨端</b>：抽出 <code>PlaylistDetailContract</code>（commonMain，含 HeaderInfo + toPlaybackSource 扩展）、<code>PlaylistDetailContent</code>（纯 Compose，头部+分页列表+导入进度+LoadState）、<code>PlaylistDetailScreen</code> 外壳（保留 BackHandler / LocalContext+Toast / effect 转发）。</li>
+      <li><b>18b · profile 转 KMP</b>：commonMain 4 文件（SettingsItems / LyricSettingsRoutes / UserHomeRoutes / UserHomeCoverSpec）；新建 <code>:feature:profile-android</code>（11 ViewModel + 10 屏 + 2 裁剪 helper）。</li>
+      <li><b>18c · social 转 KMP</b>：新建 <code>:feature:social-android</code>（8 ViewModel + 7 屏）；<code>CreatePostSelectionStore</code> 因含 <code>@Inject</code>/<code>@ActivityRetainedScoped</code> 留安卓侧。</li>
+      <li><b>关键修复</b>：social commonMain 误引 android-only 的 <code>core:datastore</code>（导致 iOS 变体歧义 FAILURE）→ 移出；manifest 由 <code>src/main</code> 移到 <code>src/androidMain</code>。</li>
+      <li><b>注册与切换</b>：settings 注册 profile-android / social-android；app 依赖切到 -android 模块。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>验证结果</h2>
+    <table>
+      <thead><tr><th>任务</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr><td><code>:app:assembleDebug</code></td><td><span class="pill done">BUILD SUCCESSFUL</span></td></tr>
+        <tr><td><code>:feature:profile:compileKotlinIosSimulatorArm64</code></td><td><span class="pill done">BUILD SUCCESSFUL</span></td></tr>
+        <tr><td><code>:feature:social:compileKotlinIosSimulatorArm64</code></td><td><span class="pill done">BUILD SUCCESSFUL</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>本轮踩坑（已同步进 skill）</h2>
+    <ul>
+      <li><b>commonMain 禁引 android.library 模块</b>：如 <code>core:datastore</code>（build 中是 <code>android.library</code> 而非 <code>kotlin.multiplatform</code>）只能进 -android 模块，否则 iOS 变体解析歧义 FAILURE。</li>
+      <li><b>commonMain 禁含 Hilt 注解</b>：<code>@Inject</code> / <code>@ActivityRetainedScoped</code> / <code>@HiltViewModel</code> 只能出现在 -android 模块，误放会 <code>Unresolved reference 'dagger'</code>。</li>
+      <li><b>代理端口漂移</b>：本轮回到 <code>54902</code>，每次构建前 <code>env | grep -i proxy</code> 取值。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>下一步</h2>
+    <ul>
+      <li><b>批次 19</b>：feature:player（6,262 行）—— Media3 ExoPlayer 绑定需 expect/actual 平台抽象。</li>
+      <li><b>批次 20</b>：feature:chat（9,426 行）—— WebSocket 客户端走 Ktor（KMP 可用）。</li>
+      <li><b>批次 21</b>：导航图跨端（NavController 抽象）。</li>
+      <li><b>批次 22–24</b>：iOS HIG 适配 / Live Activity 歌词 / Ad Hoc+TestFlight 分发。</li>
+    </ul>
+    <p class="note">迁移里程碑总文档见 <code>~/.workbuddy/skills/agp9-kmp-module-migration/SKILL.md</code></p>
+  </div>
+</div>
+</body>
+</html>

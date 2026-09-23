@@ -7,6 +7,7 @@ import com.fox.music.core.network.model.ArtistDetailDto
 import com.fox.music.core.network.model.ArtistDto
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.network.model.ForgotPasswordRequest
+import com.fox.music.core.network.model.ListeningStatsDto
 import com.fox.music.core.network.model.LoginRequest
 import com.fox.music.core.network.model.LoginResponse
 import com.fox.music.core.network.model.MusicDto
@@ -16,6 +17,8 @@ import com.fox.music.core.network.model.PlaylistDetailDto
 import com.fox.music.core.network.model.PlaylistDto
 import com.fox.music.core.network.model.RegisterRequest
 import com.fox.music.core.network.model.ResetPasswordRequest
+import com.fox.music.core.network.model.PlayRecordRequest
+import com.fox.music.core.network.model.PostCommentRequest
 import com.fox.music.core.network.model.UserDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -183,15 +186,78 @@ class FoxMusicApi {
 
     // ---------- 需登录的内容 ----------
 
-    /** GET api/music-history —— 最近在听（后端强制 req.user）。 */
-    suspend fun fetchPlayHistory(page: Int = 1, limit: Int = 20): List<PlayHistoryDto> {
+    suspend fun fetchPlayHistoryPage(page: Int = 1, limit: Int = 20): PagedResponse<PlayHistoryDto> {
         val response: ApiResponse<PagedResponse<PlayHistoryDto>> = client
             .get("${FoxNetworkConfig.API_BASE_URL}api/music-history") {
                 parameter("page", page)
                 parameter("limit", limit)
             }
             .body()
-        return response.data?.list.orEmpty()
+        return response.data ?: PagedResponse()
+    }
+
+    /** GET api/music-history —— 最近在听（后端强制 req.user）。 */
+    suspend fun fetchPlayHistory(page: Int = 1, limit: Int = 20): List<PlayHistoryDto> =
+        fetchPlayHistoryPage(page, limit).list
+
+    /** GET api/music-history/stats */
+    suspend fun fetchListeningStats(days: Int = 7): ListeningStatsDto? {
+        val response: ApiResponse<ListeningStatsDto> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/music-history/stats") {
+                parameter("days", days)
+            }
+            .body()
+        return if (response.isSuccess) response.data else null
+    }
+
+    /** GET api/playlists —— 当前用户歌单（需登录）。 */
+    suspend fun fetchUserPlaylists(userId: Long? = null): List<PlaylistDto> {
+        val response: ApiResponse<List<PlaylistDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/playlists") {
+                if (userId != null) parameter("user_id", userId)
+            }
+            .body()
+        return response.data.orEmpty()
+    }
+
+    suspend fun fetchFavoriteMusics(page: Int = 1, limit: Int = 20): PagedResponse<MusicDto> {
+        val response: ApiResponse<PagedResponse<MusicDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/favorites/music") {
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data ?: PagedResponse()
+    }
+
+    suspend fun fetchFavoritePlaylists(page: Int = 1, limit: Int = 20): PagedResponse<PlaylistDto> {
+        val response: ApiResponse<PagedResponse<PlaylistDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/favorites/playlists") {
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data ?: PagedResponse()
+    }
+
+    suspend fun fetchFavoriteAlbums(page: Int = 1, limit: Int = 20): PagedResponse<AlbumDto> {
+        val response: ApiResponse<PagedResponse<AlbumDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/favorites/albums") {
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data ?: PagedResponse()
+    }
+
+    suspend fun fetchFavoriteArtists(page: Int = 1, limit: Int = 20): PagedResponse<ArtistDto> {
+        val response: ApiResponse<PagedResponse<ArtistDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/favorites/artists") {
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data ?: PagedResponse()
     }
 
     /** GET /api/music —— 新歌/推荐歌曲分页（后端 noAuth）。 */
@@ -342,6 +408,75 @@ class FoxMusicApi {
             }
             .body()
         return response.data?.list.orEmpty()
+    }
+
+    // ---------- 播放器：收藏 / 评论 / 播放记录 ----------
+
+    /**
+     * POST api/music/{id}/favorite —— **取反式**切换收藏（auth）。
+     *
+     * 后端语义：已收藏就删、未收藏就插，返回的 data 恒为 null，只能用 message 区分。
+     * 所以这里返回布尔「调用后是否已收藏」，由调用方给出调用前的状态。
+     */
+    suspend fun toggleFavorite(musicId: Long, wasFavorite: Boolean): Boolean {
+        val response: ApiResponse<Unit> = client
+            .post("${FoxNetworkConfig.API_BASE_URL}api/music/$musicId/favorite")
+            .body()
+        if (response.code != 200) throw IllegalStateException(response.message.ifBlank { "操作失败" })
+        return !wasFavorite
+    }
+
+    /**
+     * GET api/music-comments?music_id= —— 一级评论分页（noAuth；带 token 时返回 is_like）。
+     *
+     * internal：返回类型 MusicCommentDto 是模块私有 DTO，不对外暴露给 Swift，
+     * 对外统一走 [FoxPlayerApi] 的 FoxComment。
+     */
+    internal suspend fun fetchMusicComments(
+        musicId: Long,
+        page: Int = 1,
+        limit: Int = 20,
+    ): PagedResponse<MusicCommentDto> {
+        val response: ApiResponse<PagedResponse<MusicCommentDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/music-comments") {
+                parameter("music_id", musicId)
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data ?: PagedResponse()
+    }
+
+    /** POST api/music-comments —— 发表评论/回复（auth）。parentId 非空即回复。 */
+    suspend fun postMusicComment(musicId: Long, content: String, parentId: Long? = null): Boolean {
+        val response: ApiResponse<Unit> = client
+            .post("${FoxNetworkConfig.API_BASE_URL}api/music-comments") {
+                contentType(ContentType.Application.Json)
+                setBody(PostCommentRequest(musicId = musicId, content = content, parentId = parentId))
+            }
+            .body()
+        if (response.code != 200) throw IllegalStateException(response.message.ifBlank { "发布失败" })
+        return true
+    }
+
+    /** POST api/music-comments/like/{id} —— 点赞/取消点赞（auth，取反式）。 */
+    suspend fun likeMusicComment(commentId: Long): Boolean {
+        val response: ApiResponse<Unit> = client
+            .post("${FoxNetworkConfig.API_BASE_URL}api/music-comments/like/$commentId")
+            .body()
+        if (response.code != 200) throw IllegalStateException(response.message.ifBlank { "操作失败" })
+        return true
+    }
+
+    /**
+     * POST api/music/{id}/play —— 上报播放（noAuth，但只有带 token 才会写进
+     * music_play_history，"最近在听"才有数据）。
+     */
+    suspend fun recordPlay(musicId: Long, durationSeconds: Int = 0, progressPercent: Int = 0) {
+        client.post("${FoxNetworkConfig.API_BASE_URL}api/music/$musicId/play") {
+            contentType(ContentType.Application.Json)
+            setBody(PlayRecordRequest(duration = durationSeconds, progress = progressPercent))
+        }
     }
 }
 

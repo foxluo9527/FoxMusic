@@ -49,7 +49,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,23 +107,17 @@ fun LoginContent(
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
 
-    val passwordError by remember {
-        derivedStateOf { state.password.length in 1 until 6 }
-    }
-    val emailHasErrors by remember {
-        derivedStateOf {
-            state.email.isNotEmpty() &&
-                !EMAIL_PATTERN.matches(state.email)
-        }
-    }
-    val verifyError by remember {
-        derivedStateOf {
-            state.verifyCode.isNotEmpty() && state.verifyCode.length != 6
-        }
-    }
-    val usernameBlank by remember {
-        derivedStateOf { state.username.isEmpty() }
-    }
+    // ⚠️ 这些校验**不能用** `remember { derivedStateOf { ... } }` 包起来：
+    // derived 的闭包捕获的是首次组合时的 `state` 参数值（普通 data class，不是 snapshot
+    // state），参数更新后永不重算 —— usernameBlank 恒为 true，登录态下 canSubmit 恒为
+    // false，登录按钮永远点不了（iOS 实测复现：输完账号 + 6 位密码按钮仍是 Disabled；
+    // Android 的 LoginScreen 同样传值，一样中招）。
+    // 都是廉价布尔计算，直接随重组求值即可。
+    val passwordError = state.password.length in 1 until 6
+    val emailHasErrors = state.email.isNotEmpty() &&
+        !EMAIL_PATTERN.matches(state.email)
+    val verifyError = state.verifyCode.isNotEmpty() && state.verifyCode.length != 6
+    val usernameBlank = state.username.isEmpty()
 
     val canSubmit = !state.isLoading &&
         ((!emailHasErrors && state.email.isNotEmpty()) || state.isLoginMode) &&

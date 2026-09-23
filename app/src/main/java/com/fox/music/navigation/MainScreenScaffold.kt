@@ -14,12 +14,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.MiniPlayer
+import com.fox.music.core.ui.theme.foxTabPageBackground
 import com.fox.music.ui.AppBottomNavigationBar
 
 @Composable
@@ -69,31 +69,16 @@ fun AnimatedContentScope.MainScreenWithTabBar(
     sharedTransitionScope: SharedTransitionScope,
     navScreen: @Composable AnimatedContentScope.(Modifier) -> Unit,
 ) {
-    val scheme = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(scheme.background),
+            .foxTabPageBackground(),
     ) {
-        Box(
-            modifier = Modifier
+        navScreen(
+            Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0f to scheme.primary.copy(alpha = 0.14f),
-                            0.22f to scheme.background,
-                            1f to scheme.background,
-                        ),
-                    ),
-                ),
-        ) {
-            navScreen(
-                Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-            )
-        }
+                .statusBarsPadding()
+        )
 
         Column(
             modifier = Modifier

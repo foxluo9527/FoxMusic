@@ -16,8 +16,9 @@ struct HomeTabView: View {
     var body: some View {
         NavigationStack(path: $path) {
             HomeComposeView(
-                onMusicClick: { song in
-                    if let song { PlayerModel.shared.play(song) }
+                onMusicClickFromList: { songs, index in
+                    // 整列表入队并定位到点中的那首 —— 这样上一首/下一首才有东西可切
+                    PlayerModel.shared.play(queue: songs, startIndex: Int(index.int32Value))
                 },
                 onPlaylistClick: { id, title, isRank in
                     path.append(.playlistDetail(id: id.int64Value, title: title, isRank: isRank.boolValue))
@@ -26,7 +27,7 @@ struct HomeTabView: View {
                     path.append(.search)
                 }
             )
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.top, .bottom])
             .navigationBarHidden(true)
             .themedPageBackground()
             .navigationDestination(for: HomeRoute.self) { route in
@@ -46,13 +47,13 @@ struct HomeTabView: View {
 /// 把 Kotlin 侧首页 VC 包进 SwiftUI。
 /// 滚动/数据状态留在 Kotlin/Compose 内部，updateUIViewController 留空避免重建丢位置。
 struct HomeComposeView: UIViewControllerRepresentable {
-    let onMusicClick: (PlayableSong?) -> Void
+    let onMusicClickFromList: ([PlayableSong], KotlinInt) -> Void
     let onPlaylistClick: (KotlinLong, String, KotlinBoolean) -> Void
     let onSearchClick: () -> Void
 
     func makeUIViewController(context: Context) -> UIViewController {
         FoxHomeScreen.shared.makeHomeViewController(
-            onMusicClick: onMusicClick,
+            onMusicClickFromList: onMusicClickFromList,
             onPlaylistClick: onPlaylistClick,
             onSearchClick: onSearchClick
         )

@@ -6,7 +6,7 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.window.ComposeUIViewController
+import com.fox.music.iosshared.foxComposeViewController
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingSource
@@ -72,7 +72,7 @@ object FoxPlaylistScreen {
     fun makePlaylistListViewController(
         onPlaylistClick: (Playlist) -> Unit,
         onBackClick: () -> Unit = {},
-    ): UIViewController = ComposeUIViewController {
+    ): UIViewController = foxComposeViewController {
         val state = PlaylistListState(
             categories = emptyList(),
             selectedCategoryIndex = 0,
