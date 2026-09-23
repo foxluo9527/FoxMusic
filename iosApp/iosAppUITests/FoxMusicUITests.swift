@@ -31,6 +31,40 @@ final class FoxMusicUITests: XCTestCase {
         add(attachment)
     }
 
+    /// 首页滚动到"为你精选"并点第一首歌；返回是否成功唤起迷你播放条。
+    ///
+    /// 不依赖固定偏移：先把标题滚到一个"下方能容纳一整行歌曲"的位置（避开底部
+    /// Tab 栏与迷你条），再在同一布局下逐个偏移试点（**尝试之间不要滚动** ——
+    /// 滚动会重排，上一轮算出的坐标就失效了）。
+    @discardableResult
+    private func tapFirstRecommendedSong(_ app: XCUIApplication) -> Bool {
+        var found = false
+        for _ in 0..<12 {
+            if app.staticTexts["为你精选"].exists { found = true; break }
+            app.swipeUp()
+            sleep(1)
+        }
+        guard found else { return false }
+
+        let section = app.staticTexts["为你精选"]
+        // 为下方首歌曲行腾出空间（Tab 栏 ~49pt + 安全区，再加上迷你条高度）
+        for _ in 0..<6 {
+            if section.frame.maxY + 120 < app.frame.height - 140 { break }
+            app.swipeUp()
+            sleep(1)
+        }
+        sleep(3) // 等分页首帧（recommendedMusic 首 5 首）
+
+        // SectionHeader 下内边距 8 + 网格间距 ≈ +20 进入首行，行高约 72 → 中心约 +56
+        for offset in [56, 80, 104] {
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: section.frame.midX, dy: section.frame.maxY + CGFloat(offset)))
+                .tap()
+            if app.buttons["miniPlayer.playPause"].waitForExistence(timeout: 5) { return true }
+        }
+        return false
+    }
+
     // MARK: - 首页
 
     /// 首页渲染：品牌头 FoxMusic + 5 Tab 结构。
@@ -107,45 +141,7 @@ final class FoxMusicUITests: XCTestCase {
         XCTAssertTrue(homeTab.waitForExistence(timeout: 10))
         homeTab.tap()
 
-        // "为你精选"位于推荐歌单网格之下（20 个卡片 ≈ 5 行），需滚动到可见才会进无障碍树
-        var found = false
-        for _ in 0..<10 {
-            if app.staticTexts["为你精选"].exists {
-                found = true
-                break
-            }
-            app.swipeUp()
-            sleep(1)
-        }
-        XCTAssertTrue(found, "首页'为你精选'区未出现（已滚动查找）")
-
-        // 把"为你精选"标题滚到屏幕上半部，确保它下方的首首歌曲整行可见、点按不落到 Tab 栏/安全区
-        let section = app.staticTexts["为你精选"]
-        for _ in 0..<6 {
-            let midY = section.frame.midY
-            if midY < app.frame.height * 0.45 { break }
-            app.swipeUp()
-            sleep(1)
-        }
-        sleep(3) // 等分页首帧（recommendedMusic 首 5 首）
-
-        // 首首歌曲：标题下方 12dp 间距 + 行内 8dp 上内边距 ≈ +20 进入行；+90 稳稳落在行中央
-        let f = section.frame
-        let tapX = f.midX
-        var tapped = false
-        for offset in [90, 120, 60] {
-            let tapPoint = CGPoint(x: tapX, y: f.maxY + CGFloat(offset))
-            app.coordinate(withNormalizedOffset: .zero)
-                .withOffset(CGVector(dx: tapPoint.x, dy: tapPoint.y)).tap()
-            let playBtn = app.buttons["miniPlayer.playPause"]
-            if playBtn.waitForExistence(timeout: 6) {
-                tapped = true
-                break
-            }
-            // 偏移没命中点按区，先滚一点让首歌曲整行重新布局再试
-            app.swipeUp()
-            sleep(1)
-        }
+        let tapped = tapFirstRecommendedSong(app)
         snap(app, "04_点歌后迷你条")
         XCTAssertTrue(tapped, "点按'为你精选'下首歌曲后迷你播放条未出现（点按未命中可点击行或播放未触发）")
         XCTAssertEqual(app.state, .runningForeground)
@@ -185,12 +181,27 @@ final class FoxMusicUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["热门榜单"].waitForExistence(timeout: 25))
         sleep(4) // 等榜单卡片 + rankDetails 预览
 
-        // 榜单卡片是横滑 LazyRow：用卡片内的"首歌曲"副标题文本定位（父级 Card 可点）
+        // 把"热门榜单"滚到屏幕上半部，保证下方榜单 Pager 整卡可见
+        let header = app.staticTexts["热门榜单"]
+        for _ in 0..<6 {
+            if header.frame.midY < app.frame.height * 0.45 { break }
+            app.swipeUp(); sleep(1)
+        }
+        sleep(2)
+
+        // 榜单卡片副标题（"N 首歌曲"）是卡片内文本；等不到就退回按标题推算坐标，
+        // 避免因卡片副标题尚未渲染而误判（曾出现数据/时序抖动导致的假失败）。
         let subtitle = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "首歌曲")).firstMatch
-        XCTAssertTrue(subtitle.waitForExistence(timeout: 10), "榜单卡片副标题未出现")
-        let f = subtitle.frame
-        // 点封面左侧区域（卡片左缘），避开文本自身可能的点击消费
-        let tapPoint = CGPoint(x: max(f.minX - 90, 10), y: f.midY)
+        let tapPoint: CGPoint
+        if subtitle.waitForExistence(timeout: 15) {
+            let f = subtitle.frame
+            // 点封面左侧区域（卡片左缘），避开文本自身可能的点击消费
+            tapPoint = CGPoint(x: max(f.minX - 90, 10), y: f.midY)
+        } else {
+            // 兜底：卡片内 padding 16 + 封面 80 → 封面中心约在卡片顶部 +56dp
+            let hf = header.frame
+            tapPoint = CGPoint(x: hf.minX + 70, y: hf.maxY + 72)
+        }
         app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: tapPoint.x, dy: tapPoint.y)).tap()
         sleep(5)
@@ -212,28 +223,7 @@ final class FoxMusicUITests: XCTestCase {
         XCTAssertTrue(homeTab.waitForExistence(timeout: 10))
         homeTab.tap()
 
-        // 滚到"为你精选"并点首歌曲
-        var found = false
-        for _ in 0..<10 {
-            if app.staticTexts["为你精选"].exists { found = true; break }
-            app.swipeUp(); sleep(1)
-        }
-        XCTAssertTrue(found, "首页'为你精选'区未出现")
-        let section = app.staticTexts["为你精选"]
-        for _ in 0..<6 {
-            if section.frame.midY < app.frame.height * 0.45 { break }
-            app.swipeUp(); sleep(1)
-        }
-        sleep(3)
-        let f = section.frame
-        var opened = false
-        for offset in [90, 120, 60] {
-            app.coordinate(withNormalizedOffset: .zero)
-                .withOffset(CGVector(dx: f.midX, dy: f.maxY + CGFloat(offset))).tap()
-            if app.buttons["miniPlayer.playPause"].waitForExistence(timeout: 6) { opened = true; break }
-            app.swipeUp(); sleep(1)
-        }
-        XCTAssertTrue(opened, "点歌后迷你播放条未出现")
+        XCTAssertTrue(tapFirstRecommendedSong(app), "点歌后迷你播放条未出现")
 
         // 点迷你条（标题区）进入全屏播放器
         let miniBar = app.buttons["miniPlayer.bar"]
@@ -324,6 +314,52 @@ final class FoxMusicUITests: XCTestCase {
 
         let hotSongs = app.staticTexts["热门歌曲"]
         XCTAssertTrue(hotSongs.waitForExistence(timeout: 12), "点歌手后未进入歌手详情页（'热门歌曲'未出现）")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    // MARK: - 详情页返回
+
+    /// 首页点歌单进详情 → 点详情页左上角"返回" → 必须回到首页。
+    ///
+    /// 回归用例：批次 22~25 里 PlaylistDetailComposeView 把 Kotlin 的 onBack 硬编码成
+    /// 空闭包，而详情页又隐藏了系统导航栏（`.navigationBarHidden(true)`），
+    /// 导致用户进详情后**无路可退**。
+    func test10DetailBackReturnsToHome() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["推荐歌单"].waitForExistence(timeout: 20), "首页'推荐歌单'区未出现")
+        sleep(3)
+
+        // 进歌单详情
+        let header = app.staticTexts["推荐歌单"]
+        let hf = header.frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: hf.minX + hf.width * 0.15, dy: hf.maxY + 60)).tap()
+        sleep(5)
+
+        let playAll = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "播放全部")).firstMatch
+        XCTAssertTrue(playAll.waitForExistence(timeout: 15), "详情页未打开，无法测试返回")
+
+        // 详情页左上角返回箭头（PlaylistDetailContent 的 navigationIcon，contentDescription="返回"）
+        let back = app.buttons["返回"].exists
+            ? app.buttons["返回"]
+            : app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "返回")).firstMatch
+        let hasBack = back.waitForExistence(timeout: 8)
+        print("=== A11Y TREE BEGIN (详情页-找返回) ===")
+        print(app.debugDescription)
+        print("=== A11Y TREE END ===")
+        XCTAssertTrue(hasBack, "详情页未出现'返回'按钮")
+        back.tap()
+        sleep(3)
+        snap(app, "10_详情返回首页")
+
+        // 回到首页：品牌头重新出现，且详情页的"播放全部"消失
+        XCTAssertTrue(
+            app.staticTexts["FoxMusic"].waitForExistence(timeout: 10),
+            "点'返回'后未回到首页（品牌头未出现）"
+        )
+        XCTAssertFalse(playAll.exists, "点'返回'后仍停留在详情页")
         XCTAssertEqual(app.state, .runningForeground)
     }
 }

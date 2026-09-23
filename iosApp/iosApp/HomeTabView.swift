@@ -28,6 +28,7 @@ struct HomeTabView: View {
             )
             .ignoresSafeArea(edges: .bottom)
             .navigationBarHidden(true)
+            .themedPageBackground()
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
                 case .playlistDetail(let id, let title, let isRank):

@@ -93,7 +93,11 @@ fun HomeContent(
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
             onRefresh = { onIntent(HomeIntent.Refresh) },
-            modifier = modifier.fillMaxSize(),
+            // 页面底色必须显式给：iOS 宿主是 SwiftUI（默认纯白），不写就会与
+            // 详情页（Scaffold 默认取 colorScheme.background）/搜索页底色不一致。
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),

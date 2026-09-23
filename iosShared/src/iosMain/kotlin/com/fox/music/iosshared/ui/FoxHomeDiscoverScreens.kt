@@ -49,16 +49,21 @@ import kotlinx.coroutines.MainScope
 import platform.UIKit.UIViewController
 
 /**
- * 歌曲列表分页源（首页"为你精选"）：与 Android 端 GetMusicListUseCase 同一后端接口
- * （GET /api/music，noAuth）。
+ * 歌曲列表分页源：与 Android 端 GetMusicListUseCase 同一后端接口（GET /api/music，noAuth）。
+ *
+ * [sort] 必须显式传：后端按 sort 切换排序/推荐算法，
+ * - "recommend" → 首页"为你精选"
+ * - "latest"    → 发现页"新歌速递"
+ * 不传 sort 时两个页面会拿到**同一批数据**（曾经的 bug）。
  */
 internal class MusicListPagingSource(
     private val api: FoxMusicApi,
+    private val sort: String? = null,
 ) : PagingSource<Int, Music>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Music> = try {
         val page = params.key ?: 1
-        val list = api.fetchMusicList(page, params.loadSize).map { it.toMusic() }
+        val list = api.fetchMusicList(page, params.loadSize, sort).map { it.toMusic() }
         LoadResult.Page(
             data = list,
             prevKey = if (page == 1) null else page - 1,
@@ -90,8 +95,9 @@ object FoxHomeScreen {
     private val scope = MainScope()
     private val api = FoxMusicApi()
 
-    private val recommendedMusic = Pager(PagingConfig(pageSize = 20, initialLoadSize = 20)) {
-        MusicListPagingSource(api)
+    // 与 Android HomeViewModel 对齐：getPagingSource(limit = 5, sort = "recommend")
+    private val recommendedMusic = Pager(PagingConfig(pageSize = 5, initialLoadSize = 5)) {
+        MusicListPagingSource(api, sort = "recommend")
     }.flow.cachedIn(scope)
 
     fun makeHomeViewController(
@@ -110,7 +116,9 @@ object FoxHomeScreen {
                 } catch (_: Exception) {
                     emptyList()
                 }
-                val pl = api.fetchRecommendedPlaylists(1, 20).map { it.toPlaylist() }
+                // 推荐歌单只展示 2 行：HomeContent 的网格是 GridCells.Fixed(4)（4 列），
+                // 8 个正好 2 行；同时也少拉一半数据（服务器带宽紧张）。
+                val pl = api.fetchRecommendedPlaylists(1, 8).map { it.toPlaylist() }
                 val al = try {
                     api.fetchAlbums(1, 8).map { it.toAlbum() }
                 } catch (_: Exception) {
@@ -196,7 +204,9 @@ object FoxDiscoverScreen {
                         rank.id to dto.toPlaylistDetail()
                     }
                 }.toMap()
-                val newMusic = api.fetchMusicList(1, 5).map { it.toMusic() }
+                // 与 Android DiscoverViewModel 对齐：新歌速递用 sort = "latest"
+                // （不传 sort 会与首页"为你精选"的 recommend 拿不到区分，两页数据会重复）
+                val newMusic = api.fetchMusicList(1, 5, sort = "latest").map { it.toMusic() }
                 val artists = try {
                     api.fetchArtists(1, 8).map { it.toArtist() }
                 } catch (_: Exception) {
