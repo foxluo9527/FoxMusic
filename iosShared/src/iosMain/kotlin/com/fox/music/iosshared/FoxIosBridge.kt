@@ -87,12 +87,12 @@ object FoxIosBridge {
             playingId = FoxComposeState.currentSongId,
             isPlaying = FoxComposeState.isPlaying,
             onPlaySong = onPlaySong,
-            playableOf = { music -> toPlayableSongFromMusic(music) },
+            playableOf = { music -> playableSong(music) },
         )
     }
 
     /** MusicListItem 点击后要把领域模型折回可播放结构交给 Swift 的 AVPlayer。 */
-    private fun toPlayableSongFromMusic(music: Music): PlayableSong? {
+    fun playableSong(music: Music): PlayableSong? {
         val url = MediaUrlResolver.resolve(music.url) ?: return null
         return PlayableSong(
             id = music.sourceId,

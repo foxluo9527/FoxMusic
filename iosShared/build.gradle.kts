@@ -45,6 +45,8 @@ kotlin {
             // 已跨端的 feature 模块（commonMain Content 组件直接复用）：
             // 签名不对外暴露 feature 类型，故不需 export 到 Swift
             api(project(":feature:playlist"))
+            api(project(":feature:home"))
+            api(project(":feature:discover"))
             // Compose Multiplatform（iOS 侧 UI，与 Android 的 androidx Compose 无关）
             implementation(compose.runtime)
             implementation(compose.foundation)

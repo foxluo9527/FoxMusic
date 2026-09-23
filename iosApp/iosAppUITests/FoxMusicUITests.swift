@@ -1,14 +1,13 @@
 import XCTest
 
-/// FoxMusic iOS 端截屏驱动功能验收。
+/// FoxMusic iOS 端截屏驱动功能验收（批次 22：对齐原始 app 5 Tab 结构）。
 ///
 /// 覆盖功能点：
-/// 1. 启动后从真实后端（http://39.106.30.151:9000/api/music）拉取歌曲列表
-/// 2. 列表加载完成后自动播放第一首（里程碑演示行为）
-/// 3. 底部迷你播放条显示当前歌名 / 歌手，按钮图标随播放态切换
-/// 4. 点击播放/暂停按钮 → 图标与状态来回切换
-/// 5. 点击 Compose 列表中的另一首歌 → 迷你播放条切换到该歌曲（Compose→Swift 回调）
-/// 6. 列表可滚动（Compose LazyColumn 渲染正常）
+/// 1. 首页 = feature:home commonMain 的 HomeContent（品牌头+搜索框+推荐歌单+为你精选）
+/// 2. 底部 5 Tab：首页/发现/社区/消息/我的（与 Android AppDestinations 对齐）
+/// 3. 发现页 = feature:discover commonMain 的 DiscoverContent（热搜词+热门榜单+新歌速递+热门歌手）
+/// 4. 首页点歌单 → PlaylistDetailContent 详情页（真实曲目分页）
+/// 5. 点歌播放 → 迷你播放条出现
 ///
 /// 截屏统一写入 /tmp/foxmusic_ui/，供外部比对分析。
 final class FoxMusicUITests: XCTestCase {
@@ -32,184 +31,175 @@ final class FoxMusicUITests: XCTestCase {
         add(attachment)
     }
 
-    /// 等待列表加载完成（"加载歌曲中…"消失且无错误）。
-    private func waitListLoaded(_ app: XCUIApplication) throws {
-        let loading = app.staticTexts["加载歌曲中…"]
-        let failure = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "加载失败"))
-        let deadline = Date().addingTimeInterval(30)
-        while Date() < deadline {
-            if loading.exists == false && failure.count == 0 {
-                return
-            }
-            if failure.count > 0 {
-                XCTFail("列表加载失败：\(failure.firstMatch.label)")
-            }
-            sleep(1)
-        }
-        XCTFail("30 秒内列表未加载完成（仍在 loading 或有错误）")
-    }
+    // MARK: - 首页
 
-    func test01SongsListLoadsFromBackend() throws {
+    /// 首页渲染：品牌头 FoxMusic + 5 Tab 结构。
+    func test01HomeRendersBrandHeroAndTabs() throws {
         let app = XCUIApplication()
         app.launch()
 
-        try waitListLoaded(app)
-        sleep(2) // 等 Compose 列表渲染
-        snap(app, "01_列表加载")
+        let brand = app.staticTexts["FoxMusic"]
+        XCTAssertTrue(brand.waitForExistence(timeout: 20), "首页品牌头 'FoxMusic' 未出现")
 
-        // 列表非空：至少能看到一个歌曲静态文本（Compose 语义节点），
-        // 若 Compose 未暴露无障碍节点则退化为坐标点按可行性检查
-        let texts = app.staticTexts
-        let hasAnyText = texts.count > 0
-        if !hasAnyText {
-            print("WARN: Compose 列表未暴露无障碍静态文本，后续用坐标点按")
-        }
-        XCTAssertFalse(hasAnyText == false && app.frame.isEmpty, "界面无内容")
-    }
-
-    func test02AutoPlayShowsMiniPlayer() throws {
-        let app = XCUIApplication()
-        app.launch()
-        try waitListLoaded(app)
-
-        let playBtn = app.buttons["miniPlayer.playPause"]
-        let appeared = playBtn.waitForExistence(timeout: 20)
-        snap(app, "02_迷你播放条出现")
-        XCTAssertTrue(appeared, "自动播放后迷你播放条未出现")
-    }
-
-    func test03TogglePauseAndResume() throws {
-        let app = XCUIApplication()
-        app.launch()
-        try waitListLoaded(app)
-
-        let playBtn = app.buttons["miniPlayer.playPause"]
-        XCTAssertTrue(playBtn.waitForExistence(timeout: 20), "迷你播放条未出现")
-        sleep(3) // 确认 AVPlayer 已起播
-
-        // 初始应为播放态 → 点按后暂停
-        playBtn.tap()
-        sleep(1)
-        snap(app, "03_点击暂停后")
-        // 点按后再点按 → 恢复播放
-        XCTAssertTrue(playBtn.exists, "暂停后按钮消失")
-        playBtn.tap()
-        sleep(1)
-        snap(app, "04_恢复播放后")
-    }
-
-    func test04TapSongSwitchesMiniPlayer() throws {
-        let app = XCUIApplication()
-        app.launch()
-        try waitListLoaded(app)
-        let playBtn = app.buttons["miniPlayer.playPause"]
-        XCTAssertTrue(playBtn.waitForExistence(timeout: 20))
-        sleep(2)
-
-        // 记录初始歌名（迷你播放条标题）
-        let title = app.staticTexts["miniPlayer.title"]
-        let initialTitle = title.exists ? title.label : "(未找到标题)"
-
-        // 点按 Compose 列表第 4 行附近的歌曲（坐标点按，避开可见区顶部）
-        let f = app.frame
-        let tapPoint = CGPoint(x: f.midX, y: f.minY + f.height * 0.45)
-        app.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: tapPoint.x, dy: tapPoint.y)).tap()
-        sleep(4) // 等播放器切换
-
-        snap(app, "05_点按歌曲后")
-        let newTitle = title.exists ? title.label : "(未找到标题)"
-        print("TITLE_COMPARE initial=\(initialTitle) new=\(newTitle)")
-        XCTAssertNotEqual(initialTitle, newTitle, "点按歌曲后迷你播放条歌名未变化")
-    }
-
-    func test05ScrollListRendersMoreItems() throws {
-        let app = XCUIApplication()
-        app.launch()
-        try waitListLoaded(app)
-        sleep(2)
-        snap(app, "06_滚动前")
-        app.swipeUp(velocity: .slow)
-        app.swipeUp(velocity: .slow)
-        sleep(1)
-        snap(app, "07_滚动后")
-        // 无崩溃即通过；内容比对在外部截屏分析中做
-    }
-
-    // MARK: - 批次 21：SwiftUI TabView 外壳 + 共享 Compose 歌单广场
-
-    /// 切到"歌单"Tab，验证 Kotlin 侧 FoxPlaylistScreen（Ktor 拉 /api/playlists/recommended
-    /// + feature:playlist commonMain 的 PlaylistListContent）能在 iOS 渲染出来。
-    /// 同时把无障碍树打到测试输出，便于无图像环境下核验渲染内容。
-    func test06PlaylistTabRendersSharedCompose() throws {
-        let app = XCUIApplication()
-        app.launch()
-        try waitListLoaded(app)
+        snap(app, "01_首页品牌头")
 
         print("=== TABBAR DIAG begin ===")
         print("tabBars.count=\(app.tabBars.count)")
-        print("tabBars[0].buttons.count=\(app.tabBars.buttons.count)")
         for i in 0..<app.tabBars.buttons.count {
             let b = app.tabBars.buttons.element(boundBy: i)
-            print("  tab[\(i)] label='\(b.label)' frame=\(b.frame) hittable=\(b.isHittable)")
+            print("  tab[\(i)] label='\(b.label)' hittable=\(b.isHittable)")
         }
         print("=== TABBAR DIAG end ===")
 
-        let tab = app.tabBars.buttons["歌单"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 10), "未找到底部'歌单'Tab")
-        tab.tap()
-        sleep(8) // 等 Ktor 拉推荐歌单 + Compose 首帧
-
-        snap(app, "08_歌单Tab")
-
-        print("=== NAVBARS AFTER TAP begin ===")
-        print("navBars.count=\(app.navigationBars.count)")
-        for i in 0..<app.navigationBars.count {
-            print("  nav[\(i)] id='\(app.navigationBars.element(boundBy: i).identifier)'")
+        for label in ["首页", "发现", "社区", "消息", "我的"] {
+            XCTAssertTrue(app.tabBars.buttons[label].exists, "缺少 Tab：\(label)")
         }
-        print("=== NAVBARS AFTER TAP end ===")
-
-        print("=== A11Y TREE BEGIN (歌单Tab) ===")
-        print(app.debugDescription)
-        print("=== A11Y TREE END ===")
-
-        XCTAssertEqual(app.state, .runningForeground, "切到歌单 Tab 后应用不在前台（疑似崩溃）")
+        XCTAssertEqual(app.state, .runningForeground)
     }
 
-    /// 在歌单 Tab 点按一个真实歌单卡片（Compose 透出的无障碍 Button），
-    /// 验证 navigate 回调 → SwiftUI push 出详情占位页。
-    /// 用 waitForExistence 等待卡片出现，规避 Tab 切换 + 首屏分页的时序不稳定。
-    func test07PlaylistTapPushesDetail() throws {
+    /// 首页"推荐歌单"区出现真实歌单标题（Ktor 拉 /api/playlists/recommended）。
+    func test02HomeShowsRecommendedPlaylists() throws {
         let app = XCUIApplication()
         app.launch()
-        try waitListLoaded(app)
 
-        let tab = app.tabBars.buttons["歌单"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 10), "未找到底部'歌单'Tab")
-        tab.tap()
+        let header = app.staticTexts["推荐歌单"]
+        XCTAssertTrue(header.waitForExistence(timeout: 20), "首页'推荐歌单'区未出现")
+        sleep(3) // 等歌单卡片填充
+        snap(app, "02_首页推荐歌单")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 
-        // 等 Tab 切换 + /api/playlists/recommended 首屏加载：
-        // 歌单卡片由 Compose 渲染并透出为无障碍 Button（label=歌单标题）
-        let card = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "华语独立"))
-            .firstMatch
-        let cardAppeared = card.waitForExistence(timeout: 20)
-        snap(app, "09_歌单Tab加载")
-        XCTAssertTrue(cardAppeared, "歌单卡片未出现（Tab 未切换或数据未加载）")
+    /// 首页点歌单卡片 → 推入真实歌单详情页（PlaylistDetailContent，含'播放全部'）。
+    func test03HomePlaylistTapOpensDetail() throws {
+        let app = XCUIApplication()
+        app.launch()
 
-        card.tap()
+        XCTAssertTrue(app.staticTexts["推荐歌单"].waitForExistence(timeout: 20), "首页'推荐歌单'区未出现")
         sleep(3)
 
-        snap(app, "10_歌单详情")
+        // 歌单卡片在"推荐歌单"标题下方：网格第一行，点标题下方一点的位置
+        let header = app.staticTexts["推荐歌单"]
+        let f = header.frame
+        let tapPoint = CGPoint(x: f.minX + f.width * 0.15, y: f.maxY + 60)
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: tapPoint.x, dy: tapPoint.y)).tap()
+        sleep(5) // 等详情页 header + 曲目加载
 
-        print("=== A11Y TREE BEGIN (点按后) ===")
+        snap(app, "03_首页歌单详情")
+
+        // PlaylistDetailContent 的 ActionButtonRow 有"播放全部"按钮
+        let playAll = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "播放全部")).firstMatch
+        let appeared = playAll.waitForExistence(timeout: 15)
+        print("=== A11Y TREE BEGIN (首页歌单详情) ===")
+        print(app.debugDescription)
+        print("=== A11Y TREE END ===")
+        XCTAssertTrue(appeared, "点按歌单后详情页未出现'播放全部'（详情页未渲染或数据未加载）")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    /// 首页"为你精选"点一首歌 → 迷你播放条出现并开始播放。
+    func test04TapSongShowsMiniPlayer() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // 显式选中首页 Tab，规避启动后 Tab 状态不确定
+        let homeTab = app.tabBars.buttons["首页"]
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 10))
+        homeTab.tap()
+
+        // "为你精选"位于推荐歌单网格之下（20 个卡片 ≈ 5 行），需滚动到可见才会进无障碍树
+        var found = false
+        for _ in 0..<10 {
+            if app.staticTexts["为你精选"].exists {
+                found = true
+                break
+            }
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(found, "首页'为你精选'区未出现（已滚动查找）")
+
+        // 把"为你精选"标题滚到屏幕上半部，确保它下方的首首歌曲整行可见、点按不落到 Tab 栏/安全区
+        let section = app.staticTexts["为你精选"]
+        for _ in 0..<6 {
+            let midY = section.frame.midY
+            if midY < app.frame.height * 0.45 { break }
+            app.swipeUp()
+            sleep(1)
+        }
+        sleep(3) // 等分页首帧（recommendedMusic 首 5 首）
+
+        // 首首歌曲：标题下方 12dp 间距 + 行内 8dp 上内边距 ≈ +20 进入行；+90 稳稳落在行中央
+        let f = section.frame
+        let tapX = f.midX
+        var tapped = false
+        for offset in [90, 120, 60] {
+            let tapPoint = CGPoint(x: tapX, y: f.maxY + CGFloat(offset))
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: tapPoint.x, dy: tapPoint.y)).tap()
+            let playBtn = app.buttons["miniPlayer.playPause"]
+            if playBtn.waitForExistence(timeout: 6) {
+                tapped = true
+                break
+            }
+            // 偏移没命中点按区，先滚一点让首歌曲整行重新布局再试
+            app.swipeUp()
+            sleep(1)
+        }
+        snap(app, "04_点歌后迷你条")
+        XCTAssertTrue(tapped, "点按'为你精选'下首歌曲后迷你播放条未出现（点按未命中可点击行或播放未触发）")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    // MARK: - 发现页
+
+    /// 切到"发现"Tab，验证 DiscoverContent 渲染（热门榜单区 + 新歌速递区）。
+    func test05DiscoverTabRendersRanks() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let tab = app.tabBars.buttons["发现"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 10), "未找到'发现'Tab")
+        tab.tap()
+
+        let ranksHeader = app.staticTexts["热门榜单"]
+        let appeared = ranksHeader.waitForExistence(timeout: 25)
+        snap(app, "05_发现页")
+
+        print("=== A11Y TREE BEGIN (发现页) ===")
         print(app.debugDescription)
         print("=== A11Y TREE END ===")
 
-        // 详情占位页包含 StaticText '歌单详情页迁移中'，导航标题为歌单名
-        let placeholder = app.staticTexts["歌单详情页迁移中"]
-        let pushed = placeholder.waitForExistence(timeout: 10)
-        XCTAssertTrue(pushed, "点击歌单后未推入详情占位页")
-        XCTAssertEqual(app.state, .runningForeground, "点按歌单后应用不在前台（疑似崩溃）")
+        XCTAssertTrue(appeared, "发现页'热门榜单'区未出现（榜单接口未加载或 Tab 切换失败）")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    /// 发现页点榜单卡片 → 榜单详情页（PlaylistDetailContent，tracks 来自 /ranks/{id}）。
+    func test06DiscoverRankTapOpensDetail() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let tab = app.tabBars.buttons["发现"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 10))
+        tab.tap()
+        XCTAssertTrue(app.staticTexts["热门榜单"].waitForExistence(timeout: 25))
+        sleep(4) // 等榜单卡片 + rankDetails 预览
+
+        // 榜单卡片是横滑 LazyRow：用卡片内的"首歌曲"副标题文本定位（父级 Card 可点）
+        let subtitle = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "首歌曲")).firstMatch
+        XCTAssertTrue(subtitle.waitForExistence(timeout: 10), "榜单卡片副标题未出现")
+        let f = subtitle.frame
+        // 点封面左侧区域（卡片左缘），避开文本自身可能的点击消费
+        let tapPoint = CGPoint(x: max(f.minX - 90, 10), y: f.midY)
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: tapPoint.x, dy: tapPoint.y)).tap()
+        sleep(5)
+
+        snap(app, "06_榜单详情")
+
+        let playAll = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "播放全部")).firstMatch
+        let appeared = playAll.waitForExistence(timeout: 15)
+        XCTAssertTrue(appeared, "点按榜单后详情页未出现'播放全部'")
+        XCTAssertEqual(app.state, .runningForeground)
     }
 }

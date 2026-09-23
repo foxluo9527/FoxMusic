@@ -1,48 +1,58 @@
 import SwiftUI
 import FoxShared
 
-/// 首页 Tab：真实后端歌曲列表（共享 Compose 渲染），点击播放。
+/// 首页 Tab：共享层 HomeContent（feature:home commonMain）渲染 ——
+/// 与 Android 首页同一份 UI（品牌头+搜索框+最近在听+推荐歌单+为你精选+热门专辑）。
+/// 分页与数据全部在 Kotlin 侧（Ktor + Paging3），Swift 只接导航/播放回调。
+enum HomeRoute: Hashable {
+    case playlistDetail(id: Int64, title: String, isRank: Bool)
+    case search
+}
+
 struct HomeTabView: View {
-    @State private var songs: [Music] = []
-    @State private var errorMessage: String?
+    @State private var path: [HomeRoute] = []
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let errorMessage {
-                    Text("加载失败：\(errorMessage)")
-                        .foregroundStyle(.secondary)
-                        .padding()
-                } else if songs.isEmpty {
-                    ProgressView("加载歌曲中…")
-                } else {
-                    // 列表本体由共享层 Compose 渲染（批次 8 验证点），
-                    // 点击回调回到 Swift 播放，播放状态再回灌给 Compose。
-                    ComposeSongsView(songs: songs) { song in
-                        PlayerModel.shared.play(song)
-                    }
-                    .ignoresSafeArea(edges: .bottom)
+        NavigationStack(path: $path) {
+            HomeComposeView(
+                onMusicClick: { song in
+                    if let song { PlayerModel.shared.play(song) }
+                },
+                onPlaylistClick: { id, title, isRank in
+                    path.append(.playlistDetail(id: id.int64Value, title: title, isRank: isRank.boolValue))
+                },
+                onSearchClick: {
+                    path.append(.search)
+                }
+            )
+            .ignoresSafeArea(edges: .bottom)
+            .navigationBarHidden(true)
+            .navigationDestination(for: HomeRoute.self) { route in
+                switch route {
+                case .playlistDetail(let id, let title, let isRank):
+                    PlaylistDetailView(playlistId: id, isRank: isRank, title: title)
+                case .search:
+                    SearchPlaceholderView()
                 }
             }
-            .navigationTitle("FoxMusic")
-            .onAppear(perform: loadSongs)
         }
+    }
+}
+
+/// 把 Kotlin 侧首页 VC 包进 SwiftUI。
+/// 滚动/数据状态留在 Kotlin/Compose 内部，updateUIViewController 留空避免重建丢位置。
+struct HomeComposeView: UIViewControllerRepresentable {
+    let onMusicClick: (PlayableSong?) -> Void
+    let onPlaylistClick: (KotlinLong, String, KotlinBoolean) -> Void
+    let onSearchClick: () -> Void
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        FoxHomeScreen.shared.makeHomeViewController(
+            onMusicClick: onMusicClick,
+            onPlaylistClick: onPlaylistClick,
+            onSearchClick: onSearchClick
+        )
     }
 
-    private func loadSongs() {
-        FoxIosBridge.shared.fetchMusicList { list in
-            // 领域模型交给共享 UI（core:ui 的 MusicListItem），可播放结构交给 AVPlayer
-            let musics = list.map { FoxIosBridge.shared.toMusic(music: $0) }
-            let playable = list.compactMap { FoxIosBridge.shared.toPlayableSong(music: $0) }
-            DispatchQueue.main.async {
-                self.songs = musics
-                // 里程碑演示：列表加载后自动播放第一首，便于验证后台播放与锁屏显示
-                if let first = playable.first {
-                    PlayerModel.shared.play(first)
-                }
-            }
-        } onError: { message in
-            DispatchQueue.main.async { self.errorMessage = message }
-        }
-    }
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
