@@ -61,12 +61,16 @@ object FoxIosBridge {
 
     fun toPlayableSong(music: MusicDto): PlayableSong? {
         val url = MediaUrlResolver.resolve(music.audioUrl ?: music.url) ?: return null
+        val cover = music.coverImage ?: music.coverUrl
         return PlayableSong(
             id = music.id,
             title = music.title,
             artist = music.artists.joinToString(" / ") { it.name }.ifBlank { "未知艺术家" },
             audioUrl = url,
+            coverUrl = cover?.let { MediaUrlResolver.resolve(it) },
             durationMillis = music.duration,
+            lyric = music.lyrics,
+            lyricTrans = music.lyricsTrans,
         )
     }
 
@@ -99,7 +103,10 @@ object FoxIosBridge {
             title = music.title,
             artist = music.artists.joinToString(" / ") { it.name }.ifBlank { "未知艺术家" },
             audioUrl = url,
+            coverUrl = music.coverImage?.let { MediaUrlResolver.resolve(it) },
             durationMillis = music.duration,
+            lyric = music.lyrics,
+            lyricTrans = music.lyricsTrans,
         )
     }
 }
@@ -113,11 +120,15 @@ object FoxComposeState {
     var isPlaying: Boolean by mutableStateOf(false)
 }
 
-/** Swift 侧直接消费的可播放条目（比 MusicDto 小，避免 Swift 感知完整 DTO 结构）。 */
+/** Swift 侧直接消费的可播放条目（比 MusicDto 小，避免 Swift 感知完整 DTO 结构）。
+ * coverUrl / lyric / lyricTrans 用于全屏播放器与歌词展示（Kotlin 侧只透传，解析在 Swift）。 */
 data class PlayableSong(
     val id: String,
     val title: String,
     val artist: String,
     val audioUrl: String,
+    val coverUrl: String? = null,
     val durationMillis: Long,
+    val lyric: String? = null,
+    val lyricTrans: String? = null,
 )

@@ -1,6 +1,12 @@
 import SwiftUI
 import FoxShared
 
+/// 全屏播放器展示协调器（单例）：迷你条点击 → 置 true；ContentView 监听后弹全屏。
+final class PlayerUICoordinator: ObservableObject {
+    static let shared = PlayerUICoordinator()
+    @Published var isFullPlayerPresented = false
+}
+
 /// 应用根视图：SwiftUI TabView 外壳 —— 与 Android 端 AppDestinations 对齐的 5 个 Tab：
 /// 首页 / 发现 / 社区 / 消息 / 我的。
 ///
@@ -8,6 +14,8 @@ import FoxShared
 /// TabView 上会盖住 Tab 栏，Tab 按钮全部点不到）——必须挂在每个 Tab 内容
 /// 内部（withMiniPlayer），让迷你条渲染在 Tab 栏之上、与 Tab 栏共存。
 struct ContentView: View {
+    @StateObject private var playerUI = PlayerUICoordinator.shared
+
     var body: some View {
         TabView {
             HomeTabView()
@@ -25,6 +33,9 @@ struct ContentView: View {
             PlaceholderTabView(title: "我的", icon: "person.crop.circle.fill")
                 .withMiniPlayer()
                 .tabItem { Label("我的", systemImage: "person.crop.circle") }
+        }
+        .fullScreenCover(isPresented: $playerUI.isFullPlayerPresented) {
+            PlayerView()
         }
     }
 }
@@ -62,6 +73,11 @@ struct MiniPlayerBar: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            .contentShape(Rectangle())
+            .onTapGesture { PlayerUICoordinator.shared.isFullPlayerPresented = true }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("miniPlayer.bar")
             Spacer()
             Button {
                 PlayerModel.shared.togglePlayPause()

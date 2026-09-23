@@ -202,4 +202,48 @@ final class FoxMusicUITests: XCTestCase {
         XCTAssertTrue(appeared, "点按榜单后详情页未出现'播放全部'")
         XCTAssertEqual(app.state, .runningForeground)
     }
+
+    /// 首页点歌 → 迷你条出现 → 点迷你条进入全屏播放器（含标题/歌词）。
+    func test07MiniPlayerOpensFullPlayer() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let homeTab = app.tabBars.buttons["首页"]
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 10))
+        homeTab.tap()
+
+        // 滚到"为你精选"并点首歌曲
+        var found = false
+        for _ in 0..<10 {
+            if app.staticTexts["为你精选"].exists { found = true; break }
+            app.swipeUp(); sleep(1)
+        }
+        XCTAssertTrue(found, "首页'为你精选'区未出现")
+        let section = app.staticTexts["为你精选"]
+        for _ in 0..<6 {
+            if section.frame.midY < app.frame.height * 0.45 { break }
+            app.swipeUp(); sleep(1)
+        }
+        sleep(3)
+        let f = section.frame
+        var opened = false
+        for offset in [90, 120, 60] {
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: f.midX, dy: f.maxY + CGFloat(offset))).tap()
+            if app.buttons["miniPlayer.playPause"].waitForExistence(timeout: 6) { opened = true; break }
+            app.swipeUp(); sleep(1)
+        }
+        XCTAssertTrue(opened, "点歌后迷你播放条未出现")
+
+        // 点迷你条（标题区）进入全屏播放器
+        let miniBar = app.buttons["miniPlayer.bar"]
+        XCTAssertTrue(miniBar.waitForExistence(timeout: 5), "迷你条可点区域未出现")
+        miniBar.tap()
+
+        let fullTitle = app.staticTexts["fullPlayer.title"]
+        let appeared = fullTitle.waitForExistence(timeout: 8)
+        snap(app, "07_全屏播放器")
+        XCTAssertTrue(appeared, "点迷你条未进入全屏播放器（全屏标题未出现）")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 }

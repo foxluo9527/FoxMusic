@@ -10,6 +10,7 @@
 		B10000000000000000000001 /* FoxMusicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* FoxMusicApp.swift */; };
 		B10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ContentView.swift */; };
 		B10000000000000000000003 /* PlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* PlayerModel.swift */; };
+		B10000000000000000000009 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000C /* PlayerView.swift */; };
 		B10000000000000000000004 /* FoxShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* FoxShared.framework */; };
 		B10000000000000000000005 /* ComposeSongsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* ComposeSongsView.swift */; };
 		B10000000000000000000006 /* FoxMusicUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* FoxMusicUITests.swift */; };
@@ -22,6 +23,7 @@
 		F10000000000000000000002 /* FoxMusicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoxMusicApp.swift; sourceTree = "<group>"; };
 		F10000000000000000000003 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F10000000000000000000004 /* PlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerModel.swift; sourceTree = "<group>"; };
+		F1000000000000000000000C /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
 		F10000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F10000000000000000000006 /* FoxShared.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FoxShared.framework; path = "../iosShared/build/xcode-frameworks/Debug/iphonesimulator/FoxShared.framework"; sourceTree = "<group>"; };
 		F10000000000000000000007 /* ComposeSongsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeSongsView.swift; sourceTree = "<group>"; };
@@ -69,6 +71,7 @@
 				F10000000000000000000007 /* ComposeSongsView.swift */,
 				F1000000000000000000000A /* HomeTabView.swift */,
 				F1000000000000000000000B /* PlaylistTabView.swift */,
+				F1000000000000000000000C /* PlayerView.swift */,
 				F10000000000000000000005 /* Info.plist */,
 			);
 			path = iosApp;
@@ -225,6 +228,7 @@
 				B10000000000000000000005 /* ComposeSongsView.swift in Sources */,
 				B10000000000000000000007 /* HomeTabView.swift in Sources */,
 				B10000000000000000000008 /* PlaylistTabView.swift in Sources */,
+				B10000000000000000000009 /* PlayerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
