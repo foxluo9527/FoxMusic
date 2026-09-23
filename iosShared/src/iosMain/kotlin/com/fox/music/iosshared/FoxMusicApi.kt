@@ -4,6 +4,7 @@ import com.fox.music.core.network.FoxNetworkConfig
 import com.fox.music.core.network.model.ApiResponse
 import com.fox.music.core.network.model.MusicDto
 import com.fox.music.core.network.model.PagedResponse
+import com.fox.music.core.network.model.PlaylistDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.darwin.Darwin
@@ -44,5 +45,18 @@ class FoxMusicApi {
             }
             .body()
         return response.data?.list.orEmpty()
+    }
+
+    /**
+     * GET /api/playlists/recommended —— 推荐歌单（与 Android 端 PlaylistApiService 同一路径）。
+     */
+    suspend fun fetchRecommendedPlaylists(page: Int = 1, limit: Int = 20): List<PlaylistDto> {
+        val response: ApiResponse<List<PlaylistDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/playlists/recommended") {
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data.orEmpty()
     }
 }

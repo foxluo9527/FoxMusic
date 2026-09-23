@@ -1,70 +1,96 @@
 import SwiftUI
 import FoxShared
 
+/// 应用根视图：SwiftUI TabView 外壳。
+///
+/// 注意：迷你播放条不能挂在 TabView 上（safeAreaInset(edge: .bottom) 挂在
+/// TabView 上会盖住 Tab 栏，Tab 按钮全部点不到）——必须挂在每个 Tab 内容
+/// 内部（withMiniPlayer），让迷你条渲染在 Tab 栏之上、与 Tab 栏共存。
+/// 内容屏逐步迁移到共享 Compose（feature:x commonMain 的 Content 组件），
+/// 导航与播放器这类平台特性保持 SwiftUI/Swift 原生 —— 与"UI 两端共用结构、
+/// 平台分支细节"的既定路线一致。
 struct ContentView: View {
-    @State private var songs: [Music] = []
-    @State private var errorMessage: String?
+    var body: some View {
+        TabView {
+            HomeTabView()
+                .withMiniPlayer()
+                .tabItem { Label("首页", systemImage: "music.note.house") }
+            PlaylistTabView()
+                .withMiniPlayer()
+                .tabItem { Label("歌单", systemImage: "music.note.list") }
+            PlaceholderTabView(title: "搜索", icon: "magnifyingglass")
+                .withMiniPlayer()
+                .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+            PlaceholderTabView(title: "我的", icon: "person.crop.circle")
+                .withMiniPlayer()
+                .tabItem { Label("我的", systemImage: "person.crop.circle") }
+        }
+    }
+}
+
+/// 迷你播放条修饰器：挂在每个 Tab 的根视图上（而非 TabView），
+/// 这样迷你条位于 Tab 栏上方，两者互不遮挡。
+struct MiniPlayerModifier: ViewModifier {
     @ObservedObject private var player = PlayerModel.shared
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom) {
+            if let current = player.current {
+                MiniPlayerBar(current: current, isPlaying: player.isPlaying)
+            }
+        }
+    }
+}
+
+extension View {
+    func withMiniPlayer() -> some View { modifier(MiniPlayerModifier()) }
+}
+
+/// 全局迷你播放条（从旧 ContentView 抽成组件，跨 Tab 常驻）。
+struct MiniPlayerBar: View {
+    let current: PlayableSong
+    let isPlaying: Bool
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text(current.title).font(.headline).lineLimit(1)
+                    .accessibilityIdentifier("miniPlayer.title")
+                Text(current.artist)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button {
+                PlayerModel.shared.togglePlayPause()
+            } label: {
+                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 36))
+            }
+            .accessibilityIdentifier("miniPlayer.playPause")
+            .accessibilityLabel(isPlaying ? "pause.circle.fill" : "play.circle.fill")
+        }
+        .padding()
+        .background(.bar)
+    }
+}
+
+/// 占位 Tab（搜索/我的）：对应共享 Content 尚未接入，后续批次替换。
+struct PlaceholderTabView: View {
+    let title: String
+    let icon: String
 
     var body: some View {
         NavigationStack {
-            Group {
-                if let errorMessage {
-                    Text("加载失败：\(errorMessage)")
-                        .foregroundStyle(.secondary)
-                        .padding()
-                } else if songs.isEmpty {
-                    ProgressView("加载歌曲中…")
-                } else {
-                    // 列表本体由共享层 Compose 渲染（批次 8 验证点），
-                    // 点击回调回到 Swift 播放，播放状态再回灌给 Compose。
-                    ComposeSongsView(songs: songs) { song in
-                        PlayerModel.shared.play(song)
-                    }
-                    .ignoresSafeArea(edges: .bottom)
-                }
+            VStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 48))
+                    .foregroundStyle(.secondary)
+                Text("\(title)页迁移中")
+                    .foregroundStyle(.secondary)
             }
-            .navigationTitle("FoxMusic")
-            .safeAreaInset(edge: .bottom) {
-                if let current = player.current {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(current.title).font(.headline).lineLimit(1)
-                            Text(current.artist)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        Button {
-                            PlayerModel.shared.togglePlayPause()
-                        } label: {
-                            Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                .font(.system(size: 36))
-                        }
-                    }
-                    .padding()
-                    .background(.bar)
-                }
-            }
-            .onAppear(perform: loadSongs)
-        }
-    }
-
-    private func loadSongs() {
-        FoxIosBridge.shared.fetchMusicList { list in
-            // 领域模型交给共享 UI（core:ui 的 MusicListItem），可播放结构交给 AVPlayer
-            let musics = list.map { FoxIosBridge.shared.toMusic(music: $0) }
-            let playable = list.compactMap { FoxIosBridge.shared.toPlayableSong(music: $0) }
-            DispatchQueue.main.async {
-                self.songs = musics
-                // 里程碑演示：列表加载后自动播放第一首，便于验证后台播放与锁屏显示
-                if let first = playable.first {
-                    PlayerModel.shared.play(first)
-                }
-            }
-        } onError: { message in
-            DispatchQueue.main.async { self.errorMessage = message }
+            .navigationTitle(title)
         }
     }
 }

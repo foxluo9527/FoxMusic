@@ -42,11 +42,16 @@ kotlin {
             api(project(":core:ui"))
             // 跨端映射层：两端共用同一份 DtoMappers
             api(project(":core:mapper"))
+            // 已跨端的 feature 模块（commonMain Content 组件直接复用）：
+            // 签名不对外暴露 feature 类型，故不需 export 到 Swift
+            api(project(":feature:playlist"))
             // Compose Multiplatform（iOS 侧 UI，与 Android 的 androidx Compose 无关）
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            // Paging KMP：iOS 侧 PagingSource / Pager 直接可用（paging-compose 经 feature:playlist 传递）
+            implementation(libs.paging.common)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.darwin)
             implementation(libs.ktor.client.content.negotiation)
