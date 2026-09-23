@@ -32,7 +32,7 @@ struct HomeTabView: View {
                 case .playlistDetail(let id, let title, let isRank):
                     PlaylistDetailView(playlistId: id, isRank: isRank, title: title)
                 case .search:
-                    SearchPlaceholderView()
+                    SearchView()
                 }
             }
         }

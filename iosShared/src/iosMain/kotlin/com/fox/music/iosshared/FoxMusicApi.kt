@@ -131,4 +131,58 @@ class FoxMusicApi {
             .body()
         return response.data
     }
+
+    /** GET /api/music?keyword= —— 平台曲库搜索（noAuth）。 */
+    suspend fun searchMusic(keyword: String, page: Int = 1, limit: Int = 20): List<MusicDto> {
+        val response: ApiResponse<PagedResponse<MusicDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/music") {
+                parameter("keyword", keyword)
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data?.list.orEmpty()
+    }
+
+    /** GET /api/music/third-party/search?platform=&keyword= —— 第三方平台搜索（noAuth）。 */
+    suspend fun searchThirdPartyMusic(
+        platform: String,
+        keyword: String,
+        page: Int = 1,
+        limit: Int = 20,
+    ): List<MusicDto> {
+        val response: ApiResponse<PagedResponse<MusicDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/music/third-party/search") {
+                parameter("platform", platform)
+                parameter("keyword", keyword)
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data?.list.orEmpty()
+    }
+
+    /** GET /api/artists?keyword= —— 歌手搜索（noAuth）。 */
+    suspend fun searchArtists(keyword: String, page: Int = 1, limit: Int = 20): List<ArtistDto> {
+        val response: ApiResponse<PagedResponse<ArtistDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/artists") {
+                parameter("keyword", keyword)
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data?.list.orEmpty()
+    }
+
+    /** GET /api/albums?keyword= —— 专辑搜索（noAuth）。 */
+    suspend fun searchAlbums(keyword: String, page: Int = 1, limit: Int = 20): List<AlbumDto> {
+        val response: ApiResponse<PagedResponse<AlbumDto>> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/albums") {
+                parameter("keyword", keyword)
+                parameter("page", page)
+                parameter("limit", limit)
+            }
+            .body()
+        return response.data?.list.orEmpty()
+    }
 }

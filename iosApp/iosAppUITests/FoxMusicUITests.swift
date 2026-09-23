@@ -246,4 +246,42 @@ final class FoxMusicUITests: XCTestCase {
         XCTAssertTrue(appeared, "点迷你条未进入全屏播放器（全屏标题未出现）")
         XCTAssertEqual(app.state, .runningForeground)
     }
+
+    /// 首页点搜索框 → 搜索页（feature:search 共享 UI）→ 热词面板 → 触发搜索出现结果 Tab。
+    func test08HomeSearchOpensSearch() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let homeTab = app.tabBars.buttons["首页"]
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 10))
+        homeTab.tap()
+
+        let brand = app.staticTexts["FoxMusic"]
+        XCTAssertTrue(brand.waitForExistence(timeout: 20), "首页品牌头未出现")
+        let f = brand.frame
+        // 搜索框在品牌标题下方
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: f.midX, dy: f.maxY + 45)).tap()
+        sleep(4)
+        snap(app, "08_搜索页")
+
+        print("=== A11Y TREE BEGIN (搜索页) ===")
+        print(app.debugDescription)
+        print("=== A11Y TREE END ===")
+
+        // 推荐面板：热词区标题
+        let rec = app.staticTexts["推荐搜索"]
+        XCTAssertTrue(rec.waitForExistence(timeout: 12), "搜索页未出现'推荐搜索'热词面板（SearchContent 未渲染）")
+
+        // 点第一个热词 chip（两列网格第一行）触发搜索 → 结果区 Tab 出现
+        let rf = rec.frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: rf.midX * 0.5, dy: rf.maxY + 45)).tap()
+        sleep(5)
+        snap(app, "08_搜索结果")
+
+        let musicTab = app.staticTexts["单曲"]
+        XCTAssertTrue(musicTab.waitForExistence(timeout: 12), "点热词后未出现结果 Tab（搜索未触发）")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 }

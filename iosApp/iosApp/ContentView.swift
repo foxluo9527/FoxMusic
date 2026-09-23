@@ -151,7 +151,7 @@ struct DiscoverTabView: View {
                 case .artistDetail(let id):
                     ArtistPlaceholderView(artistId: id)
                 case .search:
-                    SearchPlaceholderView()
+                    SearchView()
                 }
             }
         }
@@ -202,21 +202,43 @@ struct ArtistPlaceholderView: View {
     }
 }
 
-/// 搜索占位页（feature:search commonMain 接入后替换）。
-struct SearchPlaceholderView: View {
+/// 搜索页：共享层 SearchContent（feature:search commonMain）渲染 ——
+/// 与 Android 搜索页同一份 UI（搜索框+单曲/歌手/专辑/帖子 Tab+平台切换+热词面板）。
+struct SearchView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("搜索页迁移中")
-                .foregroundStyle(.secondary)
-        }
-        .navigationTitle("搜索")
-        .navigationBarTitleDisplayMode(.inline)
+        SearchComposeView(
+            onBack: { dismiss() },
+            onMusicClick: { song in
+                if let song { PlayerModel.shared.play(song) }
+            },
+            onArtistClick: { _ in },
+            onAlbumClick: { _ in }
+        )
+        .ignoresSafeArea(edges: .bottom)
+        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .tabBar)
     }
+}
+
+/// 把 Kotlin 侧搜索 VC 包进 SwiftUI。
+struct SearchComposeView: UIViewControllerRepresentable {
+    let onBack: () -> Void
+    let onMusicClick: (PlayableSong?) -> Void
+    let onArtistClick: (Int64) -> Void
+    let onAlbumClick: (Int64) -> Void
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        FoxSearchScreen.shared.makeSearchViewController(
+            onBack: onBack,
+            onMusicClick: onMusicClick,
+            onArtistClick: { onArtistClick($0.int64Value) },
+            onAlbumClick: { onAlbumClick($0.int64Value) }
+        )
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
 
 // MARK: - 歌单/榜单详情页
@@ -245,6 +267,7 @@ struct PlaylistDetailView: View {
         )
         .ignoresSafeArea(edges: .bottom)
         .navigationBarHidden(true)
+        .toolbar(.hidden, for: .tabBar)
     }
 }
 
