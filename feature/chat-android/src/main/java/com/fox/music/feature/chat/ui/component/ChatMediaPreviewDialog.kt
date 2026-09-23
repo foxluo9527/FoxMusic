@@ -64,11 +64,7 @@ import com.fox.music.feature.chat.ui.util.formatMediaSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class ChatMediaPreviewType {
-    IMAGE,
-    VIDEO,
-    LIVE,
-}
+// ChatMediaPreviewType 已抽到 commonMain（同包），此处不再重复定义。
 
 data class ChatPendingMedia(
     val uri: Uri,

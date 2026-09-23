@@ -137,6 +137,10 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 # Kotlinx Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
+# Kotlinx DateTime —— KMP 时间库，替代 java.time（JVM-only，K/N 不可用）
+# 用 -0.6.x-compat 变体：保留 0.6.x API（Clock/Instant/LocalDate/TimeZone），metadata 新版编译
+kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version = "0.8.0-0.6.x-compat" }
+
 # Ktor client —— iOS 端（K/N Darwin 引擎）发 HTTP 用，Android 端仍走 Retrofit，互不影响
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-darwin = { group = "io.ktor", name = "ktor-client-darwin", version.ref = "ktor" }
