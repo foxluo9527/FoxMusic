@@ -3,6 +3,7 @@ package com.fox.music.iosshared
 import com.fox.music.core.network.FoxNetworkConfig
 import com.fox.music.core.network.model.AlbumDto
 import com.fox.music.core.network.model.ApiResponse
+import com.fox.music.core.network.model.ArtistDetailDto
 import com.fox.music.core.network.model.ArtistDto
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.network.model.MusicDto
@@ -97,6 +98,14 @@ class FoxMusicApi {
             }
             .body()
         return response.data?.list.orEmpty()
+    }
+
+    /** GET /api/artists/{id} —— 歌手详情（含热门歌曲 + 专辑，后端 noAuth）。 */
+    suspend fun fetchArtistDetail(id: Long): ArtistDetailDto? {
+        val response: ApiResponse<ArtistDetailDto> = client
+            .get("${FoxNetworkConfig.API_BASE_URL}api/artists/$id")
+            .body()
+        return response.data
     }
 
     /** GET /api/playlists/ranks —— 排行榜列表（后端 noAuth，data 为数组）。 */

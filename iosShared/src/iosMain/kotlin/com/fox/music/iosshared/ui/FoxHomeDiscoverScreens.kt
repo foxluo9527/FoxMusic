@@ -18,11 +18,13 @@ import androidx.paging.cachedIn
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.data.mapper.toAlbum
 import com.fox.music.core.data.mapper.toArtist
+import com.fox.music.core.data.mapper.toArtistDetail
 import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.data.mapper.toPlaylist
 import com.fox.music.core.data.mapper.toPlaylistDetail
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.ArtistDetail
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.HotKeyword
 import com.fox.music.core.model.music.Music
@@ -31,6 +33,9 @@ import com.fox.music.core.model.music.PlaylistDetail
 import com.fox.music.feature.discover.DiscoverContent
 import com.fox.music.feature.discover.DiscoverIntent
 import com.fox.music.feature.discover.DiscoverState
+import com.fox.music.feature.discover.ArtistDetailContent
+import com.fox.music.feature.discover.ArtistDetailIntent
+import com.fox.music.feature.discover.ArtistDetailState
 import com.fox.music.feature.home.HomeContent
 import com.fox.music.feature.home.HomeIntent
 import com.fox.music.feature.home.HomeState
@@ -355,4 +360,57 @@ internal class PlaylistTracksPagingSource(
             state.closestPageToPosition(anchor)?.prevKey?.plus(1)
                 ?: state.closestPageToPosition(anchor)?.nextKey?.minus(1)
         }
+}
+
+/**
+ * iOS 端歌手详情页 Presenter：复用 feature:discover commonMain 的 ArtistDetailContent ——
+ * 与 Android 歌手详情页同一份 UI（头像头部 + 热门歌曲 + 专辑）。
+ */
+@OptIn(ExperimentalSharedTransitionApi::class)
+object FoxArtistDetailScreen {
+
+    private val api = FoxMusicApi()
+
+    fun makeArtistDetailViewController(
+        artistId: Long,
+        onMusicClick: (PlayableSong?) -> Unit,
+        onAlbumClick: (Long) -> Unit,
+        onBack: () -> Unit,
+    ): UIViewController = ComposeUIViewController {
+        var detail by remember { mutableStateOf<ArtistDetail?>(null) }
+        var error by remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(artistId) {
+            try {
+                detail = api.fetchArtistDetail(artistId)?.toArtistDetail()
+            } catch (e: Exception) {
+                error = e.message
+            }
+        }
+
+        val state = ArtistDetailState(
+            artistDetail = detail,
+            isLoading = detail == null && error == null,
+            error = error,
+        )
+
+        SharedTransitionLayout {
+            AnimatedContent(targetState = true, label = "artist-detail") {
+                ArtistDetailContent(
+                    state = state,
+                    onIntent = { intent ->
+                        when (intent) {
+                            ArtistDetailIntent.Load -> Unit // 数据在 LaunchedEffect 加载
+                            ArtistDetailIntent.ToggleFavorite -> Unit // 需登录，后续批次接入
+                        }
+                    },
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedContentScope = this@AnimatedContent,
+                    onMusicClick = { onMusicClick(FoxIosBridge.playableSong(it)) },
+                    onAlbumClick = { album -> onAlbumClick(album.id) },
+                    onBack = onBack,
+                )
+            }
+        }
+    }
 }

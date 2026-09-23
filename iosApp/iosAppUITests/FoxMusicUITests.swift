@@ -284,4 +284,46 @@ final class FoxMusicUITests: XCTestCase {
         XCTAssertTrue(musicTab.waitForExistence(timeout: 12), "点热词后未出现结果 Tab（搜索未触发）")
         XCTAssertEqual(app.state, .runningForeground)
     }
+
+    /// 发现页点歌手 → 歌手详情页（feature:discover ArtistDetailContent，含"热门歌曲"）。
+    func test09DiscoverArtistOpensDetail() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let tab = app.tabBars.buttons["发现"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 10))
+        tab.tap()
+        XCTAssertTrue(app.staticTexts["热门榜单"].waitForExistence(timeout: 25), "发现页未加载")
+        sleep(3)
+
+        // 滚动到"热门歌手"区（4 列歌手网格）
+        var found = false
+        for _ in 0..<10 {
+            if app.staticTexts["热门歌手"].exists { found = true; break }
+            app.swipeUp(); sleep(1)
+        }
+        XCTAssertTrue(found, "发现页'热门歌手'区未出现")
+
+        let header = app.staticTexts["热门歌手"]
+        for _ in 0..<6 {
+            if header.frame.midY < app.frame.height * 0.45 { break }
+            app.swipeUp(); sleep(1)
+        }
+        sleep(2)
+
+        print("=== A11Y TREE BEGIN (发现页-热门歌手) ===")
+        print(app.debugDescription)
+        print("=== A11Y TREE END ===")
+
+        // 点歌手网格第一行（第一列封面）
+        let hf = header.frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: max(hf.minX, 20) + 40, dy: hf.maxY + 60)).tap()
+        sleep(5)
+        snap(app, "09_歌手详情")
+
+        let hotSongs = app.staticTexts["热门歌曲"]
+        XCTAssertTrue(hotSongs.waitForExistence(timeout: 12), "点歌手后未进入歌手详情页（'热门歌曲'未出现）")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 }

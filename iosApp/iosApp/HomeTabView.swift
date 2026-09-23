@@ -6,6 +6,7 @@ import FoxShared
 /// 分页与数据全部在 Kotlin 侧（Ktor + Paging3），Swift 只接导航/播放回调。
 enum HomeRoute: Hashable {
     case playlistDetail(id: Int64, title: String, isRank: Bool)
+    case artistDetail(id: Int64)
     case search
 }
 
@@ -31,8 +32,10 @@ struct HomeTabView: View {
                 switch route {
                 case .playlistDetail(let id, let title, let isRank):
                     PlaylistDetailView(playlistId: id, isRank: isRank, title: title)
+                case .artistDetail(let id):
+                    ArtistDetailView(artistId: id)
                 case .search:
-                    SearchView()
+                    SearchView(onArtistClick: { id in path.append(.artistDetail(id: id)) })
                 }
             }
         }

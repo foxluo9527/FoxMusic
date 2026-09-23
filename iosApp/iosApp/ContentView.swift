@@ -149,9 +149,9 @@ struct DiscoverTabView: View {
                 case .rankDetail(let id, let title):
                     PlaylistDetailView(playlistId: id, isRank: true, title: title)
                 case .artistDetail(let id):
-                    ArtistPlaceholderView(artistId: id)
+                    ArtistDetailView(artistId: id)
                 case .search:
-                    SearchView()
+                    SearchView(onArtistClick: { id in path.append(.artistDetail(id: id)) })
                 }
             }
         }
@@ -181,30 +181,50 @@ struct DiscoverComposeView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
 
-/// 艺人详情占位页（HotArtistListContent/ArtistDetailContent 接入后替换）。
-struct ArtistPlaceholderView: View {
+/// 艺人详情页：共享层 ArtistDetailContent（feature:discover commonMain）渲染 ——
+/// 与 Android 歌手详情页同一份 UI（头像头部 + 热门歌曲 + 专辑）。
+struct ArtistDetailView: View {
     let artistId: Int64
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("艺人详情页迁移中")
-                .foregroundStyle(.secondary)
-            Text("id: \(artistId)")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .navigationTitle("艺人")
-        .navigationBarTitleDisplayMode(.inline)
+        ArtistDetailComposeView(
+            artistId: artistId,
+            onMusicClick: { song in
+                if let song { PlayerModel.shared.play(song) }
+            },
+            onAlbumClick: { _ in },
+            onBack: { dismiss() }
+        )
+        .ignoresSafeArea(edges: .bottom)
+        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .tabBar)
     }
+}
+
+/// 把 Kotlin 侧歌手详情 VC 包进 SwiftUI。
+struct ArtistDetailComposeView: UIViewControllerRepresentable {
+    let artistId: Int64
+    let onMusicClick: (PlayableSong?) -> Void
+    let onAlbumClick: (Int64) -> Void
+    let onBack: () -> Void
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        FoxArtistDetailScreen.shared.makeArtistDetailViewController(
+            artistId: artistId,
+            onMusicClick: onMusicClick,
+            onAlbumClick: { onAlbumClick($0.int64Value) },
+            onBack: onBack
+        )
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
 
 /// 搜索页：共享层 SearchContent（feature:search commonMain）渲染 ——
 /// 与 Android 搜索页同一份 UI（搜索框+单曲/歌手/专辑/帖子 Tab+平台切换+热词面板）。
 struct SearchView: View {
+    var onArtistClick: (Int64) -> Void = { _ in }
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -213,7 +233,7 @@ struct SearchView: View {
             onMusicClick: { song in
                 if let song { PlayerModel.shared.play(song) }
             },
-            onArtistClick: { _ in },
+            onArtistClick: onArtistClick,
             onAlbumClick: { _ in }
         )
         .ignoresSafeArea(edges: .bottom)
