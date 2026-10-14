@@ -64,4 +64,14 @@ sealed interface AssistantIntent : UiIntent {
 sealed interface AssistantEffect : UiEffect {
     /** dispatch 结果 / 发送失败等原因，直接可 Toast */
     data class ShowMessage(val message: String) : AssistantEffect
+
+    /**
+     * 导航类动作：跳转到客户端某个页面（open_screen）。
+     * core 层拿不到 NavController，故经 Effect 上浮给 Android 外壳接线。
+     * [screen] 为服务端 SCREEN_WHITELIST 标识；[targetId] 为页面参数（歌单/专辑/歌手 ID，可空）。
+     */
+    data class OpenScreen(val screen: String, val targetId: Long? = null) : AssistantEffect
+
+    /** 站内搜索（search_in_app）：带关键词跳转到搜索结果页 */
+    data class SearchInApp(val query: String) : AssistantEffect
 }

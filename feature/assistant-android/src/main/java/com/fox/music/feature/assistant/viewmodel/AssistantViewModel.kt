@@ -3,6 +3,7 @@ package com.fox.music.feature.assistant.viewmodel
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.assistant.AssistantAction
 import com.fox.music.core.assistant.AssistantActionDispatcher
+import com.fox.music.core.assistant.AssistantActionTypes
 import com.fox.music.core.assistant.AssistantRepository
 import com.fox.music.core.assistant.DispatchResult
 import com.fox.music.core.common.mvi.MviViewModel
@@ -23,6 +24,7 @@ import javax.inject.Inject
  *
  * 动作分发规则：
  *  - requiresConfirm（send_message/add_friend）进 pendingActions 队列，UI 确认后再跑；
+ *  - 导航类（open_screen / search_in_app）不走 dispatcher，直接发 AssistantEffect 上浮给 UI 接线；
  *  - 其余（play_music 等）收到即执行，结果 Toast 反馈。
  */
 @HiltViewModel
@@ -112,7 +114,7 @@ class AssistantViewModel @Inject constructor(
             updateState { copy(pendingActions = pendingActions + action) }
             return
         }
-        viewModelScope.launch { dispatchAndToast(action) }
+        handleNonConfirmAction(action)
     }
 
     private fun runActions(actions: List<AssistantAction>) {
@@ -120,8 +122,35 @@ class AssistantViewModel @Inject constructor(
             if (action.requiresConfirm) {
                 updateState { copy(pendingActions = pendingActions + action) }
             } else {
-                viewModelScope.launch { dispatchAndToast(action) }
+                handleNonConfirmAction(action)
             }
+        }
+    }
+
+    /**
+     * 非确认动作分流：
+     *  - open_screen / search_in_app 是导航类，core 层无 NavController，直接发 Effect 上浮给 UI；
+     *  - 其余交 [assistantActionDispatcher] 执行（方案 4.1 铁律），结果 Toast 反馈。
+     */
+    private fun handleNonConfirmAction(action: AssistantAction) {
+        when (action.type) {
+            AssistantActionTypes.OPEN_SCREEN -> {
+                val screen = action.paramString("screen")
+                if (screen == null) {
+                    sendEffect(AssistantEffect.ShowMessage("动作缺少 screen"))
+                } else {
+                    sendEffect(AssistantEffect.OpenScreen(screen, action.paramLong("target_id")))
+                }
+            }
+            AssistantActionTypes.SEARCH_IN_APP -> {
+                val keyword = action.paramString("keyword")
+                if (keyword == null) {
+                    sendEffect(AssistantEffect.ShowMessage("动作缺少 keyword"))
+                } else {
+                    sendEffect(AssistantEffect.SearchInApp(keyword))
+                }
+            }
+            else -> viewModelScope.launch { dispatchAndToast(action) }
         }
     }
 

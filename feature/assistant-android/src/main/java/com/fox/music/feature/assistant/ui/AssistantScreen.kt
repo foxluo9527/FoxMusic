@@ -24,6 +24,8 @@ fun AssistantScreen(
     modifier: Modifier = Modifier,
     viewModel: AssistantViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    onOpenScreen: (String, Long?) -> Unit = { _, _ -> },
+    onSearchInApp: (String) -> Unit = { _ -> },
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -33,6 +35,8 @@ fun AssistantScreen(
             when (effect) {
                 is AssistantEffect.ShowMessage ->
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
+                is AssistantEffect.OpenScreen -> onOpenScreen(effect.screen, effect.targetId)
+                is AssistantEffect.SearchInApp -> onSearchInApp(effect.query)
             }
         }
     }
