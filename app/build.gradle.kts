@@ -108,7 +108,7 @@ dependencies {
     // UseCase 的 Hilt 显式装配（UseCaseModule，78 个 @Provides）。
     // :core:domain 是 KMP 模块，无法承载 Dagger 产物。
     implementation(project(":core:domain-android"))
-    implementation(project(":core:data"))
+    implementation(project(":core:data-android"))
     implementation(project(":core:datastore"))
     implementation(project(":core:player"))
     // :core:network 是跨端 DTO 层，Android 实现（ApiService / Retrofit / Hilt 装配）在 :core:network-android，
@@ -125,6 +125,9 @@ dependencies {
     implementation(project(":feature:chat-android"))
     implementation(project(":feature:profile-android"))
     implementation(project(":feature:automotive"))
+    // 客户端 AI 音乐助手（功能二）：屏幕/路由在 -android，Hilt 装配（仓库/调度器实现）经其传递
+    implementation(project(":feature:assistant-android"))
+    implementation(project(":core:assistant-android"))
 
     // AndroidX Core
     implementation(libs.androidx.core.ktx)

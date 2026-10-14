@@ -5,7 +5,8 @@ import androidx.navigation.NavGraphBuilder
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.feature.discover.DISCOVER_ROUTE
-import com.fox.music.feature.social.ui.screen.COMMUNITY_PLAZA_ROUTE
+import com.fox.music.feature.assistant.assistantRoute
+import com.fox.music.feature.social.COMMUNITY_PLAZA_ROUTE
 import com.fox.music.feature.discover.HOT_ARTIST_LIST_ROUTE
 import com.fox.music.feature.discover.DiscoverScreen
 import com.fox.music.feature.home.HOME_ROUTE
@@ -20,7 +21,7 @@ import com.fox.music.feature.search.searchRoute
 import com.fox.music.feature.social.ui.screen.CommunityPlazaScreen
 import com.fox.music.feature.social.ui.screen.POST_PUBLISH_QUEUE_ROUTE
 import com.fox.music.feature.social.ui.screen.createPostRoute
-import com.fox.music.feature.social.ui.screen.postDetailRoute
+import com.fox.music.feature.social.postDetailRoute
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.chat.FRIENDS_ROUTE
@@ -74,6 +75,11 @@ fun NavGraphBuilder.tabNavGraph(
                     },
                     onSearchClick = {
                         navController.navigate(searchRoute())
+                    },
+                    onAssistantClick = {
+                        // AI 助手全部依赖鉴权接口，未登录统一跳登录页（与消息 Tab 惯例一致）
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(assistantRoute())
                     },
                     onRecommendClick = {
                         navController.navigate(
@@ -225,24 +231,35 @@ fun NavGraphBuilder.tabNavGraph(
                 MessagesScreen(
                     modifier = it,
                     showBackButton = false,
-                    onNavigateToFriends = { navController.navigate(FRIENDS_ROUTE) },
+                    // 未登录门控：消息功能全部依赖鉴权接口，未登录点击统一跳登录页
+                    //（与社区 Tab 发帖/编辑帖的 navigate(LOGIN_ROUTE) 惯例一致）。
+                    onNavigateToFriends = {
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(FRIENDS_ROUTE)
+                    },
                     onNavigateToCommentNotifications = {
-                        navController.navigate(notificationCategoryRoute("comment"))
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(notificationCategoryRoute("comment"))
                     },
                     onNavigateToLikeNotifications = {
-                        navController.navigate(notificationCategoryRoute("like"))
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(notificationCategoryRoute("like"))
                     },
                     onNavigateToSystemAnnouncements = {
-                        navController.navigate(notificationCategoryRoute("system"))
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(notificationCategoryRoute("system"))
                     },
                     onNavigateToNotificationSettings = {
-                        navController.navigate(NOTIFICATION_SETTINGS_ROUTE)
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(NOTIFICATION_SETTINGS_ROUTE)
                     },
                     onNavigateToChat = { userId ->
-                        navController.navigate(chatDetailRoute(userId))
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(chatDetailRoute(userId))
                     },
                     onNavigateToSearch = {
-                        navController.navigate(chatSearchRoute())
+                        if (!context.authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(chatSearchRoute())
                     },
                 )
             }

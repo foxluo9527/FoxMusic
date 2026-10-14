@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -72,6 +73,9 @@ fun HomeContent(
     modifier: Modifier = Modifier,
     onMusicClick: (Music) -> Unit = {},
     onSearchClick: () -> Unit = {},
+    // 客户端 AI 音乐助手入口（功能二）。传 null 不渲染 pill —— iOS 壳未接线时
+    // 走默认 null，不会出现死按钮。
+    onAssistantClick: (() -> Unit)? = null,
     onPlaylistMoreClick: () -> Unit = {},
     onAlbumMoreClick: () -> Unit = {},
     onRecommendClick: () -> Unit = {},
@@ -114,6 +118,7 @@ fun HomeContent(
                 ) {
                     HomeBrandHero(
                         onSearchClick = onSearchClick,
+                        onAssistantClick = onAssistantClick,
                         hotHint = state.hotKeywords.firstOrNull()?.keyword,
                     )
                 }
@@ -225,6 +230,7 @@ fun HomeContent(
 @Composable
 private fun HomeBrandHero(
     onSearchClick: () -> Unit,
+    onAssistantClick: (() -> Unit)?,
     hotHint: String?,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -275,7 +281,32 @@ private fun HomeBrandHero(
                 color = scheme.onSurface.copy(alpha = 0.55f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            if (onAssistantClick != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(SearchBarShape)
+                        .background(scheme.primary.copy(alpha = 0.10f))
+                        .clickable(onClick = onAssistantClick)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "AI 助手",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = scheme.primary,
+                    )
+                }
+            }
         }
     }
 }

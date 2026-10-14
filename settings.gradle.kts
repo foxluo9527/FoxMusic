@@ -80,3 +80,6 @@ include(":feature:chat-android")
 include(":feature:profile")
 include(":feature:profile-android")
 include(":feature:automotive")
+// 客户端 AI 音乐助手（功能二）：跨端对话面板 + Android 状态机/屏幕
+include(":feature:assistant")
+include(":feature:assistant-android")

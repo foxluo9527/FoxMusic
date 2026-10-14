@@ -23,6 +23,8 @@ fun HomeScreen(
     onPlaylistClick: (Long) -> Unit = {},
     onAlbumClick: (Long) -> Unit = {},
     onSearchClick: () -> Unit = {},
+    // AI 音乐助手入口（功能二）；默认 null 不渲染 pill（与 HomeContent 约定一致）
+    onAssistantClick: (() -> Unit)? = null,
     onPlaylistCategoryClick: () -> Unit = {},
     onAlbumCategoryClick: () -> Unit = {},
     onRecommendClick: () -> Unit = {},
@@ -56,6 +58,7 @@ fun HomeScreen(
         modifier = modifier,
         onMusicClick = viewModel::onMusicClick,
         onSearchClick = viewModel::onSearchClick,
+        onAssistantClick = onAssistantClick,
         onPlaylistMoreClick = viewModel::onPlaylistMoreClick,
         onAlbumMoreClick = viewModel::onAlbumMoreClick,
         onRecommendClick = onRecommendClick,
