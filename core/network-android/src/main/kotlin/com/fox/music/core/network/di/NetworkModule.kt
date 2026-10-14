@@ -3,6 +3,7 @@ package com.fox.music.core.network.di
 import android.content.Context
 import com.fox.music.core.common.constants.AppConstants
 import com.fox.music.core.network.FoxNetworkConfig
+import com.fox.music.core.network.api.AiAssistantApiService
 import com.fox.music.core.network.api.AlbumApiService
 import com.fox.music.core.network.api.AppUpdateApiService
 import com.fox.music.core.network.api.ArtistApiService
@@ -187,6 +188,11 @@ object NetworkModule {
     @Singleton
     fun provideReportApiService(retrofit: Retrofit): ReportApiService =
         retrofit.create(ReportApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideAiAssistantApiService(retrofit: Retrofit): AiAssistantApiService =
+        retrofit.create(AiAssistantApiService::class.java)
 
     @Provides
     @Singleton

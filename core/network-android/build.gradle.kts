@@ -30,6 +30,8 @@ android {
 dependencies {
     // 跨端契约与 DTO 在 :core:network（KMP）。用 api 让下游只依赖本模块即可拿到全部类型。
     api(project(":core:network"))
+    // AI 助手 wire DTO（AiChatRequest/AiChatResult/...）在 :core:assistant（KMP）
+    api(project(":core:assistant"))
 
     api(libs.bundles.network)
     // Gson 仅用于 ErrorParser 解析后端错误体

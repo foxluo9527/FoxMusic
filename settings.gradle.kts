@@ -55,6 +55,9 @@ include(":core:network-android")
 include(":core:database")
 include(":core:datastore")
 include(":core:player")
+// 客户端 AI 音乐助手（功能二）：KMP 契约 + Android 实现层
+include(":core:assistant")
+include(":core:assistant-android")
 // iOS 宿主共享框架（SwiftUI 外壳 iosApp/ 消费的 FoxShared.framework 由它产出）
 include(":iosShared")
 // Feature modules
