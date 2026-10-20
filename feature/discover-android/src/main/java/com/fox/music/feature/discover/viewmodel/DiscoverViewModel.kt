@@ -62,7 +62,8 @@ class DiscoverViewModel @Inject constructor(
                 else -> Unit
             }
 
-            when (val result = playlistRepository.getRanks(page = 1, limit = 4)) {
+            // 榜单共 5 个（飙升/新歌/原创/热歌/欧美热歌），接口按创建时间倒序返回，limit 需覆盖全部
+            when (val result = playlistRepository.getRanks(page = 1, limit = 5)) {
                 is Result.Success -> {
                     updateState { copy(ranks = result.data) }
                     val rankDetails = result.data.map { rank ->
