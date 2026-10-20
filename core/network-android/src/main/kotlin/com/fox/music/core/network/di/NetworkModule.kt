@@ -12,6 +12,7 @@ import com.fox.music.core.network.api.ChatApiService
 import com.fox.music.core.network.api.FavoriteApiService
 import com.fox.music.core.network.api.ImportApiService
 import com.fox.music.core.network.api.MusicApiService
+import com.fox.music.core.network.api.HighlightApiService
 import com.fox.music.core.network.api.PlaylistApiService
 import com.fox.music.core.network.api.ReportApiService
 import com.fox.music.core.network.api.SearchApiService
@@ -104,6 +105,11 @@ object NetworkModule {
     @Singleton
     fun provideMusicApiService(retrofit: Retrofit): MusicApiService =
         retrofit.create(MusicApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideHighlightApiService(retrofit: Retrofit): HighlightApiService =
+        retrofit.create(HighlightApiService::class.java)
 
     @Provides
     @Singleton

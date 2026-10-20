@@ -11,7 +11,7 @@ fun NavGraphBuilder.appNavGraph(
     musicNavGraph(context, sharedTransitionScope)
     socialNavGraph(context, sharedTransitionScope)
     chatNavGraph(context)
-    assistantNavGraph(context)
+    assistantNavGraph(context, sharedTransitionScope)
     profileNavGraph(context, sharedTransitionScope)
     playerNavGraph(context, sharedTransitionScope)
 }

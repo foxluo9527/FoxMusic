@@ -1,0 +1,156 @@
+package com.fox.music.core.data.di
+
+import com.fox.music.core.data.download.MusicDownloadManager
+import com.fox.music.core.data.cache.RecommendedMusicCacheManagerImpl
+import com.fox.music.core.data.player.PlaybackStateStoreImpl
+import com.fox.music.core.data.repository.AdminMusicRepositoryImpl
+import com.fox.music.core.data.repository.AppUpdateRepositoryImpl
+import com.fox.music.core.data.repository.AlbumRepositoryImpl
+import com.fox.music.core.data.repository.ArtistRepositoryImpl
+import com.fox.music.core.data.repository.AuthRepositoryImpl
+import com.fox.music.core.data.repository.ChatRepositoryImpl
+import com.fox.music.core.data.repository.FavoriteRepositoryImpl
+import com.fox.music.core.data.repository.ImportRepositoryImpl
+import com.fox.music.core.data.repository.PlaylistImportProgressRepositoryImpl
+import com.fox.music.core.data.repository.MusicFeedbackRepositoryImpl
+import com.fox.music.core.data.repository.MusicRepositoryImpl
+import com.fox.music.core.data.repository.PostDraftRepositoryImpl
+import com.fox.music.core.data.repository.PostPublishRepositoryImpl
+import com.fox.music.core.data.repository.PlaylistRepositoryImpl
+import com.fox.music.core.data.repository.ReportRepositoryImpl
+import com.fox.music.core.data.repository.SearchRepositoryImpl
+import com.fox.music.core.data.repository.SocialRepositoryImpl
+import com.fox.music.core.data.repository.UploadRepositoryImpl
+import com.fox.music.core.data.repository.UserPreferencesRepositoryImpl
+import com.fox.music.core.data.repository.UserRepositoryImpl
+import com.fox.music.core.common.player.PlaybackStateStore
+import com.fox.music.core.domain.repository.AdminMusicRepository
+import com.fox.music.core.domain.repository.AppUpdateRepository
+import com.fox.music.core.domain.repository.AlbumRepository
+import com.fox.music.core.domain.repository.ArtistRepository
+import com.fox.music.core.domain.repository.AuthRepository
+import com.fox.music.core.domain.repository.ChatRepository
+import com.fox.music.core.domain.repository.DownloadRepository
+import com.fox.music.core.domain.repository.FavoriteRepository
+import com.fox.music.core.domain.repository.ImportRepository
+import com.fox.music.core.domain.repository.PlaylistImportProgressRepository
+import com.fox.music.core.domain.repository.MusicFeedbackRepository
+import com.fox.music.core.domain.repository.MusicRepository
+import com.fox.music.core.domain.repository.PostDraftRepository
+import com.fox.music.core.domain.repository.PostPublishRepository
+import com.fox.music.core.domain.repository.PlaylistRepository
+import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
+import com.fox.music.core.domain.repository.ReportRepository
+import com.fox.music.core.domain.repository.SearchRepository
+import com.fox.music.core.domain.repository.SocialRepository
+import com.fox.music.core.domain.repository.UploadRepository
+import com.fox.music.core.domain.repository.UserPreferencesRepository
+import com.fox.music.core.domain.repository.UserRepository
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class DataModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaybackStateStore(impl: PlaybackStateStoreImpl): PlaybackStateStore
+
+    @Binds
+    @Singleton
+    abstract fun bindMusicRepository(impl: MusicRepositoryImpl): MusicRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAdminMusicRepository(impl: AdminMusicRepositoryImpl): AdminMusicRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRecommendedMusicCacheManager(
+        impl: RecommendedMusicCacheManagerImpl,
+    ): RecommendedMusicCacheManager
+
+    @Binds
+    @Singleton
+    abstract fun bindPostDraftRepository(impl: PostDraftRepositoryImpl): PostDraftRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAlbumRepository(impl: AlbumRepositoryImpl): AlbumRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindArtistRepository(impl: ArtistRepositoryImpl): ArtistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSearchRepository(impl: SearchRepositoryImpl): SearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUserPreferencesRepository(
+        impl: UserPreferencesRepositoryImpl
+    ): UserPreferencesRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindChatRepository(impl: ChatRepositoryImpl): ChatRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSocialRepository(impl: SocialRepositoryImpl): SocialRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFavoriteRepository(impl: FavoriteRepositoryImpl): FavoriteRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindImportRepository(impl: ImportRepositoryImpl): ImportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistImportProgressRepository(
+        impl: PlaylistImportProgressRepositoryImpl,
+    ): PlaylistImportProgressRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUploadRepository(impl: UploadRepositoryImpl): UploadRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReportRepository(impl: ReportRepositoryImpl): ReportRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMusicFeedbackRepository(impl: MusicFeedbackRepositoryImpl): MusicFeedbackRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAppUpdateRepository(impl: AppUpdateRepositoryImpl): AppUpdateRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPostPublishRepository(impl: PostPublishRepositoryImpl): PostPublishRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDownloadRepository(impl: MusicDownloadManager): DownloadRepository
+}

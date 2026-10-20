@@ -49,6 +49,7 @@ include(":core:ui")
 include(":core:domain")
 include(":core:domain-android")
 include(":core:data")
+include(":core:data-android")
 include(":core:mapper")
 include(":core:network")
 include(":core:network-android")
@@ -83,3 +84,5 @@ include(":feature:automotive")
 // 客户端 AI 音乐助手（功能二）：跨端对话面板 + Android 状态机/屏幕
 include(":feature:assistant")
 include(":feature:assistant-android")
+// 音流模式（功能三）：全屏卡片流刷歌 + 高潮片段区间播放
+include(":feature:stream-android")

@@ -29,6 +29,7 @@ fun DiscoverScreen(
     onNewMusicMore: () -> Unit = {},
     onHotArtistMore: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
+    onOpenDrawer: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -64,5 +65,6 @@ fun DiscoverScreen(
         onNewMusicMore = onNewMusicMore,
         onHotArtistMore = onHotArtistMore,
         onMusicMoreClick = onMusicMoreClick,
+        onOpenDrawer = onOpenDrawer,
     )
 }

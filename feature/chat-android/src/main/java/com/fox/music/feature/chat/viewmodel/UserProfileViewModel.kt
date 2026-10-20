@@ -4,9 +4,6 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.SocialRepository
@@ -16,40 +13,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class UserProfileState(
-    val userId: Long = 0L,
-    val nickname: String = "",
-    val mark: String? = null,
-    val avatar: String? = null,
-    val signature: String? = null,
-    val isFriend: Boolean = false,
-    val isRequested: Boolean = false,
-    val isPrivate: Boolean = false,
-    val isSelf: Boolean = false,
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val showRemarkDialog: Boolean = false,
-    val isSavingRemark: Boolean = false,
-) : UiState {
-    /** 展示名：有备注优先备注，否则昵称 */
-    val displayName: String
-        get() = mark?.takeIf { it.isNotBlank() } ?: nickname.takeIf { it.isNotBlank() } ?: "用户"
-}
-
-sealed interface UserProfileIntent : UiIntent {
-    data object Load : UserProfileIntent
-    data object ShowRemarkDialog : UserProfileIntent
-    data object DismissRemarkDialog : UserProfileIntent
-    data class SubmitRemark(val remark: String) : UserProfileIntent
-}
-
-sealed interface UserProfileEffect : UiEffect {
-    data class ShowMessage(val message: String) : UserProfileEffect
-    data object NavigateBack : UserProfileEffect
-    data class NavigateToChat(val userId: Long, val peerNickname: String?, val peerAvatar: String?) : UserProfileEffect
-    data class NavigateToAddFriend(val userId: Long, val nickname: String?) : UserProfileEffect
-    data class NavigateToUserHome(val userId: Long) : UserProfileEffect
-}
+// UserProfileState / UserProfileIntent / UserProfileEffect 已下沉到
+// :feature:chat commonMain 的 UserProfileContract.kt（包名不变，两端共用同一份契约）。
 
 @HiltViewModel
 class UserProfileViewModel @Inject constructor(
@@ -217,6 +182,7 @@ class UserProfileViewModel @Inject constructor(
     }
 
     companion object {
-        const val MAX_REMARK_LENGTH = 20
+        /** 与共享契约 UserProfileState.MAX_REMARK_LENGTH 同源 */
+        const val MAX_REMARK_LENGTH = UserProfileState.MAX_REMARK_LENGTH
     }
 }

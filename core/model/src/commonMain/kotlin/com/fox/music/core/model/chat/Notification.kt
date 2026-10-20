@@ -29,9 +29,19 @@ fun Notification.isPostCommentNotification(): Boolean =
     (type == NotificationType.COMMENT || type == NotificationType.MENTION) &&
         !isMusicCommentNotification()
 
-/** 解析帖子评论通知关联的帖子 ID（target_id 为帖子 ID） */
+/** 帖子点赞通知：type=like 且 target_type=post（target_id 即帖子 ID） */
+fun Notification.isPostLikeNotification(): Boolean =
+    type == NotificationType.LIKE &&
+        targetType?.equals("post", ignoreCase = true) == true
+
+/**
+ * 解析通知关联的帖子 ID：
+ *  - 帖子评论/@（target_type=post）→ target_id 是帖子 ID
+ *  - 帖子点赞（type=like, target_type=post）→ target_id 也是帖子 ID
+ */
 fun Notification.resolvePostId(): Long? {
-    if (!isPostCommentNotification()) return null
+    if (isMusicCommentNotification()) return null
+    if (!isPostCommentNotification() && !isPostLikeNotification()) return null
     return targetId
 }
 

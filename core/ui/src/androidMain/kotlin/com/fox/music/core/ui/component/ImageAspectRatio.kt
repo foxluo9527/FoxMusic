@@ -23,21 +23,8 @@ import kotlinx.coroutines.withContext
 
 private val aspectRatioCache = LruCache<String, Float>(256)
 
-/** 广场/信息流封面宽高比约束（宽/高）。 */
-object PostFeedMediaAspectRatio {
-    /** 瀑布流竖图上限（再高则裁切）：9:16 */
-    const val MIN = 9f / 16f
-    /** 单列列表竖图上限（再高则裁切）：2:3 */
-    const val LIST_MIN = 2f / 3f
-    /** 横图上限（再宽则裁切）：16:9 */
-    const val MAX = 16f / 9f
-}
-
-fun clampFeedMediaAspectRatio(
-    aspect: Float,
-    min: Float = PostFeedMediaAspectRatio.MIN,
-    max: Float = PostFeedMediaAspectRatio.MAX,
-): Float = aspect.coerceIn(min, max)
+// 常量与 clamp 已下沉到 commonMain 的 PostMediaAspect.kt（两端共用同一套比例约束）：
+// PostFeedMediaAspectRatio / clampFeedMediaAspectRatio。
 
 /**
  * 根据图片 URL 解析真实宽高比（宽/高）。加载完成前返回 [fallback]。
@@ -208,11 +195,11 @@ fun rememberTallestMediaAspectRatioLoaded(
 }
 
 @Composable
-fun rememberPostMediaAspectRatioLoaded(
+actual fun rememberPostMediaAspectRatioLoaded(
     media: PostMedia,
-    fallback: Float = 1f,
-    min: Float = 0.45f,
-    max: Float = 2.2f,
+    fallback: Float,
+    min: Float,
+    max: Float,
 ): Pair<Float, Boolean> {
     val cacheKey = remember(media) {
         "${media.type}:${media.aspectRatioSourceUrl}"
@@ -237,19 +224,29 @@ fun rememberPostMediaAspectRatioLoaded(
         if (hasDimensions) {
             aspectRatioCache.put(cacheKey, probed)
             aspect = probed.coerceIn(min, max)
+            isReady = true
+        } else {
+            // 视频探测失败（如无可用封面）：退回声明式兜底比例，
+            // 不让整块媒体区一直卡在加载态高度。详见 PostMediaAspect.kt。
+            val declared = media.videoDeclaredAspectOrNull()
+            if (declared != null) {
+                aspect = declared.coerceIn(min, max)
+                isReady = true
+            } else {
+                isReady = false
+            }
         }
-        isReady = hasDimensions
     }
     return aspect to isReady
 }
 
 @Composable
-fun rememberPostMediaListAspectRatioLoaded(
+actual fun rememberPostMediaListAspectRatioLoaded(
     mediaList: List<PostMedia>,
     pickShortest: Boolean,
-    fallback: Float = 1f,
-    min: Float = 0.45f,
-    max: Float = 2.2f,
+    fallback: Float,
+    min: Float,
+    max: Float,
 ): Pair<Float, Boolean> {
     val cacheKeys = remember(mediaList) {
         mediaList.map { "${it.type}:${it.aspectRatioSourceUrl}" }
@@ -274,7 +271,8 @@ fun rememberPostMediaListAspectRatioLoaded(
             return@LaunchedEffect
         }
         val ratios = mutableListOf<Float>()
-        var allResolved = true
+        val declaredRatios = mutableListOf<Float>()
+        var unresolved = false
         mediaList.forEachIndexed { index, media ->
             val cacheKey = cacheKeys[index]
             val cached = aspectRatioCache.get(cacheKey)
@@ -290,14 +288,18 @@ fun rememberPostMediaListAspectRatioLoaded(
                 aspectRatioCache.put(cacheKey, probed)
                 ratios += probed
             } else {
-                allResolved = false
+                // 视频探测失败只记声明式兜底：既不参与容器高度计算，也不拖累 isReady；
+                // 图片探测失败才算真正「未解析」。详见 PostMediaAspect.kt。
+                val declared = media.videoDeclaredAspectOrNull()
+                if (declared != null) declaredRatios += declared else unresolved = true
             }
         }
-        if (ratios.isNotEmpty()) {
-            aspect = (if (pickShortest) ratios.maxOrNull() else ratios.minOrNull())
+        val containerRatios = ratios.ifEmpty { declaredRatios }
+        if (containerRatios.isNotEmpty()) {
+            aspect = (if (pickShortest) containerRatios.maxOrNull() else containerRatios.minOrNull())
                 ?.coerceIn(min, max) ?: fallback
         }
-        isReady = allResolved && ratios.size == mediaList.size
+        isReady = !unresolved && containerRatios.isNotEmpty()
     }
     return aspect to isReady
 }

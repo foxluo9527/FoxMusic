@@ -1,6 +1,7 @@
 package com.fox.music.feature.assistant
 
 import com.fox.music.core.assistant.AssistantAction
+import com.fox.music.core.assistant.AiConversationSummary
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
@@ -34,6 +35,10 @@ data class AssistantState(
     val isSending: Boolean = false,
     /** requiresConfirm 的动作队列（发消息/加好友等），逐条弹确认框 */
     val pendingActions: List<AssistantAction> = emptyList(),
+    /** 我的历史会话列表（点开面板上的「历史」拉取） */
+    val conversations: List<AiConversationSummary> = emptyList(),
+    /** 历史会话面板是否展开 */
+    val historyOpen: Boolean = false,
 ) : UiState {
     val canSend: Boolean get() = inputText.isNotBlank() && !isSending
     val isEmpty: Boolean get() = messages.isEmpty()
@@ -59,6 +64,18 @@ sealed interface AssistantIntent : UiIntent {
 
     /** 开新会话（清空本地消息与 conversationId） */
     data object NewConversation : AssistantIntent
+
+    /** 拉取并展开历史会话列表 */
+    data object LoadConversations : AssistantIntent
+
+    /** 展开/收起历史会话面板 */
+    data object ToggleHistory : AssistantIntent
+
+    /** 打开某个历史会话（加载其消息记录） */
+    data class OpenConversation(val conversationId: Long) : AssistantIntent
+
+    /** 删除某个历史会话（软删） */
+    data class DeleteConversation(val conversationId: Long) : AssistantIntent
 }
 
 sealed interface AssistantEffect : UiEffect {

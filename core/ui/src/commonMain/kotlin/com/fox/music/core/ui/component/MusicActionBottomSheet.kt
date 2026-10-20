@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Warning
 import com.fox.music.core.common.util.MediaUrlResolver
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -44,6 +46,9 @@ fun MusicActionBottomSheet(
     onDownload: (() -> Unit)? = null,
     onReport: () -> Unit,
     onArtistClick: (Long) -> Unit,
+    isAdmin: Boolean = false,
+    onFeedbackMismatch: () -> Unit = {},
+    onCorrectSource: (() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val showDownload = onDownload != null && !MediaUrlResolver.isLocalMedia(music.url)
@@ -141,6 +146,22 @@ fun MusicActionBottomSheet(
                     onReport()
                 },
             )
+            ActionRow(
+                icon = Icons.Default.Warning,
+                label = "反馈音乐不匹配",
+                onClick = {
+                    onFeedbackMismatch()
+                },
+            )
+            if (isAdmin && onCorrectSource != null) {
+                ActionRow(
+                    icon = Icons.Default.Build,
+                    label = "音源纠错",
+                    onClick = {
+                        onCorrectSource()
+                    },
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
         }

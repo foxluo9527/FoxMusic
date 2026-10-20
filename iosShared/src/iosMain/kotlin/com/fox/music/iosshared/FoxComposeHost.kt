@@ -1,11 +1,17 @@
 package com.fox.music.iosshared
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.ComposeUIViewController
+import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.ui.theme.FoxMusicTheme
 import com.fox.music.core.ui.theme.foxTabPageBackground
 import platform.UIKit.UIViewController
@@ -22,12 +28,44 @@ import platform.UIKit.UIViewController
  * 且返回行被整体压到状态栏下方（顶部凭空多一段距离）。
  * 交给 TopAppBar 自己处理 inset 后，它的 surface 会直接铺进状态栏区域，颜色连成一体。
  */
+/**
+ * iOS 外观状态：由 Swift 的 AppearanceStore 推送（见 [FoxIosThemeBridge.setAppearance]），
+ * [foxComposeViewController] 消费 —— 让设置页切主题/深色模式后，Compose 页面跟着变。
+ * 默认值与 Android 一致（黑胶夜场 + 跟随系统）。
+ */
+object FoxIosThemeState {
+    var appThemeId: String by mutableStateOf(AppThemeIds.DEFAULT)
+
+    /** -1 = 跟随系统，0 = 浅色，1 = 深色。 */
+    var darkModeOverride: Int by mutableIntStateOf(-1)
+
+    /** 系统当前是否深色（由 Swift 推送），仅 darkModeOverride=-1 时生效。 */
+    var systemDark: Boolean by mutableStateOf(false)
+}
+
+/** Swift → Kotlin 的外观桥：设置页每次变更都推一次（幂等，便宜）。 */
+object FoxIosThemeBridge {
+    fun setAppearance(appThemeId: String, darkModeOverride: Int, systemDark: Boolean) {
+        FoxIosThemeState.appThemeId = appThemeId
+        FoxIosThemeState.darkModeOverride = darkModeOverride
+        FoxIosThemeState.systemDark = systemDark
+    }
+}
+
 fun foxComposeViewController(
     applyTabGradient: Boolean = true,
     pageOwnsTopBar: Boolean = false,
     content: @Composable () -> Unit,
 ): UIViewController = ComposeUIViewController {
-    FoxMusicTheme {
+    val darkTheme = when (FoxIosThemeState.darkModeOverride) {
+        0 -> false
+        1 -> true
+        else -> isSystemInDarkTheme()
+    }
+    FoxMusicTheme(
+        darkTheme = darkTheme,
+        appThemeId = FoxIosThemeState.appThemeId,
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

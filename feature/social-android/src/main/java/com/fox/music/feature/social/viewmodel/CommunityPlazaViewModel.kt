@@ -4,70 +4,31 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.datastore.FoxPreferencesDataStore
 import com.fox.music.core.domain.usecase.GetPostCommentPreviewUseCase
 import com.fox.music.core.domain.usecase.GetPostsPagingUseCase
 import com.fox.music.core.domain.usecase.PostCommentUseCase
 import com.fox.music.core.domain.usecase.TogglePostLikeUseCase
-import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.social.Post
+import com.fox.music.feature.social.CommunityPlazaEffect
+import com.fox.music.feature.social.CommunityPlazaIntent
+import com.fox.music.feature.social.CommunityPlazaState
+import com.fox.music.feature.social.PlazaLayoutMode
+import com.fox.music.feature.social.applyLikeOverride
+import com.fox.music.feature.social.toPlazaLayoutMode
+import com.fox.music.feature.social.toStoredValue
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class PlazaLayoutMode {
-    STAGGERED,
-    LIST,
-}
-
-private fun PlazaLayoutMode.toStoredValue(): String = when (this) {
-    PlazaLayoutMode.STAGGERED -> "staggered"
-    PlazaLayoutMode.LIST -> "list"
-}
-
-private fun String.toPlazaLayoutMode(): PlazaLayoutMode = when (this) {
-    "list" -> PlazaLayoutMode.LIST
-    else -> PlazaLayoutMode.STAGGERED
-}
-
-data class CommunityPlazaState(
-    val posts: Flow<PagingData<Post>> = flowOf(),
-    val layoutMode: PlazaLayoutMode = PlazaLayoutMode.STAGGERED,
-    val isRefreshing: Boolean = false,
-    val likeOverrides: Map<Long, Pair<Boolean, Int>> = emptyMap(),
-    val commentPreviews: Map<Long, Comment?> = emptyMap(),
-    val commentingPostId: Long? = null,
-    val commentInput: String = "",
-    val isCommentSending: Boolean = false,
-    val filterTag: String? = null,
-) : UiState
-
-sealed interface CommunityPlazaIntent : UiIntent {
-    data object Load : CommunityPlazaIntent
-    data object Refresh : CommunityPlazaIntent
-    data class OnPostLikeClick(val post: Post) : CommunityPlazaIntent
-    data class LoadCommentPreview(val postId: Long) : CommunityPlazaIntent
-    data class StartComment(val postId: Long) : CommunityPlazaIntent
-    data object DismissComment : CommunityPlazaIntent
-    data class UpdateCommentInput(val text: String) : CommunityPlazaIntent
-    data object SendComment : CommunityPlazaIntent
-    data class FilterByTag(val tag: String?) : CommunityPlazaIntent
-    data object ToggleLayoutMode : CommunityPlazaIntent
-}
-
-sealed interface CommunityPlazaEffect : UiEffect {
-    data object NavigateToCreatePost : CommunityPlazaEffect
-    data object NavigateToPublishQueue : CommunityPlazaEffect
-    data class NavigateToPostDetail(val postId: Long) : CommunityPlazaEffect
-    data class ShowToast(val message: String) : CommunityPlazaEffect
-}
-
+/**
+ * 社区广场 ViewModel。
+ *
+ * State / Intent / Effect 的定义在 [:feature:social] commonMain 的
+ * CommunityPlazaContract（iOS 端用同一份契约），这里只负责用 Hilt 注入的
+ * use case 生产状态，UI 由 CommunityPlazaContent 渲染。
+ */
 @HiltViewModel
 class CommunityPlazaViewModel @Inject constructor(
     private val getPostsPagingUseCase: GetPostsPagingUseCase,
@@ -137,12 +98,8 @@ class CommunityPlazaViewModel @Inject constructor(
         onRefreshPaging()
     }
 
-    fun applyOverrides(post: Post): Post {
-        currentState.likeOverrides[post.id]?.let { (liked, count) ->
-            return post.copy(isLiked = liked, likeCount = count)
-        }
-        return post
-    }
+    /** 渲染侧的点赞叠加（与 iOS Presenter 同一份实现：applyLikeOverride）。 */
+    fun applyOverrides(post: Post): Post = currentState.applyLikeOverride(post)
 
     private fun loadPosts() {
         val tag = currentState.filterTag

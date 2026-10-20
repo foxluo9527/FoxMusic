@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.ui.component.MusicActionBottomSheet
+import com.fox.music.core.ui.component.MusicFeedbackSheet
 import com.fox.music.core.ui.component.PlaylistPickerBottomSheet
 import com.fox.music.core.ui.component.ReportBottomSheet
 import com.fox.music.core.model.music.Music
@@ -17,6 +18,7 @@ fun MusicActionsHost(
     onArtistClick: (Long) -> Unit,
     onCreatePlaylist: () -> Unit,
     onNavigateToSelectFriend: () -> Unit = {},
+    onNavigateToSourceCorrect: (Long) -> Unit = {},
     viewModel: MusicActionsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -29,6 +31,7 @@ fun MusicActionsHost(
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
                 }
                 is MusicActionsEffect.NavigateToArtist -> onArtistClick(effect.artistId)
+                is MusicActionsEffect.NavigateToSourceCorrect -> onNavigateToSourceCorrect(effect.musicId)
                 MusicActionsEffect.RequestCreatePlaylist -> onCreatePlaylist()
                 MusicActionsEffect.NavigateToSelectFriend -> onNavigateToSelectFriend()
             }
@@ -46,6 +49,9 @@ fun MusicActionsHost(
             onDownload = viewModel::downloadCurrentMusic,
             onReport = viewModel::showReportSheet,
             onArtistClick = viewModel::onArtistClick,
+            isAdmin = state.isAdmin,
+            onFeedbackMismatch = viewModel::showFeedbackSheet,
+            onCorrectSource = viewModel::showSourceCorrect,
         )
     }
 
@@ -72,6 +78,15 @@ fun MusicActionsHost(
             isSubmitting = state.isReportSubmitting,
             onDismiss = viewModel::dismissReportSheet,
             onSubmit = viewModel::submitReport,
+        )
+    }
+
+    if (state.showFeedbackSheet && music != null) {
+        MusicFeedbackSheet(
+            targetTitle = music.title,
+            isSubmitting = state.isFeedbackSubmitting,
+            onDismiss = viewModel::dismissFeedbackSheet,
+            onSubmit = viewModel::submitFeedback,
         )
     }
 }

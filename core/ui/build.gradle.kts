@@ -53,6 +53,8 @@ kotlin {
             // "KMP Dependencies Resolution Failure"，只能放 androidMain。
             implementation(compose.preview)
             implementation(libs.kotlinx.coroutines.core)
+            // 跨端时间：替代 java.time（JVM-only），帖子时间格式化用它
+            implementation(libs.kotlinx.datetime)
         }
 
         androidMain.dependencies {

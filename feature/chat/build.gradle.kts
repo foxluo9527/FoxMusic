@@ -43,6 +43,10 @@ kotlin {
             implementation(project(":core:model"))
             implementation(project(":core:ui"))
             implementation(project(":core:domain"))
+            // ConversationItem 用 core.data.mapper 的 previewForMessage / toChatConversation，
+            // 这些映射已随批次 31 下沉到 :core:data 的 commonMain（原先在 android-only 层，
+            // 因此 ConversationItem 当时只能留在 -android）。
+            implementation(project(":core:data"))
             implementation(libs.kotlinx.datetime)
 
             api(compose.runtime)

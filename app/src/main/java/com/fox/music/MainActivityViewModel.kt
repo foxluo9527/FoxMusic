@@ -3,22 +3,28 @@ package com.fox.music
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.EventViewModel
+import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.AppUpdateRepository
 import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.repository.UserPreferencesRepository
+import com.fox.music.core.domain.repository.UserRepository
 import com.fox.music.core.domain.usecase.CheckAppUpdateUseCase
 import com.fox.music.core.model.app.ApkDownloadState
 import com.fox.music.core.model.app.AppUpdateInfo
+import com.fox.music.core.model.user.UserHomeProfile
 import com.fox.music.core.model.user.UserPreferences
 import com.fox.music.core.common.session.TokenManager
 import com.fox.music.core.player.controller.MusicController
+import com.fox.music.core.player.timer.SleepTimerManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -37,13 +43,29 @@ class MainActivityViewModel @Inject constructor(
     private val importRepository: com.fox.music.core.domain.repository.ImportRepository,
     private val checkAppUpdateUseCase: CheckAppUpdateUseCase,
     private val appUpdateRepository: AppUpdateRepository,
+    private val sleepTimerManager: SleepTimerManager,
+    private val userRepository: UserRepository,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow(AuthState())
     val authState = _authState.asStateFlow()
 
+    val sleepTimer = sleepTimerManager.state
+
+    fun startSleepTimer(minutes: Long) {
+        if (minutes <= 0L) sleepTimerManager.cancel() else sleepTimerManager.start(minutes * 60_000L)
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerManager.cancel()
+    }
+
     val userPreferences = userPreferencesRepository.userPreferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserPreferences())
+
+    /** 侧边栏头部所用资料（头像 + 主页封面）：登录后按 userId 拉一次。 */
+    private val _drawerProfile = MutableStateFlow<UserHomeProfile?>(null)
+    val drawerProfile = _drawerProfile.asStateFlow()
 
     private val _playlistState = MutableStateFlow(PlaylistState())
     val playlistState = _playlistState.asStateFlow()
@@ -62,9 +84,23 @@ class MainActivityViewModel @Inject constructor(
 
     init {
         observeAuthState()
+        observeDrawerProfile()
         observeSessionExpired()
         observeInboxUnread()
         checkForUpdate()
+    }
+
+    private fun observeDrawerProfile() {
+        userPreferences
+            .map { it.userId }
+            .distinctUntilChanged()
+            .onEach { userId ->
+                _drawerProfile.value = when (val result = userId?.let { userRepository.getUserHomeProfile(it) }) {
+                    is Result.Success -> result.data
+                    else -> null
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun observeInboxUnread() {

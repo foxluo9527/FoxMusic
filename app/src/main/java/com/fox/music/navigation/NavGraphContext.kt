@@ -37,4 +37,5 @@ data class NavGraphContext(
     val onArtistClick: (Long) -> Unit,
     val onMusicMoreClick: (Music) -> Unit,
     val showCreatePlaylistBottomSheet: () -> Unit,
+    val onOpenDrawer: () -> Unit,
 )

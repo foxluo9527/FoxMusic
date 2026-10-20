@@ -1,5 +1,6 @@
 package com.fox.music.core.network.model
 
+import com.fox.music.core.model.NullAsZeroIntSerializer
 import com.fox.music.core.model.ZeroOneBooleanSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -17,10 +18,13 @@ data class PlaylistDto(
     @SerialName("creator_id")
     val creatorId: Long? = null,
     @SerialName("track_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val trackCount: Int = 0,
     @SerialName("play_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val playCount: Int = 0,
     @SerialName("favorite_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val favoriteCount: Int = 0,
     @SerialName("created_at")
     val createdAt: String? = null,
@@ -47,10 +51,13 @@ data class PlaylistDetailDto(
     @SerialName("creator_id")
     val creatorId: Long? = null,
     @SerialName("track_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val trackCount: Int = 0,
     @SerialName("play_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val playCount: Int = 0,
     @SerialName("favorite_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val favoriteCount: Int = 0,
     @SerialName("created_at")
     val createdAt: String? = null,
@@ -72,6 +79,7 @@ data class PlaylistCategoryDto(
     @SerialName("category_type")
     val categoryType: String? = null,
     @SerialName("playlist_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val playlistCount: Int = 0
 )
 

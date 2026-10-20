@@ -9,7 +9,7 @@ import androidx.navigation.navArgument
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.profile.ui.screen.userHomeRoute
 import com.fox.music.feature.social.ui.screen.CREATE_POST_ROUTE
-import com.fox.music.feature.social.ui.screen.POST_DETAIL_ROUTE
+import com.fox.music.feature.social.POST_DETAIL_ROUTE
 import com.fox.music.feature.social.ui.screen.SELECT_POST_MUSIC_ROUTE
 import com.fox.music.feature.social.ui.screen.SELECT_POST_MUSIC_SEARCH_ROUTE
 import com.fox.music.feature.social.ui.screen.SELECT_POST_TAG_ROUTE

@@ -21,60 +21,18 @@ import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.domain.usecase.TogglePostLikeUseCase
 import com.fox.music.core.model.social.Comment
 import com.fox.music.core.model.social.Post
+import com.fox.music.feature.social.PostDetailEffect
+import com.fox.music.feature.social.PostDetailFeedTab
+import com.fox.music.feature.social.PostDetailIntent
+import com.fox.music.feature.social.PostDetailState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class PostDetailFeedTab {
-    COMMENTS,
-    LIKES,
-}
-
-data class PostDetailState(
-    val postId: Long = 0L,
-    val post: Post? = null,
-    val currentUserId: Long? = null,
-    val feedTab: PostDetailFeedTab = PostDetailFeedTab.COMMENTS,
-    val pendingComments: List<Comment> = emptyList(),
-    val isLoading: Boolean = true,
-    val isCommentSending: Boolean = false,
-    val commentInput: String = "",
-    val replyParentId: Long? = null,
-    val replyHint: String? = null,
-    val expandedCommentIds: Set<Long> = emptySet(),
-    val replyFlows: Map<Long, Flow<PagingData<Comment>>> = emptyMap(),
-    val isRefreshing: Boolean = false,
-    val repliesRefreshTrigger: Int = 0,
-    val commentsRefreshTrigger: Int = 0,
-    val likesRefreshTrigger: Int = 0,
-) : UiState {
-    val canViewLikeList: Boolean
-        get() = currentUserId != null && post?.userId == currentUserId
-}
-
-sealed interface PostDetailIntent : UiIntent {
-    data object Load : PostDetailIntent
-    data object Refresh : PostDetailIntent
-    data class SelectFeedTab(val tab: PostDetailFeedTab) : PostDetailIntent
-    data class UpdateCommentInput(val text: String) : PostDetailIntent
-    data object SendComment : PostDetailIntent
-    data class ReplyToComment(val commentId: Long, val userName: String) : PostDetailIntent
-    data object ClearReply : PostDetailIntent
-    data class ToggleExpandReplies(val commentId: Long) : PostDetailIntent
-    data object ToggleLike : PostDetailIntent
-    data object ToggleMusicFavorite : PostDetailIntent
-    data object ClearPendingComments : PostDetailIntent
-    data class DeleteComment(val commentId: Long) : PostDetailIntent
-    data class ReportComment(val commentId: Long, val reason: String, val description: String?) : PostDetailIntent
-}
-
-sealed interface PostDetailEffect : UiEffect {
-    data class ShowToast(val message: String) : PostDetailEffect
-    data class CommentSent(val comment: Comment) : PostDetailEffect
-    data object CommentDeleted : PostDetailEffect
-}
+// PostDetailState / PostDetailIntent / PostDetailEffect / PostDetailFeedTab 已下沉到
+// [:feature:social] commonMain 的 PostDetailContract（iOS 端共用同一份契约）。
 
 @HiltViewModel
 class PostDetailViewModel @Inject constructor(
@@ -128,7 +86,10 @@ class PostDetailViewModel @Inject constructor(
             PostDetailIntent.ToggleMusicFavorite -> toggleMusicFavorite()
             PostDetailIntent.ClearPendingComments -> updateState { copy(pendingComments = emptyList()) }
             is PostDetailIntent.DeleteComment -> deleteComment(intent.commentId)
-            is PostDetailIntent.ReportComment -> reportComment(intent.commentId, intent.reason, intent.description)
+            is PostDetailIntent.ReportComment -> updateState {
+                copy(reportCommentId = intent.commentId, showCommentReportSheet = true)
+            }
+            is PostDetailIntent.SubmitCommentReport -> reportComment(intent.reason, intent.description)
         }
     }
 
@@ -307,18 +268,27 @@ class PostDetailViewModel @Inject constructor(
         }
     }
 
-    private fun reportComment(commentId: Long, reason: String, description: String?) {
+    /** 关闭评论举报弹窗 */
+    fun dismissCommentReportSheet() {
+        updateState { copy(showCommentReportSheet = false, reportCommentId = null) }
+    }
+
+    private fun reportComment(reason: String, description: String?) {
+        val commentId = currentState.reportCommentId ?: return
         viewModelScope.launch {
+            updateState { copy(isReportSubmitting = true) }
             submitReportUseCase(
-                targetType = "comment",
+                targetType = "post-comment",
                 targetId = commentId,
                 reason = reason,
                 description = description,
             ).onSuccess {
+                updateState { copy(showCommentReportSheet = false, reportCommentId = null) }
                 sendEffect(PostDetailEffect.ShowToast("举报已提交"))
             }.onError { _, msg ->
                 sendEffect(PostDetailEffect.ShowToast(msg ?: "举报提交失败"))
             }
+            updateState { copy(isReportSubmitting = false) }
         }
     }
 

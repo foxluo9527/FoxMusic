@@ -16,6 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -44,7 +48,15 @@ fun SectionHeader(
 
         if (onMoreClick != null) {
             Row(
-                modifier = Modifier.clickable(onClick = onMoreClick),
+                modifier = Modifier
+                    .clickable(onClick = onMoreClick)
+                    // 无障碍语义：可点行必须以「按钮 + moreText」暴露（iOS XCUITest 才能以
+                    // buttons[moreText] 命中；读屏用户也能听到这是可点入口）。
+                    // 注意 Icon 的 contentDescription 要去掉，否则合并语义后出现重复标签。
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = moreText
+                    },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -54,7 +66,7 @@ fun SectionHeader(
                 )
                 Icon(
                     imageVector = moreIcon,
-                    contentDescription = moreText,
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .padding(top = 1.5.dp)

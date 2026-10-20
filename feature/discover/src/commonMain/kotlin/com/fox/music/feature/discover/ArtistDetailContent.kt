@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -285,6 +286,39 @@ private fun ArtistDetailBody(
                             onClick = { onAlbumClick(album) },
                         )
                     }
+                }
+            }
+        }
+
+        // 空态：后端存在 music_count / album_count 均为 0 的歌手（导入产生的占位歌手），
+        // 这类歌手详情页此前只有一个头部、下面整片空白，看起来像"页面坏了"。
+        // 这里补一条明确说明，两端（Android / iOS）共用同一份文案。
+        if (hotMusics.isEmpty() && albums.isEmpty()) {
+            item(key = "artist_empty") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 72.dp, bottom = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.MusicOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "该歌手暂无歌曲",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "作品正在陆续收录中",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
                 }
             }
         }

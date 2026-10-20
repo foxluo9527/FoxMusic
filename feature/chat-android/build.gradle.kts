@@ -40,7 +40,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:domain"))
     implementation(project(":core:datastore"))
-    implementation(project(":core:data"))
+    implementation(project(":core:data-android"))
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.ucrop)

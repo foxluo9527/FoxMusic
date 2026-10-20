@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.assistant.AssistantAction
+import com.fox.music.core.assistant.isPlayback
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.feature.assistant.AssistantChatMessage
 import com.fox.music.feature.assistant.AssistantState
@@ -72,8 +77,20 @@ fun AssistantContent(
     onConfirmAction: (AssistantAction) -> Unit,
     onDismissAction: () -> Unit,
     onNewConversation: () -> Unit,
+    onLoadConversations: () -> Unit = {},
+    onOpenConversation: (Long) -> Unit = {},
+    onDeleteConversation: (Long) -> Unit = {},
+    onToggleHistory: () -> Unit = {},
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    /**
+     * 底部悬浮迷你播放器插槽（平台壳注入，可空）。
+     *
+     * 之所以做成 `() -> Unit` 而不是直接依赖 MiniPlayer：MiniPlayer 是 androidMain
+     * 组件且强依赖 sharedTransition，commonMain 不能引用；这里只留插槽，
+     * iOS 壳不传即为 null（iOS 播放由 Swift PlayerModel 托管，另有自己的播放条）。
+     */
+    miniPlayer: (@Composable () -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     val pending = state.pendingActions.firstOrNull()
@@ -96,6 +113,9 @@ fun AssistantContent(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onLoadConversations) {
+                        Icon(Icons.Default.History, contentDescription = "历史会话")
+                    }
                     IconButton(onClick = onNewConversation) {
                         Icon(Icons.Default.Add, contentDescription = "新会话")
                     }
@@ -134,6 +154,8 @@ fun AssistantContent(
                 }
             }
 
+            miniPlayer?.invoke()
+
             AssistantInputBar(
                 text = state.inputText,
                 canSend = state.canSend,
@@ -155,6 +177,58 @@ fun AssistantContent(
             },
             dismissButton = {
                 TextButton(onClick = onDismissAction) { Text("取消") }
+            },
+        )
+    }
+
+    if (state.historyOpen) {
+        AlertDialog(
+            onDismissRequest = onToggleHistory,
+            title = { Text("历史会话") },
+            text = {
+                if (state.conversations.isEmpty()) {
+                    Text(
+                        text = "还没有历史会话",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        items(state.conversations, key = { it.id }) { conv ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenConversation(conv.id) }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = conv.title ?: "会话 ${conv.id}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Spacer(modifier = Modifier.size(2.dp))
+                                    Text(
+                                        text = "${conv.messageCount} 条消息",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                IconButton(onClick = { onDeleteConversation(conv.id) }) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "删除会话",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onToggleHistory) { Text("关闭") }
             },
         )
     }
@@ -223,27 +297,64 @@ private fun AssistantMessageItem(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     message.actions.forEach { action ->
-                        AssistChip(
+                        AssistantActionChip(
+                            action = action,
                             onClick = { onActionClick(action) },
-                            label = {
-                                Text(
-                                    text = action.label.ifBlank { action.type },
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            },
                         )
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * 动作芯片：AI 给出的结果一律渲染成可点击芯片，点了才真的执行。
+ *
+ * 播放类（play_*）用实心播放按钮样式 + 播放图标，与第一眼就要传达「这是个播放入口」；
+ * 其它动作沿用轻量 AssistChip + 星形图标。
+ */
+@Composable
+private fun AssistantActionChip(
+    action: AssistantAction,
+    onClick: () -> Unit,
+) {
+    val text = action.label.ifBlank { action.type }
+    if (action.isPlayback) {
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = text, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        return
+    }
+    AssistChip(
+        onClick = onClick,
+        label = {
+            Text(text = text, style = MaterialTheme.typography.labelMedium)
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+        },
+    )
 }
 
 /** 空态引导：品牌 + 三个示例问法。 */

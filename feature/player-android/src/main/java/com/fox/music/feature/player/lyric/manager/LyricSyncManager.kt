@@ -115,7 +115,7 @@ class LyricSyncManager private constructor() {
                 }
             }
             launch {
-                EventViewModel.appInForeground.asFlow().collect {
+                EventViewModel.appInForeground.collect {
                     if (it && isShowing) {
                         hideWindow()
                     } else if (isDesktopLyricEnabled.value) {

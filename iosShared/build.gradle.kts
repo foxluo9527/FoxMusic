@@ -9,6 +9,11 @@
 // 把 Ktor service 层下沉到 :core:network commonMain 统一两端传输。
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
+    // kotlinx.serialization 编译器插件：iosMain 里自定义的 @Serializable DTO
+    // （FoxFirstPageCache 的首页/发现快照、MusicCommentDto、ChatModels 等）
+    // 必须由插件生成 .serializer()，否则 K/N 运行时只能反射解析跨模块 DTO，
+    // 本模块类一律 "Serializer not found"（首页/发现缓存静默写盘失败即此因）。
+    alias(libs.plugins.kotlin.serialization)
     // Compose Multiplatform：iOS 端共享 UI 的可行性验证（批次 8）
     // CMP 1.6.10+ 要求同时应用 Kotlin 官方的 compose 编译器插件
     alias(libs.plugins.kotlin.compose)
@@ -42,6 +47,11 @@ kotlin {
             api(project(":core:ui"))
             // 跨端映射层：两端共用同一份 DtoMappers
             api(project(":core:mapper"))
+            // 跨端数据层：RealtimeMessageCoordinator（实时消息协调器）已在 commonMain，
+            // iOS 侧用 FoxRealtimeService 装配成与 Android 同一条实时链路。
+            // :core:data 是 KMP 模块，api 依赖了 core:common/model/domain/network/mapper，
+            // 因此这一条就把实时链路所需的类型全带进来了。
+            api(project(":core:data"))
             // 已跨端的 feature 模块（commonMain Content 组件直接复用）：
             // 签名不对外暴露 feature 类型，故不需 export 到 Swift
             api(project(":feature:playlist"))
@@ -50,6 +60,14 @@ kotlin {
             api(project(":feature:search"))
             api(project(":feature:auth"))
             api(project(":feature:profile"))
+            // 社区版块（广场 + 帖子详情）复用 feature:social 的 commonMain Content
+            api(project(":feature:social"))
+            // 消息页复用 feature:chat 的 commonMain MessagesContent + ConversationItem
+            api(project(":feature:chat"))
+            // AI 音乐助手（功能二）：复用 feature:assistant 的 commonMain AssistantContent
+            // + core:assistant 的动作契约（AssistantActionDispatcher / AssistantAction 等）
+            api(project(":core:assistant"))
+            api(project(":feature:assistant"))
             // Compose Multiplatform（iOS 侧 UI，与 Android 的 androidx Compose 无关）
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -61,6 +79,8 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+            // 401 → refreshToken 续期（对齐 Android OkHttp TokenAuthenticator）
+            implementation(libs.ktor.client.auth)
         }
     }
 }

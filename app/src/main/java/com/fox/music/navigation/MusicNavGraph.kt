@@ -26,7 +26,7 @@ import com.fox.music.feature.search.SearchScreen
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
-import com.fox.music.feature.social.ui.screen.postDetailRoute
+import com.fox.music.feature.social.postDetailRoute
 import com.fox.music.ui.importplaylist.IMPORT_PLAYLIST_SELECT_ROUTE
 import com.fox.music.ui.importplaylist.ImportPlaylistSelectScreen
 

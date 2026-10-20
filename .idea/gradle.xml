@@ -12,9 +12,12 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/core" />
+            <option value="$PROJECT_DIR$/core/assistant" />
+            <option value="$PROJECT_DIR$/core/assistant-android" />
             <option value="$PROJECT_DIR$/core/common" />
             <option value="$PROJECT_DIR$/core/common-android" />
             <option value="$PROJECT_DIR$/core/data" />
+            <option value="$PROJECT_DIR$/core/data-android" />
             <option value="$PROJECT_DIR$/core/database" />
             <option value="$PROJECT_DIR$/core/datastore" />
             <option value="$PROJECT_DIR$/core/domain" />
@@ -26,6 +29,8 @@
             <option value="$PROJECT_DIR$/core/player" />
             <option value="$PROJECT_DIR$/core/ui" />
             <option value="$PROJECT_DIR$/feature" />
+            <option value="$PROJECT_DIR$/feature/assistant" />
+            <option value="$PROJECT_DIR$/feature/assistant-android" />
             <option value="$PROJECT_DIR$/feature/auth" />
             <option value="$PROJECT_DIR$/feature/auth-android" />
             <option value="$PROJECT_DIR$/feature/automotive" />
@@ -45,6 +50,7 @@
             <option value="$PROJECT_DIR$/feature/search-android" />
             <option value="$PROJECT_DIR$/feature/social" />
             <option value="$PROJECT_DIR$/feature/social-android" />
+            <option value="$PROJECT_DIR$/feature/stream-android" />
             <option value="$PROJECT_DIR$/iosShared" />
           </set>
         </option>

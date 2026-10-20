@@ -2,46 +2,17 @@ package com.fox.music.feature.chat.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.model.chat.Friend
-import com.fox.music.core.model.chat.FriendRequest
 import com.fox.music.feature.chat.util.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class FriendsState(
-    val friends: List<Friend> = emptyList(),
-    val friendRequests: List<FriendRequest> = emptyList(),
-    val isLoading: Boolean = false,
-    val isAccepting: Boolean = false,
-    val error: String? = null,
-) : UiState
-
-sealed interface FriendsIntent : UiIntent {
-    data object Load : FriendsIntent
-    data object Refresh : FriendsIntent
-    data class AcceptRequest(val requestId: Long) : FriendsIntent
-}
-
-sealed interface FriendsEffect : UiEffect {
-    data class ShowMessage(val message: String) : FriendsEffect
-    data object NavigateBack : FriendsEffect
-    data object NavigateToSearch : FriendsEffect
-    data class NavigateToUserProfile(
-        val userId: Long,
-        val nickname: String?,
-        val avatar: String?,
-        val signature: String?,
-        val isFriend: Boolean,
-        val isRequested: Boolean = false,
-    ) : FriendsEffect
-}
+// FriendsState / FriendsIntent / FriendsEffect 已下沉到
+// :feature:chat commonMain 的 FriendsContract.kt（包名不变，两端共用同一份契约）。
 
 @HiltViewModel
 class FriendsViewModel @Inject constructor(

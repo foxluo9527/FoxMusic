@@ -7,12 +7,17 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -22,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,18 +49,29 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.music.SleepTimerState
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
 import com.fox.music.core.ui.component.LocalTransientMediaAudioCoordinator
+import com.fox.music.core.ui.component.MineDrawerContent
 import com.fox.music.core.ui.component.TransientMediaAudioCoordinator
 import com.fox.music.core.ui.component.UpdateDialog
+import com.fox.music.feature.assistant.assistantRoute
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.chat.CHAT_DETAIL_ROUTE
+import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.chat.selectFriendRoute
 import com.fox.music.feature.discover.artistDetailRoute
 import com.fox.music.feature.home.HOME_ROUTE
+import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
+import com.fox.music.feature.player.ui.screen.sourceCorrectRoute
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
+import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
+import com.fox.music.feature.profile.ui.screen.EDIT_PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
+import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
+import com.fox.music.feature.profile.ui.screen.THEME_SETTINGS_ROUTE
+import com.fox.music.feature.profile.ui.screen.userHomeRoute
 import com.fox.music.feature.social.ui.screen.createPostRoute
 import com.fox.music.navigation.NavGraphContext
 import com.fox.music.navigation.appNavGraph
@@ -62,6 +79,7 @@ import com.fox.music.navigation.navigateToPlayer
 import com.fox.music.ui.TAB_ROOT_ROUTES
 import com.fox.music.update.ApkInstallHelper
 import com.fox.music.update.ApkInstallResult
+import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -93,11 +111,27 @@ fun MainScreen(
     var profileRefreshKey by remember { mutableIntStateOf(0) }
     var plazaRefreshTrigger by remember { mutableIntStateOf(0) }
     var hideMiniPlayerInSelection by remember { mutableStateOf(false) }
+    var showSleepTimerPicker by remember { mutableStateOf(false) }
     val postActionsState by postActionsViewModel.uiState.collectAsStateWithLifecycle()
     val currentUserId = postActionsState.currentUserId
 
     val playlistState by viewModel.playlistState.collectAsState()
     val messagesUnreadCount by viewModel.totalUnreadCount.collectAsStateWithLifecycle()
+    val userPreferences by viewModel.userPreferences.collectAsStateWithLifecycle()
+    val drawerProfile by viewModel.drawerProfile.collectAsStateWithLifecycle()
+    val sleepTimerState by viewModel.sleepTimer.collectAsStateWithLifecycle()
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
+
+    fun closeDrawer(block: () -> Unit = {}) {
+        drawerScope.launch { drawerState.close() }
+        block()
+    }
+
+    fun navigateFromDrawer(route: String) {
+        closeDrawer { navController.navigate(route) }
+    }
 
     LaunchedEffect(deepLinkRoute) {
         if (deepLinkRoute.isNotBlank() && deepLinkRoute != HOME_ROUTE) {
@@ -311,6 +345,7 @@ fun MainScreen(
         onArtistClick = ::onArtistClick,
         onMusicMoreClick = ::onMusicMoreClick,
         showCreatePlaylistBottomSheet = ::showCreatePlaylistBottomSheet,
+        onOpenDrawer = { drawerScope.launch { drawerState.open() } },
     )
 
     val transientMediaAudioCoordinator = remember(musicController) {
@@ -328,6 +363,43 @@ fun MainScreen(
     CompositionLocalProvider(
         LocalTransientMediaAudioCoordinator provides transientMediaAudioCoordinator,
     ) {
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
+        drawerContent = {
+            // 仿网易云侧边栏：面板只占约 86% 宽，右侧留出可见遮罩区（默认会撑满 360dp）。
+            ModalDrawerSheet(
+                modifier = Modifier.fillMaxWidth(0.86f),
+                // 面板背景铺满整屏（含状态栏），否则状态栏区域露出的是遮罩底色，形成一条灰色断层。
+                windowInsets = WindowInsets(0.dp),
+            ) {
+                MineDrawerContent(
+                    isLogin = authState.isLoggedIn,
+                    nickname = drawerProfile?.nickname ?: userPreferences.username,
+                    avatarUrl = drawerProfile?.avatar,
+                    coverUrl = drawerProfile?.homepageBackground,
+                    unreadCount = messagesUnreadCount,
+                    onProfileClick = {
+                        closeDrawer()
+                        currentUserId?.let { navController.navigate(userHomeRoute(it)) }
+                    },
+                    onLoginClick = { navigateFromDrawer(LOGIN_ROUTE) },
+                    onMessagesClick = { navigateFromDrawer(MESSAGES_ROUTE) },
+                    onAssistantClick = {
+                        closeDrawer()
+                        if (!authState.isLoggedIn) navController.navigate(LOGIN_ROUTE)
+                        else navController.navigate(assistantRoute())
+                    },
+                    onEditProfileClick = { navigateFromDrawer(EDIT_PROFILE_ROUTE) },
+                    onSleepTimerClick = { closeDrawer { showSleepTimerPicker = true } },
+                    onDownloadsClick = { navigateFromDrawer(DOWNLOAD_MANAGER_ROUTE) },
+                    onThemeClick = { navigateFromDrawer(THEME_SETTINGS_ROUTE) },
+                    onManageLibraryClick = { navigateFromDrawer(MANAGE_ROUTER) },
+                    onSettingsClick = { navigateFromDrawer(SETTINGS_ROUTE) },
+                )
+            }
+        },
+    ) {
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0.dp)
@@ -342,6 +414,7 @@ fun MainScreen(
             }
         }
     }
+    }
 
     InAppNotificationHost(navController = navController)
 
@@ -350,6 +423,9 @@ fun MainScreen(
         onCreatePlaylist = ::showCreatePlaylistBottomSheet,
         onNavigateToSelectFriend = {
             navController.navigate(selectFriendRoute())
+        },
+        onNavigateToSourceCorrect = { musicId ->
+            navController.navigate(sourceCorrectRoute(musicId))
         },
         viewModel = musicActionsViewModel,
     )
@@ -413,6 +489,21 @@ fun MainScreen(
         )
     }
 
+    if (showSleepTimerPicker) {
+        SleepTimerPickerDialog(
+            isActive = sleepTimerState.isActive,
+            onSelect = { minutes ->
+                viewModel.startSleepTimer(minutes)
+                showSleepTimerPicker = false
+            },
+            onCancelTimer = {
+                viewModel.cancelSleepTimer()
+                showSleepTimerPicker = false
+            },
+            onDismiss = { showSleepTimerPicker = false },
+        )
+    }
+
     val updateInfo = updateState.updateInfo
     if (updateState.showDialog && updateInfo != null) {
         UpdateDialog(
@@ -429,4 +520,49 @@ fun MainScreen(
         )
     }
     }
+}
+
+private val SleepTimerOptionsMinutes = listOf(0L, 15L, 30L, 45L, 60L, 90L, 120L)
+
+@Composable
+private fun SleepTimerPickerDialog(
+    isActive: Boolean,
+    onSelect: (Long) -> Unit,
+    onCancelTimer: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("定时关闭") },
+        text = {
+            LazyColumn {
+                SleepTimerOptionsMinutes.forEach { minutes ->
+                    item {
+                        TextButton(
+                            onClick = { onSelect(minutes) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = if (minutes == 0L) "关闭定时" else "$minutes 分钟后停止播放",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+                if (isActive) {
+                    item {
+                        TextButton(
+                            onClick = onCancelTimer,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(text = "取消当前定时", modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
 }

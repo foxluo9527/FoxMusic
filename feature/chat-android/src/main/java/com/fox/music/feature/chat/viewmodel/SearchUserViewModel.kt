@@ -2,9 +2,6 @@ package com.fox.music.feature.chat.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.model.chat.SearchedUser
@@ -13,31 +10,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class SearchUserState(
-    val query: String = "",
-    val results: List<SearchedUser> = emptyList(),
-    val isLoading: Boolean = false,
-    val hasSearched: Boolean = false,
-    val error: String? = null,
-) : UiState
-
-sealed interface SearchUserIntent : UiIntent {
-    data class QueryChange(val query: String) : SearchUserIntent
-    data object Search : SearchUserIntent
-}
-
-sealed interface SearchUserEffect : UiEffect {
-    data class ShowMessage(val message: String) : SearchUserEffect
-    data class NavigateToUserProfile(
-        val userId: Long,
-        val nickname: String?,
-        val avatar: String?,
-        val signature: String?,
-        val isFriend: Boolean,
-        val isRequested: Boolean,
-    ) : SearchUserEffect
-    data object NavigateBack : SearchUserEffect
-}
+// SearchUserState / SearchUserIntent / SearchUserEffect 已下沉到
+// :feature:chat commonMain 的 SearchUserContract.kt（包名不变，两端共用同一份契约）。
 
 @HiltViewModel
 class SearchUserViewModel @Inject constructor(

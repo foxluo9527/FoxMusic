@@ -337,8 +337,10 @@ private fun ManageSearchResultList(
                     ) {
                         items(
                             count = musicItems.itemCount,
+                            // 注意：第三方搜索结果中同一首歌可能重复出现，仅用 sourceId_id 会撞 key 崩溃，必须拼上 index
                             key = { index ->
-                                musicItems.peek(index)?.let { "${it.sourceId}_${it.id}" } ?: index
+                                musicItems.peek(index)?.let { "${index}_${it.sourceId}_${it.id}" }
+                                    ?: index
                             },
                         ) { index ->
                             val music = musicItems[index] ?: return@items

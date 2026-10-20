@@ -28,8 +28,8 @@ android {
         applicationId = "com.fox.music"
         minSdk = 26
         targetSdk = 37
-        versionCode = 112
-        versionName = "1.2.0"
+        versionCode = 113
+        versionName = "1.2.1"
 
         val buglyAppId = localProperties.getProperty("BUGLY_APP_ID")
             ?: (project.findProperty("BUGLY_APP_ID") as String?)
@@ -57,7 +57,7 @@ android {
             create("release") {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
                 storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
@@ -124,6 +124,7 @@ dependencies {
     implementation(project(":feature:social-android"))
     implementation(project(":feature:chat-android"))
     implementation(project(":feature:profile-android"))
+    implementation(project(":feature:stream-android"))
     implementation(project(":feature:automotive"))
     // 客户端 AI 音乐助手（功能二）：屏幕/路由在 -android，Hilt 装配（仓库/调度器实现）经其传递
     implementation(project(":feature:assistant-android"))

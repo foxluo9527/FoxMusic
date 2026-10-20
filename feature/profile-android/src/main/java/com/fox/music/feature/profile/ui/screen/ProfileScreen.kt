@@ -14,9 +14,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
+import com.fox.music.feature.profile.viewmodel.MinePostsViewModel
 import com.fox.music.feature.profile.viewmodel.ProfileEffect
 import com.fox.music.feature.profile.viewmodel.ProfileIntent
 import com.fox.music.feature.profile.viewmodel.ProfileViewModel
+import androidx.paging.compose.collectAsLazyPagingItems
 
 @Composable
 fun ProfileScreen(
@@ -37,10 +39,19 @@ fun ProfileScreen(
     onPlayAllPlaylist: (Long, List<Music>, String, String?) -> Unit = { _, _, _, _ -> },
     onEditPlaylistClick: (Long) -> Unit = {},
     onMusicClick: (Music, List<Music>) -> Unit = { _, _ -> },
+    onOpenDrawer: () -> Unit = {},
+    onMoreFavoritePlaylists: () -> Unit = {},
+    onMoreFavoriteAlbums: () -> Unit = {},
+    onMoreFavoriteArtists: () -> Unit = {},
+    currentUserId: Long? = null,
     refreshKey: Int = 0,
+    postsViewModel: MinePostsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    LaunchedEffect(currentUserId) { postsViewModel.bind(currentUserId) }
+    val postPagingItems = postsViewModel.postsFlow?.collectAsLazyPagingItems()
 
     LaunchedEffect(isLogin) {
         if (isLogin) {
@@ -105,5 +116,11 @@ fun ProfileScreen(
         onDownloadManagerClick = onDownloadManagerClick,
         onEditPlaylistClick = onEditPlaylistClick,
         onCreatePlaylistFromVm = { viewModel.onCreatePlaylistClick() },
+        onOpenDrawer = onOpenDrawer,
+        onMoreFavoritePlaylists = onMoreFavoritePlaylists,
+        onMoreFavoriteAlbums = onMoreFavoriteAlbums,
+        onMoreFavoriteArtists = onMoreFavoriteArtists,
+        postPagingItems = postPagingItems,
+        currentUserId = currentUserId,
     )
 }

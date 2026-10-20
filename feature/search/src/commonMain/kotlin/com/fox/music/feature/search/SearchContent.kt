@@ -127,6 +127,9 @@ fun SearchContent(
                         onQueryChange = { onIntent(SearchIntent.QueryChange(it)) },
                         onSearch = { onIntent(SearchIntent.Search) },
                         onFocusChanged = { onIntent(SearchIntent.FocusChanged(it)) },
+                        // 进入搜索页自动唤起输入法；带 tag/query 深链进入时（初始 query 非空）
+                        // 不抢焦点，避免键盘挡住刚出的帖子结果。
+                        autoFocus = state.query.isBlank(),
                     )
                 },
                 navigationIcon = {

@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -38,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,8 +48,9 @@ import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.MusicListItem
 import com.fox.music.core.ui.component.SectionHeader
+import com.fox.music.core.ui.component.TabPageTopBar
+import com.fox.music.core.ui.component.tabTopBarFullBleed
 import com.fox.music.core.ui.theme.CoverShape
-import com.fox.music.core.ui.theme.FoxDisplayFont
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.theme.SearchBarShape
 
@@ -71,10 +70,10 @@ fun HomeContent(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
+    onOpenDrawer: () -> Unit = {},
     onMusicClick: (Music) -> Unit = {},
     onSearchClick: () -> Unit = {},
-    // 客户端 AI 音乐助手入口（功能二）。传 null 不渲染 pill —— iOS 壳未接线时
-    // 走默认 null，不会出现死按钮。
+    // 客户端 AI 音乐助手入口：已迁至全局左侧抽屉，此处保留参数仅为兼容旧调用方。
     onAssistantClick: (() -> Unit)? = null,
     onPlaylistMoreClick: () -> Unit = {},
     onAlbumMoreClick: () -> Unit = {},
@@ -103,7 +102,9 @@ fun HomeContent(
                 columns = GridCells.Fixed(4),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = FoxSpacing.heroTop,
+                    // 顶部不再额外内边距：顶部栏自带 8dp 上下内边距，
+                    // 这样三横与「我的」页头部图标在纵向也对齐。
+                    top = 0.dp,
                     bottom = FoxSpacing.tabChromeBottom, // 悬浮 MiniPlayer + 底栏
                     start = FoxSpacing.pagePadding,
                     end = FoxSpacing.pagePadding,
@@ -117,8 +118,8 @@ fun HomeContent(
                     contentType = "hero",
                 ) {
                     HomeBrandHero(
+                        onOpenDrawer = onOpenDrawer,
                         onSearchClick = onSearchClick,
-                        onAssistantClick = onAssistantClick,
                         hotHint = state.hotKeywords.firstOrNull()?.keyword,
                     )
                 }
@@ -229,8 +230,8 @@ fun HomeContent(
 
 @Composable
 private fun HomeBrandHero(
+    onOpenDrawer: () -> Unit,
     onSearchClick: () -> Unit,
-    onAssistantClick: (() -> Unit)?,
     hotHint: String?,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -239,14 +240,11 @@ private fun HomeBrandHero(
             .fillMaxWidth()
             .padding(bottom = 8.dp),
     ) {
-        Text(
-            text = "FoxMusic",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FoxDisplayFont,
-                fontWeight = FontWeight.Bold,
-            ),
-            color = scheme.onBackground,
-            modifier = Modifier.padding(bottom = 16.dp),
+        TabPageTopBar(
+            title = "FoxMusic",
+            onOpenDrawer = onOpenDrawer,
+            // 顶部栏位于带 pagePadding 的网格里，需出血到整屏，才能与「我的」页左上角图标对齐。
+            modifier = Modifier.tabTopBarFullBleed(FoxSpacing.pagePadding),
         )
         Row(
             modifier = Modifier
@@ -283,30 +281,6 @@ private fun HomeBrandHero(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (onAssistantClick != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Row(
-                    modifier = Modifier
-                        .clip(SearchBarShape)
-                        .background(scheme.primary.copy(alpha = 0.10f))
-                        .clickable(onClick = onAssistantClick)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = scheme.primary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "AI 助手",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = scheme.primary,
-                    )
-                }
-            }
         }
     }
 }

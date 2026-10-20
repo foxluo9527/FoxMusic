@@ -2,8 +2,19 @@ package com.fox.music.feature.chat.util
 
 import com.fox.music.core.model.chat.Notification
 import com.fox.music.core.model.chat.NotificationType
+import com.fox.music.feature.chat.viewmodel.NotificationCategory
 
 object NotificationFilter {
+
+    /** 通知分类页的三个分类各取哪些类型（两端共用，避免归类口径跑偏）。 */
+    fun filterFor(
+        category: NotificationCategory,
+        notifications: List<Notification>,
+    ): List<Notification> = when (category) {
+        NotificationCategory.COMMENT -> commentNotifications(notifications)
+        NotificationCategory.LIKE -> likeNotifications(notifications)
+        NotificationCategory.SYSTEM -> systemNotifications(notifications)
+    }
 
     /** 通知分类页可展示的类型（排除私信/聊天消息通知） */
     private val CATEGORY_DISPLAY_TYPES = setOf(

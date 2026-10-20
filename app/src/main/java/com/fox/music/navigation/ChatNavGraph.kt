@@ -47,7 +47,7 @@ import com.fox.music.feature.discover.artistDetailRoute
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.feature.player.ui.screen.musicCommentDetailRoute
-import com.fox.music.feature.social.ui.screen.postDetailRoute
+import com.fox.music.feature.social.postDetailRoute
 
 fun NavGraphBuilder.chatNavGraph(context: NavGraphContext) {
     val navController = context.navController

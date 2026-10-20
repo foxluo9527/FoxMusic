@@ -9,6 +9,9 @@ object AssistantActionTypes {
     const val PLAY_MUSIC = "play_music"
     const val PLAY_PLAYLIST = "play_playlist"
     const val PLAY_ALBUM = "play_album"
+
+    /** 临时队列：按 ID 列表播放一组歌，不建歌单、不落库（纯询问/推荐场景用） */
+    const val PLAY_MUSIC_LIST = "play_music_list"
     const val OPEN_SCREEN = "open_screen"
     const val CREATE_PLAYLIST = "create_playlist"
     const val ADD_TO_PLAYLIST = "add_to_playlist"
@@ -20,7 +23,7 @@ object AssistantActionTypes {
     const val ADD_FRIEND = "add_friend"
 
     val ALL: Set<String> = setOf(
-        PLAY_MUSIC, PLAY_PLAYLIST, PLAY_ALBUM, OPEN_SCREEN, CREATE_PLAYLIST,
+        PLAY_MUSIC, PLAY_PLAYLIST, PLAY_ALBUM, PLAY_MUSIC_LIST, OPEN_SCREEN, CREATE_PLAYLIST,
         ADD_TO_PLAYLIST, FAVORITE_MUSIC, FAVORITE_PLAYLIST, FAVORITE_ALBUM,
         SEARCH_IN_APP, SEND_MESSAGE, ADD_FRIEND,
     )

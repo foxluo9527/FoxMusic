@@ -24,3 +24,17 @@ internal expect fun PlatformAsyncImage(
     loadingContent: @Composable BoxScope.() -> Unit,
     errorContent: @Composable BoxScope.() -> Unit,
 )
+
+/**
+ * 本地**绝对路径**图片（聊天设置页设置的聊天背景用）。
+ *
+ * 与 [PlatformAsyncImage] 的区别：数据源是设备本地文件而不是网络 URL ——
+ * Android 走 Coil 的 File model，iOS 直接 NSFileManager 读字节后 Skia 解码。
+ */
+@Composable
+expect fun PlatformFileImage(
+    filePath: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+)

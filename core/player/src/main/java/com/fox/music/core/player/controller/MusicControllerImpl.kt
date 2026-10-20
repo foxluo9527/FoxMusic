@@ -20,6 +20,7 @@ import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlaybackSnapshot
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.RepeatMode
+import com.fox.music.core.model.music.ClipRange
 import com.fox.music.core.player.service.MusicPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
@@ -50,6 +51,13 @@ class MusicControllerImpl @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val localPlayUrls = ConcurrentHashMap<Long, String>()
+
+    /**
+     * 音源替换后的 URL 覆盖表（musicId → 新地址）。
+     * 列表/队列可能仍持有替换前的旧 Music（含旧 url），播放时优先取本表，
+     * 保证同一会话内改过音源的歌曲从新地址播放。
+     */
+    private val urlOverrides = ConcurrentHashMap<Long, String>()
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
@@ -96,6 +104,26 @@ class MusicControllerImpl @Inject constructor(
     private var applyingPlaylistUntilMs = 0L
     /** 冷启动 UI 恢复后的待续播进度，在 Exo 未对齐前不被 timeline 轮询覆盖 */
     private var pendingRestorePositionMs: Long? = null
+
+    // ===== 音流模式：高潮片段区间播放 =====
+    private var activeClip: ClipRange? = null
+    /** activeClip 所属歌曲 id；applyTrackToPlayer 据此判断「是否切了歌」再决定是否重置 clip */
+    private var activeClipMusicId: Long? = null
+    /** 当前歌曲内的片段游标（0-based），advanceStream 在曲内推进时自增 */
+    private var currentClipIndex: Int = 0
+    /** 音流队列的片段表：musicId -> 高潮片段列表（来自服务端 /api/highlight/stream） */
+    private val streamClips = HashMap<Long, List<ClipRange>>()
+    /** advance 单一起发源锁存：轮询检测到片段终点后置位，待 applyTrackToPlayer 复位，
+     *  防止「轮询 + STATE_ENDED 回调」双触发跳歌（KAT：音流页 advance 只走轮询） */
+    @Volatile
+    private var clipAdvanceTriggered = false
+    /** 当前片段绝对起点（毫秒）：flushCurrentPlayRecord 计算 clip 收听时长用 */
+    private var lastTrackClipStartMs: Long = 0L
+    /** 音流模式：当前曲目是否已「放开片段限制」（用户拖到片段外后为 true，则整曲播完再切歌） */
+    private var streamClipDisabled = false
+    /** 音流模式：片段功能是否开启（仅音流页在前台为 true，由导航层驱动）。
+     *  切到其它 Tab 后关闭；它是「粘性」的，切歌时 applyTrackToPlayer 不得把它悄悄恢复。 */
+    private var streamClipFeatureEnabled = true
 
     init {
         connectToService()
@@ -239,6 +267,15 @@ class MusicControllerImpl @Inject constructor(
                             updatePlayerState()
                             return
                         }
+                        // 音流模式：用户已放开片段限制（或片段功能已关闭）→ 本曲自然播完即推进下一首。
+                        // 片段内结束不会走到这里（轮询已在 clip.endMs 处 advance 并复位该标志）。
+                        if (activeClip != null &&
+                            (streamClipDisabled || !streamClipFeatureEnabled)
+                        ) {
+                            advanceStream()
+                            updatePlayerState()
+                            return
+                        }
                         if (player.mediaItemCount == 0 && currentPlaylist.isNotEmpty()) {
                             updatePlayerState()
                             return
@@ -341,7 +378,17 @@ class MusicControllerImpl @Inject constructor(
                                 duration = if (player.duration > 0) player.duration else state.duration,
                                 isPlaying = player.isPlaying,
                                 isLoading = player.playbackState == Player.STATE_BUFFERING,
+                                clip = activeClip,
                             )
+                        }
+                        // 音流模式：播放到高潮片段终点 → 轮询单一起发源推进（防 STATE_ENDED 双触发跳歌）。
+                        // 用户拖到片段外后 streamClipDisabled 为 true，或片段功能已关闭（切到其它 Tab），
+                        // 此处都不再推进，交由媒体自然结束处理（见 STATE_ENDED 分支）。
+                        if (activeClip != null && !streamClipDisabled && streamClipFeatureEnabled &&
+                            position >= activeClip!!.endMs && !clipAdvanceTriggered
+                        ) {
+                            clipAdvanceTriggered = true
+                            advanceStream()
                         }
                     }
                     val positionForPersist = if (timelineReady) {
@@ -392,13 +439,20 @@ class MusicControllerImpl @Inject constructor(
     private fun flushCurrentPlayRecord() {
         val trackId = lastTrackId ?: return
         if (trackId <= 0) return
-        val listenedMs = when {
-            lastTrackPositionMs <= 0L -> 0L
-            lastTrackDurationMs > 0L -> lastTrackPositionMs.coerceAtMost(lastTrackDurationMs)
-            else -> lastTrackPositionMs
+        // 音流模式：收听时长按「片段内相对进度」计算，progressPercent 传 null（避免污染 avg_play_progress）
+        val listenedMs = if (activeClip != null) {
+            (lastTrackPositionMs - lastTrackClipStartMs).coerceAtLeast(0L)
+        } else {
+            when {
+                lastTrackPositionMs <= 0L -> 0L
+                lastTrackDurationMs > 0L -> lastTrackPositionMs.coerceAtMost(lastTrackDurationMs)
+                else -> lastTrackPositionMs
+            }
         }
         val durationSec = (listenedMs / 1000L).toInt().takeIf { it > 0 } ?: return
-        val progress = if (lastTrackDurationMs > 0) {
+        val progress = if (activeClip != null) {
+            null
+        } else if (lastTrackDurationMs > 0) {
             ((lastTrackPositionMs * 100) / lastTrackDurationMs).toInt().coerceIn(0, 100)
         } else {
             null
@@ -542,6 +596,34 @@ class MusicControllerImpl @Inject constructor(
                 playlist = currentPlaylist,
             )
         } else if (state.playlist !== currentPlaylist) {
+            _playerState.value = state.copy(playlist = currentPlaylist)
+        }
+        persistPlaybackState()
+    }
+
+    override fun updateMusicUrl(musicId: Long, url: String) {
+        if (url.isBlank()) return
+        // 覆盖表优先于 Music 自带 url：列表/队列可能仍是替换前的旧 Music
+        urlOverrides[musicId] = url
+        currentPlaylist = currentPlaylist.map { music ->
+            if (music.id == musicId && music.url != url) music.copy(url = url) else music
+        }
+        val state = _playerState.value
+        if (state.currentMusic?.id == musicId) {
+            _playerState.value = state.copy(
+                currentMusic = state.currentMusic?.copy(url = url),
+                playlist = currentPlaylist,
+            )
+            // 当前曲目正挂着旧地址：按新地址重建媒体项，保持进度与播放态
+            val index = currentPlaylist.indexOfFirst { it.id == musicId }
+            if (index >= 0) {
+                applyTrackToPlayer(
+                    startIndex = index,
+                    startPositionMs = controller?.currentPosition ?: 0L,
+                    autoPlay = controller?.isPlaying == true,
+                )
+            }
+        } else {
             _playerState.value = state.copy(playlist = currentPlaylist)
         }
         persistPlaybackState()
@@ -716,6 +798,8 @@ class MusicControllerImpl @Inject constructor(
         navigateToPlaylistIndex(nextIndex, autoPlay = true)
     }
 
+    // KAT：音流页「上滑/上一首」请用 seekToQueueItem(index-1)（会挂载该歌首片段），
+    // 不要用 previous() —— previous() 在 clip 起点（如 60s）会因 position>3s 永远重播当前片段。
     override fun previous() {
         val player = controller ?: return
         if (currentPlaylist.isEmpty()) return
@@ -782,6 +866,41 @@ class MusicControllerImpl @Inject constructor(
         _currentPosition.value = safePosition
         _playerState.value = _playerState.value.copy(position = safePosition)
         persistPlaybackState(safePosition)
+    }
+
+    /**
+     * 音流模式自由拖拽：
+     * - 目标落在片段区间外（含拖过头）→ 放开限制，本曲完整播完再切歌；
+     * - 目标落回片段区间内 → 复位限制与 advance 锁存，恢复「到片段终点即切歌」。
+     * 非音流（无激活片段）不改变任何行为，等同 seekTo。
+     */
+    override fun seekFree(positionMs: Long) {
+        val safePosition = positionMs.coerceAtLeast(0L)
+        val clip = activeClip
+        val insideClip = clip != null && safePosition >= clip.startMs && safePosition < clip.endMs
+        streamClipDisabled = clip != null && !insideClip
+        if (!streamClipDisabled) {
+            clipAdvanceTriggered = false
+        }
+        seekTo(safePosition)
+    }
+
+    override fun setStreamClipEnabled(enabled: Boolean) {
+        streamClipFeatureEnabled = enabled
+        if (!enabled) {
+            // 离开音流页：什么都不改片段「区间」，只放开限制，让本曲完整播放到自然结束。
+            streamClipDisabled = true
+        } else {
+            // 重新进入音流页：若当前进度已越过本曲片段终点，保持本曲整曲播放（置 advance 锁存，
+            // 避免瞬间跳回片段或立刻跳歌），仅从下一首起恢复「只播高潮即切歌」。
+            val clip = activeClip
+            if (clip != null && _playerState.value.position >= clip.endMs) {
+                clipAdvanceTriggered = true
+                streamClipDisabled = true
+            } else {
+                streamClipDisabled = false
+            }
+        }
     }
 
     override fun updatePlaylist(musics: List<Music>, key: String) {
@@ -905,6 +1024,12 @@ class MusicControllerImpl @Inject constructor(
         source: PlaybackPlaylistSource?,
     ) {
         if (musics.isEmpty()) return
+        // 普通点播：退出音流片段态
+        activeClip = null
+        activeClipMusicId = null
+        streamClips.clear()
+        currentClipIndex = 0
+        streamClipDisabled = false
         userPlaylistActive = true
         pendingRestorePositionMs = null
         lastUserSetPlaylistTimeMs = System.currentTimeMillis()
@@ -929,6 +1054,86 @@ class MusicControllerImpl @Inject constructor(
         persistPlaybackState()
     }
 
+    /**
+     * 音流模式入口：按服务端排好的队列启动刷歌，每个片段一个「高潮单元」。
+     * 与 setPlaylist 的差异：setMediaItem 传 clip.startMs 绝对起点，轮询到 clip.endMs 自动 advance。
+     */
+    override fun startStreamQueue(
+        musics: List<Music>,
+        clipsByMusic: Map<Long, List<ClipRange>>,
+        startIndex: Int,
+        key: String,
+        source: PlaybackPlaylistSource?,
+    ) {
+        if (musics.isEmpty()) return
+        userPlaylistActive = true
+        pendingRestorePositionMs = null
+        lastUserSetPlaylistTimeMs = System.currentTimeMillis()
+        playingKey = key
+        playlistSource = source
+        streamClips.clear()
+        // 一首歌可能返回多个高潮片段，音流口径只取第一个播放
+        streamClips.putAll(clipsByMusic.mapValues { it.value.take(1) })
+        currentPlaylist = musics
+        val safeIndex = startIndex.coerceIn(0, musics.lastIndex)
+        userAnchorMusicId = musics[safeIndex].id
+        val firstClips = clipsByMusic[musics[safeIndex].id]
+        activeClip = firstClips?.firstOrNull() ?: fallbackClip(musics[safeIndex])
+        activeClipMusicId = musics[safeIndex].id
+        currentClipIndex = 0
+        applyRepeatModeToPlayer(currentRepeatMode)
+        applyTrackToPlayer(safeIndex, 0L, autoPlay = true)
+        persistPlaybackState()
+    }
+
+    /**
+     * 音流模式推进：当前歌还有剩余片段 → 切到下一片段；否则切下一首并挂载其首片段。
+     * 队尾行为：SEQUENTIAL 不续拉（pause 停住，依赖 next() 会 no-op 故这里主动 pause）；
+     * ALL/RANDOM 续播首首。advance 唯一由轮询调用（见 startPositionUpdates）。
+     */
+    override fun advanceStream() {
+        val player = controller ?: return
+        if (currentPlaylist.isEmpty() || activeClip == null) return
+        val curIdx = resolveUiIndex(player.currentMediaItemIndex)
+        val song = currentPlaylist.getOrNull(curIdx) ?: return
+        val songClips = streamClips[song.id]
+        if (songClips != null && currentClipIndex < songClips.lastIndex) {
+            // 同一首歌的下一个高潮片段
+            currentClipIndex++
+            activeClip = songClips[currentClipIndex]
+            activeClipMusicId = song.id
+            applyTrackToPlayer(curIdx, 0L, autoPlay = true)
+        } else {
+            // 切到下一首
+            if (curIdx >= currentPlaylist.lastIndex &&
+                currentRepeatMode == RepeatMode.SEQUENTIAL
+            ) {
+                player.pause()
+                return
+            }
+            val nextIdx = (curIdx + 1) % currentPlaylist.size
+            val nextSong = currentPlaylist[nextIdx]
+            val nextClips = streamClips[nextSong.id]
+            activeClip = nextClips?.firstOrNull() ?: fallbackClip(nextSong)
+            activeClipMusicId = nextSong.id
+            currentClipIndex = 0
+            applyTrackToPlayer(nextIdx, 0L, autoPlay = true)
+        }
+    }
+
+    /** 无高潮片段时的兜底 clip：取曲长前 30% 起、长 60s（与 feature/stream-android StreamClipPolicy 同口径，对齐服务端 60s 片段） */
+    private fun fallbackClip(music: Music): ClipRange {
+        val dur = when {
+            music.duration <= 0L -> 210_000L
+            music.duration < 1000L -> music.duration * 1000L
+            else -> music.duration
+        }
+        val safeDur = dur.coerceIn(30_000L, 600_000L)
+        val start = ((safeDur * 0.3).toLong()).coerceAtMost((safeDur - 60_000L).coerceAtLeast(0L))
+        val end = (start + 60_000L).coerceAtMost(safeDur)
+        return ClipRange(start, end)
+    }
+
     /** 用户点播：ExoPlayer 只加载当前单曲，完整列表存内存，避免全量 setMediaItems Binder 失败 */
     private fun applyTrackToPlayer(
         startIndex: Int,
@@ -943,12 +1148,28 @@ class MusicControllerImpl @Inject constructor(
         pendingAutoPlay = autoPlay
         userAnchorMusicId = currentPlaylist[safeIndex].id
         val music = currentPlaylist[safeIndex]
+        // 音流模式：切到新歌或无激活片段时，按片段表（或兜底）挂载 clip。
+        // 仅音流队列会话（streamClips 非空，由 startStreamQueue 建立、setPlaylist 清空）才挂片段；
+        // 普通点播若走兜底片段会从「曲长前 30%」起播，因此必须保持 activeClip 为空、从 0 起播。
+        if (streamClips.isNotEmpty() && (activeClip == null || activeClipMusicId != music.id)) {
+            val tc = streamClips[music.id]
+            activeClip = tc?.firstOrNull() ?: fallbackClip(music)
+            activeClipMusicId = music.id
+            currentClipIndex = 0
+        }
+        // A 方案：setMediaItem 传 clip 绝对起点，歌词/快照/恢复零改动
+        val clipStart = activeClip?.startMs ?: startPositionMs
+        lastTrackClipStartMs = clipStart
+        clipAdvanceTriggered = false
+        // 切歌（advance/用户翻页均经此）即复位片段限制，恢复「只播高潮」语义；
+        // 但若片段功能已关闭（已切到非音流 Tab），复位目标为「禁用」，避免片段模式在后台复活。
+        streamClipDisabled = !streamClipFeatureEnabled
         val item = music.toMediaItem()
-        publishOptimisticPlayerState(currentPlaylist, safeIndex, startPositionMs)
+        publishOptimisticPlayerState(currentPlaylist, safeIndex, clipStart)
         if (!item.hasPlayableUri()) return
         controller?.run {
             playWhenReady = false
-            setMediaItem(item, startPositionMs)
+            setMediaItem(item, clipStart)
             prepare()
         }
     }
@@ -997,6 +1218,7 @@ class MusicControllerImpl @Inject constructor(
             repeatMode = currentRepeatMode,
             isFavorite = music.isFavorite,
             playlistSource = playlistSource,
+            clip = activeClip,
         )
     }
 
@@ -1176,6 +1398,12 @@ class MusicControllerImpl @Inject constructor(
 
     override fun clearQueue() {
         userPlaylistActive = false
+        // 退出音流片段态
+        activeClip = null
+        activeClipMusicId = null
+        streamClips.clear()
+        currentClipIndex = 0
+        streamClipDisabled = false
         userAnchorMusicId = null
         currentPlaylist = emptyList()
         controller?.setMediaItems(emptyList())
@@ -1196,17 +1424,21 @@ class MusicControllerImpl @Inject constructor(
         }
     }
 
-    private fun Music.resolvePlayUrl(): String = localPlayUrls[id] ?: url
+    private fun Music.resolvePlayUrl(): String =
+        localPlayUrls[id] ?: urlOverrides[id] ?: url
 
     private fun Music.toMediaItem(): MediaItem {
         // 队列 MediaItem 仅保留播放所需字段，避免歌词等大字段导致 Binder 事务失败
         val playUrl = resolvePlayUrl()
+        val resolvedUrl = MediaUrlResolver.resolve(playUrl)
         val builder = MediaItem.Builder()
             .setMediaId(id.toString())
             .apply {
-                // 本地文件勿复用在线 cache key，否则 seek 会走 HTTP 上游
+                // 本地文件勿复用在线 cache key，否则 seek 会走 HTTP 上游。
+                // 在线缓存键必须带音源地址指纹：只按 id 建键时，音源替换后 URL 变了仍会命中
+                // 替换前的旧音频字节（表现为「已替换但播放还是旧音频」，清应用数据才好）。
                 if (!MediaUrlResolver.isLocalMedia(playUrl)) {
-                    setCustomCacheKey("cache_$id")
+                    setCustomCacheKey("cache_${id}_${resolvedUrl.orEmpty().hashCode()}")
                 }
             }
             .setMediaMetadata(
@@ -1219,7 +1451,6 @@ class MusicControllerImpl @Inject constructor(
                     }
                     .build(),
             )
-        val resolvedUrl = MediaUrlResolver.resolve(playUrl)
         if (!resolvedUrl.isNullOrBlank()) {
             val uri = resolvedUrl.toUri()
             // MediaController 跨进程时会剥离 localConfiguration，需同时写入 requestMetadata.mediaUri

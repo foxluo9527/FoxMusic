@@ -1,12 +1,13 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-// :feature:social —— 社区/动态/发帖的跨端部分（KMP 骨架）。
+// :feature:social —— 社区/动态/发帖的跨端部分（KMP）。
 //
-//   当前 commonMain 暂为空壳（社交屏全部依赖 BackHandler / LocalContext / Toast /
-//   PostNoteGridCard 等安卓侧组件，留待后续批次拆分出纯 Compose 部分）。
+//   commonMain：社区广场与帖子详情的 Contract（State/Intent/Effect）+ 纯 Compose Content
+//     （批次 30：把社区版块迁到 iOS，两端共用同一份 UI 与契约）。
 //   :feature:social-android：8 个 @HiltViewModel + 全部屏幕外壳 + CreatePostSelectionStore
 //     （CreatePostSelectionStore 用 @Inject / @ActivityRetainedScoped，属 Hilt 注解，
 //      只能放安卓侧，不可进 commonMain）。
+//   发帖页涉及图片选择/上传/裁剪等平台能力，仍留在 :feature:social-android。
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform)
@@ -46,6 +47,12 @@ kotlin {
             api(compose.material3)
             api(compose.ui)
             api(compose.materialIconsExtended)
+
+            // 广场/详情的列表都是分页流，契约里就有 Flow<PagingData<Post>>
+            api(libs.paging.common)
+            api(libs.paging.compose)
+            // 帖子时间格式化（替代 JVM-only 的 java.time）
+            implementation(libs.kotlinx.datetime)
         }
     }
 }

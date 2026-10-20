@@ -52,6 +52,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
@@ -70,6 +71,7 @@ import androidx.compose.ui.unit.sp
  * @param onSuggestionClick 建议项点击回调
  * @param onFocusChanged 输入框焦点变化回调
  * @param variant 搜索框样式变体
+ * @param autoFocus 进入页面即请求焦点并唤起输入法（默认关闭，深链进入时应传 false）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,11 +85,21 @@ fun SearchBar(
     onSuggestionClick: (SearchSuggestion) -> Unit = {},
     onFocusChanged: (Boolean) -> Unit = {},
     variant: SearchBarVariant = SearchBarVariant.Filled,
+    autoFocus: Boolean = false,
 ) {
     val focusRequester = remember {FocusRequester()}
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val interactionSource = remember {MutableInteractionSource()}
     val isFocused by interactionSource.collectIsFocusedAsState()
+
+    // 进入搜索页自动聚焦并唤起输入法（只在首次组合时触发一次，避免后续重组反复弹键盘）
+    LaunchedEffect(Unit) {
+        if (autoFocus) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     LaunchedEffect(isFocused) {
         onFocusChanged(isFocused)

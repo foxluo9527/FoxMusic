@@ -2,8 +2,6 @@ package com.fox.music.core.network.websocket
 
 import android.content.Context
 import com.fox.music.core.network.FoxNetworkConfig
-import com.fox.music.core.network.model.MessageDto
-import com.fox.music.core.network.model.NotificationDto
 import com.fox.music.core.network.di.WebSocketClient
 import com.fox.music.core.network.token.TokenManager
 import com.fox.music.core.network.util.isDebuggable
@@ -13,9 +11,6 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.*
 import timber.log.Timber
 import javax.inject.Inject
@@ -59,18 +54,6 @@ class WebSocketManagerImpl @Inject constructor(
         private const val MAX_RECONNECT_ATTEMPTS = 15
         private const val RECONNECT_BASE_MS = 1_000L
         private const val RECONNECT_MAX_MS = 30_000L
-
-        private val NOTIFICATION_TYPES = setOf(
-            "comment",
-            "like",
-            "follow",
-            "mention",
-            "chat",
-            "system",
-            "friend_request",
-            "music",
-            "message",
-        )
     }
 
     override suspend fun connect() {
@@ -209,66 +192,13 @@ class WebSocketManagerImpl @Inject constructor(
         }
     }
 
+    /** 解析下沉到 commonMain 的 [WebSocketMessageParser]，与 iOS 端共用同一套规则 */
     private fun parseMessage(text: String): WebSocketMessage? {
-        return try {
-            when {
-                text == "pong" -> WebSocketMessage.Pong
-                else -> parseJsonMessage(text)
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to parse WebSocket message")
-            WebSocketMessage.Error(e.message ?: "Parse error")
+        val parsed = WebSocketMessageParser.parse(json, text)
+        if (parsed is WebSocketMessage.Error) {
+            Timber.e("Failed to parse WebSocket message: ${parsed.error}")
         }
-    }
-
-    private fun parseJsonMessage(text: String): WebSocketMessage? {
-        val root = json.parseToJsonElement(text).jsonObject
-        val typeField = root["type"]?.jsonPrimitive?.content?.lowercase()
-
-        return when {
-            typeField == "error" -> {
-                val msg = root["message"]?.jsonPrimitive?.content ?: "Server error"
-                WebSocketMessage.Error(msg)
-            }
-            typeField == "notification" -> parseNotificationEnvelope(text, root)
-            typeField in NOTIFICATION_TYPES -> {
-                WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(text))
-            }
-            else -> parseAsChatMessage(text, root)
-        }
-    }
-
-    /** 服务端补发格式：{"type":"notification","data":{...}} */
-    private fun parseNotificationEnvelope(text: String, root: JsonObject): WebSocketMessage? {
-        val dataElement = root["data"] ?: return decodeRootNotification(text)
-        val payload = dataElement.toString()
-        val inner = dataElement.jsonObject
-        val innerType = inner["type"]?.jsonPrimitive?.content?.lowercase()
-        return when {
-            inner.containsKey("sender_id") && inner.containsKey("receiver_id") -> {
-                WebSocketMessage.ChatMessage(json.decodeFromString<MessageDto>(payload))
-            }
-            innerType in NOTIFICATION_TYPES || inner.containsKey("title") -> {
-                WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(payload))
-            }
-            else -> decodeRootNotification(text)
-        }
-    }
-
-    private fun decodeRootNotification(text: String): WebSocketMessage? {
-        return try {
-            WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(text))
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseAsChatMessage(text: String, root: JsonObject): WebSocketMessage? {
-        if (!root.containsKey("sender_id") || !root.containsKey("receiver_id")) {
-            return null
-        }
-        val message = json.decodeFromString<MessageDto>(text)
-        return WebSocketMessage.ChatMessage(message)
+        return parsed
     }
 
     private fun scheduleReconnect() {

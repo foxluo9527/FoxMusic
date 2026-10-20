@@ -3,9 +3,6 @@ package com.fox.music.feature.chat.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.usecase.ResolveMusicCommentNavigationUseCase
@@ -17,36 +14,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class NotificationCategory(val routeValue: String, val title: String) {
-    COMMENT("comment", "评论和@提及"),
-    LIKE("like", "赞和通知"),
-    SYSTEM("system", "系统公告");
-
-    companion object {
-        fun fromRoute(value: String?): NotificationCategory? =
-            entries.firstOrNull { it.routeValue == value }
-    }
-}
-
-data class NotificationCategoryState(
-    val category: NotificationCategory = NotificationCategory.COMMENT,
-    val notifications: List<Notification> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null,
-) : UiState
-
-sealed interface NotificationCategoryIntent : UiIntent {
-    data object Load : NotificationCategoryIntent
-    data object Refresh : NotificationCategoryIntent
-    data class MarkRead(val notificationId: Long) : NotificationCategoryIntent
-}
-
-sealed interface NotificationCategoryEffect : UiEffect {
-    data class ShowMessage(val message: String) : NotificationCategoryEffect
-    data object NavigateBack : NotificationCategoryEffect
-    data class NavigateToPostDetail(val postId: Long) : NotificationCategoryEffect
-    data class NavigateToMusicComment(val musicId: Long, val commentId: Long) : NotificationCategoryEffect
-}
+// NotificationCategory / NotificationCategoryState / Intent / Effect 已下沉到
+// :feature:chat commonMain 的 NotificationCategoryContract.kt（包名不变，两端共用同一份契约）。
 
 @HiltViewModel
 class NotificationCategoryViewModel @Inject constructor(
@@ -120,7 +89,10 @@ class NotificationCategoryViewModel @Inject constructor(
             }
             when (val result = socialRepository.getNotifications(page = 1, limit = 50, type = type)) {
                 is Result.Success -> {
-                    val notifications = filterByCategory(result.data.list, currentState.category)
+                    val notifications = NotificationFilter.filterFor(
+                        currentState.category,
+                        result.data.list,
+                    )
                     updateState {
                         copy(
                             notifications = notifications,
@@ -164,14 +136,5 @@ class NotificationCategoryViewModel @Inject constructor(
                 is Result.Loading -> Unit
             }
         }
-    }
-
-    private fun filterByCategory(
-        notifications: List<Notification>,
-        category: NotificationCategory,
-    ): List<Notification> = when (category) {
-        NotificationCategory.COMMENT -> NotificationFilter.commentNotifications(notifications)
-        NotificationCategory.LIKE -> NotificationFilter.likeNotifications(notifications)
-        NotificationCategory.SYSTEM -> NotificationFilter.systemNotifications(notifications)
     }
 }

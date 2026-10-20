@@ -54,6 +54,8 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -843,7 +845,19 @@ private fun AudioMessageBubble(message: Message, onLongClick: () -> Unit = {}, o
             onLongClick = onLongClick,
         ),
     ) {
-        Icon(Icons.Default.PlayArrow, contentDescription = "播放语音")
+        // 播放中：喇叭波纹按 0 → 1 → 2 → 0 循环，播完自动退回静止样式
+        VoicePlayingIcon(
+            isPlaying = playing,
+            tint = if (playing) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            size = 22.dp,
+            modifier = Modifier.semantics {
+                contentDescription = if (playing) "停止播放" else "播放语音"
+            },
+        )
         val durationSec = ((message.audioDurationMs ?: 0L) / 1000L).coerceAtLeast(1L)
         Text(text = "${durationSec}\"")
     }

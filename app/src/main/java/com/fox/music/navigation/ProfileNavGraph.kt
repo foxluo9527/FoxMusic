@@ -15,6 +15,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.feature.auth.ui.screen.LoginScreen
+import com.fox.music.feature.chat.NOTIFICATION_SETTINGS_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
@@ -22,6 +23,8 @@ import com.fox.music.feature.player.ui.screen.MANAGE_SEARCH_ROUTE
 import com.fox.music.feature.player.ui.screen.ManageScreen
 import com.fox.music.feature.player.ui.screen.ManageSearchScreen
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
+import com.fox.music.feature.player.ui.screen.SOURCE_CORRECT_ROUTE
+import com.fox.music.feature.player.ui.screen.SourceCorrectScreen
 import com.fox.music.feature.profile.ui.screen.DESKTOP_LYRIC_SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.DESKTOP_WIDGET_ROUTE
 import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
@@ -78,6 +81,10 @@ fun NavGraphBuilder.profileNavGraph(
             onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
             onReportHistory = { navController.navigate(REPORT_HISTORY_ROUTE) },
             onPrivacySettings = { navController.navigate(PRIVACY_SETTINGS_ROUTE) },
+            // 通知设置页（feature:chat 的 NotificationSettingsScreen）原本只挂在
+            // MessagesContent 的 showBackButton=true 分支上，而两端都传 false →
+            // 页面在两端都进不去。这里从设置页给一个可达入口。
+            onNotificationSettings = { navController.navigate(NOTIFICATION_SETTINGS_ROUTE) },
             onInstallApk = context.viewModel::requestInstall,
             onLogout = {
                 navController.navigate(LOGIN_ROUTE) {
@@ -206,7 +213,7 @@ fun NavGraphBuilder.profileNavGraph(
                     },
                     onNavigateToPostDetail = { postId ->
                         navController.navigateToDetail(
-                            com.fox.music.feature.social.ui.screen.postDetailRoute(postId),
+                            com.fox.music.feature.social.postDetailRoute(postId),
                         )
                     },
                     onSharePost = context.postActionsViewModel::sharePost,
@@ -252,6 +259,18 @@ fun NavGraphBuilder.profileNavGraph(
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
             onLogin = { navController.navigate(LOGIN_ROUTE) },
+        )
+    }
+
+    composableStack(
+        route = SOURCE_CORRECT_ROUTE,
+        arguments = listOf(navArgument("musicId") { type = NavType.LongType }),
+    ) { backStackEntry ->
+        val musicId = backStackEntry.arguments?.getLong("musicId") ?: 0L
+        SourceCorrectScreen(
+            modifier = Modifier.fillMaxSize(),
+            musicId = musicId,
+            onBack = { navController.popBackStack() },
         )
     }
 

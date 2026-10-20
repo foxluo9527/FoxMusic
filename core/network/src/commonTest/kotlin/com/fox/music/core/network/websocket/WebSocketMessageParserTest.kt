@@ -1,14 +1,14 @@
 package com.fox.music.core.network.websocket
 
-import com.fox.music.core.network.model.MessageDto
-import com.fox.music.core.network.model.NotificationDto
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+/**
+ * 直接测 commonMain 的 [WebSocketMessageParser] —— Android 与 iOS 走的就是这一份实现，
+ * 因此这里的用例同时约束两端行为。
+ */
 class WebSocketMessageParserTest {
 
     private val json = Json {
@@ -18,48 +18,7 @@ class WebSocketMessageParserTest {
         explicitNulls = false
     }
 
-    private val notificationTypes = setOf(
-        "comment", "like", "follow", "mention", "chat", "system",
-        "friend_request", "music", "message",
-    )
-
-    private fun parse(text: String): WebSocketMessage? {
-        if (text == "pong") return WebSocketMessage.Pong
-        val root = json.parseToJsonElement(text).jsonObject
-        val typeField = root["type"]?.jsonPrimitive?.content?.lowercase()
-        return when {
-            typeField == "notification" -> parseNotificationEnvelope(text, root)
-            typeField in notificationTypes -> {
-                WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(text))
-            }
-            root.containsKey("sender_id") && root.containsKey("receiver_id") -> {
-                WebSocketMessage.ChatMessage(json.decodeFromString<MessageDto>(text))
-            }
-            else -> null
-        }
-    }
-
-    private fun parseNotificationEnvelope(text: String, root: kotlinx.serialization.json.JsonObject): WebSocketMessage? {
-        val dataElement = root["data"] ?: return decodeRootNotification(text)
-        val payload = dataElement.toString()
-        val inner = dataElement.jsonObject
-        val innerType = inner["type"]?.jsonPrimitive?.content?.lowercase()
-        return when {
-            inner.containsKey("sender_id") && inner.containsKey("receiver_id") -> {
-                WebSocketMessage.ChatMessage(json.decodeFromString<MessageDto>(payload))
-            }
-            innerType in notificationTypes || inner.containsKey("title") -> {
-                WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(payload))
-            }
-            else -> decodeRootNotification(text)
-        }
-    }
-
-    private fun decodeRootNotification(text: String): WebSocketMessage? = try {
-        WebSocketMessage.Notification(json.decodeFromString<NotificationDto>(text))
-    } catch (_: Exception) {
-        null
-    }
+    private fun parse(text: String): WebSocketMessage? = WebSocketMessageParser.parse(json, text)
 
     @Test
     fun `parses comment notification from websocket doc`() {

@@ -234,7 +234,7 @@ private fun ReportStatusChip(status: String) {
 
 private fun targetTypeLabel(type: String): String = when (type) {
     "post" -> "动态"
-    "comment" -> "评论"
+    "comment", "post-comment", "music-comment" -> "评论"
     "user" -> "用户"
     "music" -> "歌曲"
     "novel" -> "小说"

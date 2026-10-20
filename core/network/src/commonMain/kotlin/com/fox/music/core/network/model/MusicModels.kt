@@ -1,5 +1,8 @@
 package com.fox.music.core.network.model
 
+import com.fox.music.core.model.NullAsZeroFloatSerializer
+import com.fox.music.core.model.NullAsZeroIntSerializer
+import com.fox.music.core.model.NullAsZeroLongSerializer
 import com.fox.music.core.model.ZeroOneBooleanSerializer
 import com.fox.music.core.model.StringOrLongIdSerializer
 import kotlinx.serialization.SerialName
@@ -18,6 +21,7 @@ data class MusicDto(
     val coverImage: String? = null,
     @SerialName("cover_url")
     val coverUrl: String? = null,
+    @Serializable(with = NullAsZeroLongSerializer::class)
     val duration: Long = 0,
     @SerialName("track_number")
     val trackNumber: Int? = null,
@@ -31,18 +35,23 @@ data class MusicDto(
     @SerialName("lyrics_url")
     val lyricsUrl: String? = null,
     @SerialName("play_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val playCount: Int = 0,
     @SerialName("like_count")
     val likeCount: Int? = null,
     @SerialName("favorite_count")
     val favoriteCountCompat: Int? = null,
     @SerialName("comment_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val commentCount: Int = 0,
     @SerialName("collection_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val collectionCount: Int = 0,
     @SerialName("avg_play_progress")
+    @Serializable(with = NullAsZeroFloatSerializer::class)
     val avgPlayProgress: Float = 0f,
     @SerialName("completion_rate")
+    @Serializable(with = NullAsZeroFloatSerializer::class)
     val completionRate: Float = 0f,
     @SerialName("is_explicit")
     @Serializable(with = ZeroOneBooleanSerializer::class)
@@ -109,8 +118,10 @@ data class CommentDto(
     @SerialName("reply_id")
     val replyId: Long? = null,
     @SerialName("like_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val likeCount: Int = 0,
     @SerialName("reply_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val replyCount: Int = 0,
     @SerialName("is_like")
     val isLike: Boolean = false,

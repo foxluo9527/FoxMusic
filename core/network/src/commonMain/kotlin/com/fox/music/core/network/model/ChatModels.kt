@@ -1,5 +1,7 @@
 package com.fox.music.core.network.model
 
+import com.fox.music.core.model.NullAsZeroIntSerializer
+import com.fox.music.core.model.NullAsZeroLongSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -81,6 +83,12 @@ data class SendMessageRequest(
     val fileName: String? = null,
     @SerialName("file_size")
     val fileSize: String? = null,
+    @SerialName("voice_url")
+    val voiceUrl: String? = null,
+    @SerialName("voice_duration")
+    val voiceDuration: Long? = null,
+    @SerialName("video_url")
+    val videoUrl: String? = null,
 )
 
 @Serializable
@@ -116,12 +124,16 @@ data class ShareDataDto(
     @SerialName("author_name")
     val authorName: String? = null,
     val url: String? = null,
+    @Serializable(with = NullAsZeroLongSerializer::class)
     val duration: Long = 0,
     @SerialName("track_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val trackCount: Int = 0,
     @SerialName("play_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val playCount: Int = 0,
     @SerialName("favorite_count")
+    @Serializable(with = NullAsZeroIntSerializer::class)
     val favoriteCount: Int = 0,
     val lyrics: String? = null,
     @SerialName("lyrics_trans")

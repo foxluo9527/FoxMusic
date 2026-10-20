@@ -1,5 +1,6 @@
 package com.fox.music.iosshared.ui
 
+import kotlinx.coroutines.MainScope
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
@@ -17,7 +18,7 @@ import com.fox.music.core.model.music.Playlist
 import com.fox.music.feature.playlist.ui.component.PlaylistListContent
 import com.fox.music.feature.playlist.viewmodel.PlaylistListState
 import com.fox.music.iosshared.FoxMusicApi
-import kotlinx.coroutines.MainScope
+import com.fox.music.iosshared.foxMainScope
 import platform.UIKit.UIViewController
 
 /**
@@ -54,7 +55,7 @@ private class RecommendedPlaylistPagingSource(
 @OptIn(ExperimentalSharedTransitionApi::class)
 object FoxPlaylistScreen {
 
-    private val scope = MainScope()
+    private val scope = foxMainScope()
     private val api = FoxMusicApi()
 
     var error by mutableStateOf<String?>(null)

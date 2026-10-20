@@ -63,6 +63,7 @@ fun SettingsScreen(
     onDownloadManager: () -> Unit = {},
     onReportHistory: () -> Unit = {},
     onPrivacySettings: () -> Unit = {},
+    onNotificationSettings: () -> Unit = {},
     onInstallApk: (File) -> Unit = {},
     onLogout: () -> Unit = {},
 ) {
@@ -313,6 +314,12 @@ fun SettingsScreen(
                             onCheckedChange = {
                                 viewModel.sendIntent(SettingsIntent.UpdateDownloadOnWifiOnly(it))
                             },
+                        )
+                        SettingsDivider()
+                        SettingsNavigationItem(
+                            title = "通知设置",
+                            subtitle = "按分类控制应用内提醒横幅",
+                            onClick = onNotificationSettings,
                         )
                         SettingsDivider()
                         SettingsNavigationItem(

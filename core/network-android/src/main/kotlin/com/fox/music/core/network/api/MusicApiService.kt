@@ -13,6 +13,9 @@ import com.fox.music.core.network.model.PagedResponse
 import com.fox.music.core.network.model.PlayHistoryDto
 import com.fox.music.core.network.model.PlayRecordRequest
 import com.fox.music.core.network.model.PostCommentRequest
+import com.fox.music.core.network.model.ReplaceMusicSourceRequest
+import com.fox.music.core.network.model.SubmitMusicFeedbackDto
+import com.fox.music.core.network.model.SubmitMusicFeedbackRequest
 import com.fox.music.core.network.model.TagDto
 import kotlinx.serialization.json.JsonElement
 import retrofit2.http.Body
@@ -124,4 +127,17 @@ interface MusicApiService {
     suspend fun findOrCreateMusic(
         @Body body: FindOrCreateMusicRequest,
     ): ApiResponse<FindOrCreateMusicDto>
+
+    /** 反馈音乐不匹配（音源纠错） */
+    @POST("api/music/feedback")
+    suspend fun submitMusicFeedback(
+        @Body body: SubmitMusicFeedbackRequest,
+    ): ApiResponse<SubmitMusicFeedbackDto>
+
+    /** 替换音乐音源（仅管理员） */
+    @POST("api/music/{id}/replace-source")
+    suspend fun replaceMusicSource(
+        @Path("id") id: Long,
+        @Body body: ReplaceMusicSourceRequest,
+    ): ApiResponse<Unit>
 }

@@ -3,13 +3,9 @@ package com.fox.music.feature.chat.viewmodel
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.ChatRepository
 import com.fox.music.core.domain.repository.SocialRepository
-import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.feature.chat.util.NotificationFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
@@ -18,35 +14,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class MessagesState(
-    val friendRequestCount: Int = 0,
-    val commentPreview: String? = null,
-    val commentUnreadCount: Int = 0,
-    val likePreview: String? = null,
-    val likeUnreadCount: Int = 0,
-    val systemPreview: String? = null,
-    val systemUnreadCount: Int = 0,
-    val conversations: List<ChatConversation> = emptyList(),
-    val isLoading: Boolean = false,
-    val isRefreshing: Boolean = false,
-    val error: String? = null,
-) : UiState
-
-sealed interface MessagesIntent : UiIntent {
-    data object Load : MessagesIntent
-    data object Refresh : MessagesIntent
-}
-
-sealed interface MessagesEffect : UiEffect {
-    data class ShowMessage(val message: String) : MessagesEffect
-    data object NavigateToFriends : MessagesEffect
-    data object NavigateToCommentNotifications : MessagesEffect
-    data object NavigateToLikeNotifications : MessagesEffect
-    data object NavigateToSystemAnnouncements : MessagesEffect
-    data object NavigateToNotificationSettings : MessagesEffect
-    data class NavigateToChat(val userId: Long) : MessagesEffect
-    data object NavigateBack : MessagesEffect
-}
+// MessagesState / MessagesIntent / MessagesEffect 已下沉到
+// :feature:chat commonMain 的 MessagesContract.kt（包名不变，两端共用同一份契约）。
 
 @HiltViewModel
 class MessagesViewModel @Inject constructor(

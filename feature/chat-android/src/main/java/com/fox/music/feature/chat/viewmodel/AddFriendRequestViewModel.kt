@@ -4,35 +4,14 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.mvi.MviViewModel
-import com.fox.music.core.common.mvi.UiEffect
-import com.fox.music.core.common.mvi.UiIntent
-import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.SocialRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class AddFriendRequestState(
-    val userId: Long = 0L,
-    val nickname: String = "",
-    val message: String = "",
-    val mark: String = "",
-    val isSubmitting: Boolean = false,
-    val error: String? = null,
-) : UiState
-
-sealed interface AddFriendRequestIntent : UiIntent {
-    data class MessageChange(val message: String) : AddFriendRequestIntent
-    data class MarkChange(val mark: String) : AddFriendRequestIntent
-    data object Submit : AddFriendRequestIntent
-}
-
-sealed interface AddFriendRequestEffect : UiEffect {
-    data class ShowMessage(val message: String) : AddFriendRequestEffect
-    data object NavigateBack : AddFriendRequestEffect
-    data object RequestSent : AddFriendRequestEffect
-}
+// AddFriendRequestState / AddFriendRequestIntent / AddFriendRequestEffect 已下沉到
+// :feature:chat commonMain 的 AddFriendRequestContract.kt（包名不变，两端共用同一份契约）。
 
 @HiltViewModel
 class AddFriendRequestViewModel @Inject constructor(
@@ -49,7 +28,7 @@ class AddFriendRequestViewModel @Inject constructor(
         when (intent) {
             is AddFriendRequestIntent.MessageChange -> updateState { copy(message = intent.message) }
             is AddFriendRequestIntent.MarkChange -> {
-                val mark = intent.mark.take(20)
+                val mark = intent.mark.take(MAX_MARK_LENGTH)
                 updateState { copy(mark = mark) }
             }
             AddFriendRequestIntent.Submit -> submitRequest()

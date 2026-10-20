@@ -1,5 +1,6 @@
 package com.fox.music.navigation
 
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
@@ -27,18 +28,30 @@ import com.blankj.utilcode.util.ToastUtils
  * 由本文件把服务端 screen 白名单集中映射到真实路由——core 层无 NavController，
  * 这是架构约束（方案 4.1：端侧才有导航能力）。
  */
-fun NavGraphBuilder.assistantNavGraph(context: NavGraphContext) {
+fun NavGraphBuilder.assistantNavGraph(
+    context: NavGraphContext,
+    sharedTransitionScope: SharedTransitionScope,
+) {
     composableStack(ASSISTANT_ROUTE) {
-        AssistantScreen(
-            modifier = Modifier.fillMaxSize(),
-            onBack = { context.navController.popBackStack() },
-            onOpenScreen = { screen, targetId ->
-                openAssistantScreen(context.navController, screen, targetId)
-            },
-            onSearchInApp = { query ->
-                context.navController.navigate(searchRoute(query = query))
-            },
-        )
+        val animatedScope = this
+        with(sharedTransitionScope) {
+            AssistantScreen(
+                modifier = Modifier.fillMaxSize(),
+                playerState = context.playerState,
+                sharedTransitionScope = this@with,
+                animatedContentScope = animatedScope,
+                onBack = { context.navController.popBackStack() },
+                onOpenScreen = { screen, targetId ->
+                    openAssistantScreen(context.navController, screen, targetId)
+                },
+                onSearchInApp = { query ->
+                    context.navController.navigate(searchRoute(query = query))
+                },
+                onNavigateToPlayer = { context.navController.navigateToPlayer() },
+                onTogglePlay = { context.musicController.togglePlay() },
+                onNextTrack = { context.musicController.next() },
+            )
+        }
     }
 }
 

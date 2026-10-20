@@ -5,7 +5,10 @@ import com.fox.music.core.assistant.AssistantAction
 import com.fox.music.core.assistant.AssistantActionDispatcher
 import com.fox.music.core.assistant.AssistantActionTypes
 import com.fox.music.core.assistant.AssistantRepository
+import com.fox.music.core.assistant.AiMessage
 import com.fox.music.core.assistant.DispatchResult
+import com.fox.music.core.assistant.autoExecute
+import com.fox.music.core.assistant.needsConfirmDialog
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.feature.assistant.AssistantChatMessage
 import com.fox.music.feature.assistant.AssistantEffect
@@ -23,9 +26,11 @@ import javax.inject.Inject
  * 走端侧 UseCase/MusicController 执行（方案 4.1 铁律：服务端只给意图，不直执行）。
  *
  * 动作分发规则：
- *  - requiresConfirm（send_message/add_friend）进 pendingActions 队列，UI 确认后再跑；
+ *  - 需要弹窗确认的（send_message/add_friend）进 pendingActions 队列，UI 确认后再跑；
+ *  - 播放类且服务端标了 requiresConfirm（用户只是询问/求推荐）→ 不执行，
+ *    只作为消息上的可点击芯片，用户点击后才播；
  *  - 导航类（open_screen / search_in_app）不走 dispatcher，直接发 AssistantEffect 上浮给 UI 接线；
- *  - 其余（play_music 等）收到即执行，结果 Toast 反馈。
+ *  - 其余（服务端判定用户明确要求立即执行的）收到即执行，结果 Toast 反馈。
  */
 @HiltViewModel
 class AssistantViewModel @Inject constructor(
@@ -48,6 +53,10 @@ class AssistantViewModel @Inject constructor(
             AssistantIntent.DismissAction ->
                 updateState { copy(pendingActions = pendingActions.drop(1)) }
             AssistantIntent.NewConversation -> updateState { AssistantState() }
+            AssistantIntent.LoadConversations -> loadConversations()
+            AssistantIntent.ToggleHistory -> updateState { copy(historyOpen = !historyOpen) }
+            is AssistantIntent.OpenConversation -> openConversation(intent.conversationId)
+            is AssistantIntent.DeleteConversation -> deleteConversation(intent.conversationId)
         }
     }
 
@@ -110,19 +119,78 @@ class AssistantViewModel @Inject constructor(
     }
 
     private fun runAction(action: AssistantAction) {
-        if (action.requiresConfirm) {
+        // 点芯片 = 用户授权。播放类动作不弹窗，直接执行；
+        // 发消息/加好友这类有外部副作用的动作才走确认对话框。
+        if (action.needsConfirmDialog) {
             updateState { copy(pendingActions = pendingActions + action) }
             return
         }
         handleNonConfirmAction(action)
     }
 
+    private fun loadConversations() {
+        viewModelScope.launch {
+            try {
+                val page = assistantRepository.listConversations()
+                updateState { copy(conversations = page.list, historyOpen = true) }
+            } catch (e: Exception) {
+                sendEffect(AssistantEffect.ShowMessage(e.message ?: "加载会话列表失败"))
+            }
+        }
+    }
+
+    private fun openConversation(conversationId: Long) {
+        viewModelScope.launch {
+            try {
+                val detail = assistantRepository.getConversation(conversationId)
+                updateState {
+                    copy(
+                        conversationId = detail.id,
+                        messages = detail.messages.map { ai: AiMessage ->
+                            AssistantChatMessage(
+                                id = ai.id,
+                                isUser = ai.isUser,
+                                content = ai.content ?: "",
+                                actions = ai.actions ?: emptyList(),
+                            )
+                        },
+                        historyOpen = false,
+                    )
+                }
+            } catch (e: Exception) {
+                sendEffect(AssistantEffect.ShowMessage(e.message ?: "加载会话失败"))
+            }
+        }
+    }
+
+    private fun deleteConversation(conversationId: Long) {
+        viewModelScope.launch {
+            try {
+                assistantRepository.deleteConversation(conversationId)
+                updateState { copy(conversations = conversations.filterNot { it.id == conversationId }) }
+                sendEffect(AssistantEffect.ShowMessage("已删除会话"))
+            } catch (e: Exception) {
+                sendEffect(AssistantEffect.ShowMessage(e.message ?: "删除会话失败"))
+            }
+        }
+    }
+
+    /**
+     * 回复到达时的动作分流：
+     *  - 弹窗类（发消息/加好友）→ 入 pendingActions 队列；
+     *  - 播放类且需用户点击 → **什么都不做**，让它留在消息气泡上作为可点击芯片，等用户点；
+     *  - 其余（服务端判定用户已明确要求立即执行）→ 直接执行。
+     *
+     * 之前「非确认动作一律收到即播」，用户只是问一句「周杰伦有什么歌」也会被突然播放，
+     * 这个行为已被用户明确要求改掉。
+     */
     private fun runActions(actions: List<AssistantAction>) {
         actions.forEach { action ->
-            if (action.requiresConfirm) {
-                updateState { copy(pendingActions = pendingActions + action) }
-            } else {
-                handleNonConfirmAction(action)
+            when {
+                action.needsConfirmDialog ->
+                    updateState { copy(pendingActions = pendingActions + action) }
+                action.autoExecute -> handleNonConfirmAction(action)
+                else -> Unit // 等用户点芯片
             }
         }
     }

@@ -29,6 +29,7 @@ fun HomeScreen(
     onAlbumCategoryClick: () -> Unit = {},
     onRecommendClick: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
+    onOpenDrawer: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -65,5 +66,6 @@ fun HomeScreen(
         onMusicMoreClick = onMusicMoreClick,
         updateMusicList = updateMusicList,
         onRecommendedMusicChanged = viewModel::updateCurrentMusicList,
+        onOpenDrawer = onOpenDrawer,
     )
 }

@@ -14,6 +14,7 @@ import AVKit
 ///    暗色蒙版，同一能力、iOS 观感）
 struct PlayerView: View {
     @ObservedObject private var player = PlayerModel.shared
+    @ObservedObject private var coordinator = PlayerUICoordinator.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var stage: PlayerStage = .song
@@ -55,18 +56,30 @@ struct PlayerView: View {
         // 三个面板合成**一个** sheet(item:)：同一视图挂多个 .sheet 时呈现顺序不保证，
         // 实测会出现"点了设置但面板没弹"的偶发失败（UI 测试 test13 抓到的），
         // 用单一 item 驱动是 SwiftUI 推荐写法。
-        .sheet(item: $activeSheet) { sheet in
+        .sheet(item: $activeSheet, onDismiss: {
+            // 通知定位的 anchor 只消费一次
+            coordinator.commentAnchor = nil
+        }) { sheet in
             switch sheet {
             case .queue:
                 QueueSheet()
             case .comments:
-                CommentSheet(musicId: Int64(player.current?.id ?? "") ?? 0)
+                CommentSheet(
+                    musicId: Int64(player.current?.id ?? "") ?? 0,
+                    highlightCommentId: coordinator.commentAnchor?.commentId,
+                    rootCommentId: coordinator.commentAnchor?.rootCommentId
+                )
             case .lyrics:
                 LyricSettingsSheet()
             }
         }
-        .onDisappear {
-            activeSheet = nil
+        .onAppear {
+            // 音乐评论通知跳转：播放器进场动画后自动弹评论面板（面板内再自动展开楼中楼）
+            if coordinator.commentAnchor != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    activeSheet = .comments
+                }
+            }
         }
     }
 

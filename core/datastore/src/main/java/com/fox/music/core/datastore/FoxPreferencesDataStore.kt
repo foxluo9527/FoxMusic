@@ -61,6 +61,9 @@ class FoxPreferencesDataStore @Inject constructor(
         val PLAYBACK_PLAYING_KEY = stringPreferencesKey("playback_playing_key")
         val PLAYBACK_PLAYLIST_SOURCE = stringPreferencesKey("playback_playlist_source")
         val PLAZA_LAYOUT_MODE = stringPreferencesKey("plaza_layout_mode")
+        /** 音流「听歌模式」：记住上次选择的场景 mood，冷启动沿用 */
+        val STREAM_MOOD = stringPreferencesKey("stream_mood")
+        val STREAM_SESSION = stringPreferencesKey("stream_session")
     }
 
     // Token flows（DataStore 中为密文，对外始终解密）
@@ -336,6 +339,40 @@ class FoxPreferencesDataStore @Inject constructor(
         }
     }
 
+    /** 读取音流上次选择的「听歌模式」mood（null = 默认模式）。 */
+    suspend fun getStreamMood(): String? =
+        context.dataStore.data.first()[PreferencesKeys.STREAM_MOOD]?.takeIf { it.isNotBlank() }
+
+    /** 记住音流「听歌模式」；传 null/空串表示选择默认模式。 */
+    suspend fun saveStreamMood(mood: String?) {
+        context.dataStore.edit { prefs ->
+            if (mood.isNullOrBlank()) {
+                prefs.remove(PreferencesKeys.STREAM_MOOD)
+            } else {
+                prefs[PreferencesKeys.STREAM_MOOD] = mood
+            }
+        }
+    }
+
+    /**
+     * 音流会话快照 JSON：冷启动用「同 seed + 同 exclude」重拉复现上一批，
+     * 配合 index/positionMs 从上次的地方继续，避免每次重开都从第一批第一首重播。
+     */
+    suspend fun getStreamSessionJson(): String? =
+        context.dataStore.data.first()[PreferencesKeys.STREAM_SESSION]?.takeIf { it.isNotBlank() }
+
+    suspend fun saveStreamSessionJson(json: String) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.STREAM_SESSION] = json
+        }
+    }
+
+    suspend fun clearStreamSession() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(PreferencesKeys.STREAM_SESSION)
+        }
+    }
+
     /** 仅清除旧版队列 JSON blob，保留 index/position 等标量。 */
     suspend fun clearPlaybackSnapshotPlaylistJson() {
         context.dataStore.edit { prefs ->
@@ -343,15 +380,30 @@ class FoxPreferencesDataStore @Inject constructor(
         }
     }
 
+    /**
+     * 聊天设置必须**按账号隔离**：key 里带上当前登录 user_id，
+     * 否则换账号登录会继承上一个账号的免打扰/聊天背景（背景还可能指向别人目录下的文件）。
+     *
+     * 旧的 `mute_{peerId}` / `bg_{peerId}` key 自然失效（读回默认值），无需清理。
+     */
+    private fun ownerPrefix(prefs: Preferences): String =
+        prefs[PreferencesKeys.USER_ID] ?: "0"
+
+    private fun mutedKey(prefs: Preferences, peerUserId: Long) =
+        booleanPreferencesKey("mute_${ownerPrefix(prefs)}_$peerUserId")
+
+    private fun backgroundKey(prefs: Preferences, peerUserId: Long) =
+        stringPreferencesKey("bg_${ownerPrefix(prefs)}_$peerUserId")
+
     // Chat settings - Mute
     suspend fun isConversationMuted(peerUserId: Long): Boolean {
-        val key = booleanPreferencesKey("mute_$peerUserId")
-        return context.dataStore.data.first()[key] ?: false
+        val prefs = context.dataStore.data.first()
+        return prefs[mutedKey(prefs, peerUserId)] ?: false
     }
 
     suspend fun setConversationMuted(peerUserId: Long, muted: Boolean) {
-        val key = booleanPreferencesKey("mute_$peerUserId")
         context.dataStore.edit { prefs ->
+            val key = mutedKey(prefs, peerUserId)
             if (muted) {
                 prefs[key] = true
             } else {
@@ -360,20 +412,20 @@ class FoxPreferencesDataStore @Inject constructor(
         }
     }
 
-    fun observeConversationMuted(peerUserId: Long): Flow<Boolean> {
-        val key = booleanPreferencesKey("mute_$peerUserId")
-        return context.dataStore.data.map { it[key] ?: false }
-    }
+    fun observeConversationMuted(peerUserId: Long): Flow<Boolean> =
+        context.dataStore.data.map { prefs ->
+            prefs[mutedKey(prefs, peerUserId)] ?: false
+        }
 
     // Chat settings - Background
     suspend fun getChatBackground(peerUserId: Long): String? {
-        val key = stringPreferencesKey("bg_$peerUserId")
-        return context.dataStore.data.first()[key]
+        val prefs = context.dataStore.data.first()
+        return prefs[backgroundKey(prefs, peerUserId)]
     }
 
     suspend fun setChatBackground(peerUserId: Long, path: String?) {
-        val key = stringPreferencesKey("bg_$peerUserId")
         context.dataStore.edit { prefs ->
+            val key = backgroundKey(prefs, peerUserId)
             if (path != null) {
                 prefs[key] = path
             } else {
@@ -382,10 +434,8 @@ class FoxPreferencesDataStore @Inject constructor(
         }
     }
 
-    fun observeChatBackground(peerUserId: Long): Flow<String?> {
-        val key = stringPreferencesKey("bg_$peerUserId")
-        return context.dataStore.data.map { it[key] }
-    }
+    fun observeChatBackground(peerUserId: Long): Flow<String?> =
+        context.dataStore.data.map { prefs -> prefs[backgroundKey(prefs, peerUserId)] }
 
     companion object {
         private const val RepeatModeDefault = "ALL"

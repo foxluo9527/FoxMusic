@@ -20,19 +20,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Mail
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Mail
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,29 +44,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.fox.music.core.ui.theme.FloatingNavShape
 import com.fox.music.core.ui.theme.FoxSemanticColors
 import com.fox.music.core.ui.theme.FoxSpacing
-import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.discover.DISCOVER_ROUTE
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
-import com.fox.music.feature.social.ui.screen.COMMUNITY_PLAZA_ROUTE
+import com.fox.music.feature.social.COMMUNITY_PLAZA_ROUTE
+import com.fox.music.feature.stream.StreamRoutes
 import kotlin.math.roundToInt
 
 /** 底部 Tab 路由：仅这些页面内嵌导航栏，以参与 NavHost 转场与可预测返回动画。 */
 val TAB_ROOT_ROUTES: Set<String> = AppDestinations.entries.map { it.route }.toSet()
 
 private val TabIndicatorSize = 44.dp
+private val CenterButtonSize = 44.dp
 
 /**
  * 各 Tab 目的地各自挂载底栏，切换时 composable 会重建。
@@ -84,22 +85,38 @@ enum class AppDestinations(
     HOME(HOME_ROUTE, "首页", Icons.Filled.Home, Icons.Outlined.Home),
     DISCOVER(DISCOVER_ROUTE, "发现", Icons.Filled.Explore, Icons.Outlined.Explore),
     COMMUNITY(COMMUNITY_PLAZA_ROUTE, "社区", Icons.Filled.Forum, Icons.Outlined.Forum),
-    MESSAGES(MESSAGES_ROUTE, "消息", Icons.Filled.Mail, Icons.Outlined.Mail),
     PROFILE(PROFILE_ROUTE, "我的", Icons.Filled.AccountCircle, Icons.Outlined.AccountCircle),
 }
+
+/** 底栏展示顺序：中央 [null] 位为「音流模式」内联圆钮。 */
+private val BottomBarSlots: List<AppDestinations?> = listOf(
+    AppDestinations.HOME,
+    AppDestinations.DISCOVER,
+    null,
+    AppDestinations.COMMUNITY,
+    AppDestinations.PROFILE,
+)
 
 @Composable
 fun AppBottomNavigationBar(
     navController: NavHostController,
     selectedRoute: String,
-    messagesUnreadCount: Int = 0,
     modifier: Modifier = Modifier,
+    isStreamPlaying: Boolean = false,
+    /** 音流页处于缓冲中（播放器 STATE_BUFFERING）时，中央圆钮展示旋转 loading 图标。 */
+    isStreamBuffering: Boolean = false,
+    /** 已在音流页时点击中央圆钮：切换播放/暂停（不再重复导航到同一目的地）。 */
+    onStreamPlayPause: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
-    val selectedIndex = AppDestinations.entries
-        .indexOfFirst { it.route == selectedRoute }
-        .coerceAtLeast(0)
-    val tabCount = AppDestinations.entries.size
+    val isStreamTab = selectedRoute == StreamRoutes.STREAM
+    // 音流页在底栏里没有对应的 dest，选中态落到中央槽位，指示器才不会「跳空」。
+    val selectedSlot = if (isStreamTab) {
+        BottomBarSlots.indexOfFirst { it == null }
+    } else {
+        BottomBarSlots.indexOfFirst { it?.route == selectedRoute }
+    }
+    val slotCount = BottomBarSlots.size
 
     Box(
         modifier = modifier
@@ -108,6 +125,7 @@ fun AppBottomNavigationBar(
             .padding(horizontal = FoxSpacing.navInset, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // 悬浮底栏背景（裁切，不含中央突起按钮）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -126,36 +144,65 @@ fun AppBottomNavigationBar(
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = {},
                 ),
-        ) {
-            var contentWidthPx by remember { mutableFloatStateOf(0f) }
-            var contentHeightPx by remember { mutableFloatStateOf(0f) }
+        )
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 6.dp, vertical = 6.dp)
-                    .onSizeChanged {
-                        contentWidthPx = it.width.toFloat()
-                        contentHeightPx = it.height.toFloat()
-                    },
-            ) {
+        // 内容层：不裁切，使中央按钮可向上突起
+        var contentWidthPx by remember { mutableFloatStateOf(0f) }
+        var contentHeightPx by remember { mutableFloatStateOf(0f) }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 6.dp, vertical = 6.dp)
+                .onSizeChanged {
+                    contentWidthPx = it.width.toFloat()
+                    contentHeightPx = it.height.toFloat()
+                },
+        ) {
+            if (selectedSlot >= 0) {
                 CircularTabIndicator(
-                    selectedIndex = selectedIndex,
-                    tabCount = tabCount,
+                    selectedIndex = selectedSlot,
+                    tabCount = slotCount,
                     contentWidthPx = contentWidthPx,
                     contentHeightPx = contentHeightPx,
                     color = scheme.primary.copy(alpha = 0.18f),
                 )
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AppDestinations.entries.forEach { dest ->
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BottomBarSlots.forEach { dest ->
+                    if (dest == null) {
+                        StreamCenterButton(
+                            onClick = {
+                                // 已在音流页：该圆钮是当前唯一的播放控制入口，点击切换播放/暂停。
+                                if (isStreamTab) {
+                                    onStreamPlayPause()
+                                } else {
+                                    // 必须与其它 Tab 用同一套导航选项：只用 launchSingleTop 会把「音流」
+                                    // 压在当前 Tab 之上（栈 [HOME, 我的, 音流]），随后从别的 Tab 用
+                                    // popUpTo(HOME){saveState} + restoreState 回「我的」时，恢复出来的是
+                                    // 整段被保存的栈，栈顶仍是「音流」→ 我的页显示音流内容。
+                                    navController.navigate(StreamRoutes.STREAM) {
+                                        popUpTo(HOME_ROUTE) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            isSelected = isStreamTab,
+                            isPlaying = isStreamPlaying,
+                            isBuffering = isStreamBuffering,
+                        )
+                    } else {
                         FloatingNavItem(
                             destination = dest,
                             selected = selectedRoute == dest.route,
-                            badgeCount = if (dest == AppDestinations.MESSAGES) messagesUnreadCount else 0,
                             onClick = {
                                 if (selectedRoute != dest.route) {
                                     navController.navigate(dest.route) {
@@ -171,6 +218,67 @@ fun AppBottomNavigationBar(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** 中央「音流模式」圆钮：内联在底栏内（不再上浮），选中音流时显示播放/暂停态。 */
+@Composable
+private fun StreamCenterButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
+    isPlaying: Boolean = false,
+    /** 音流页缓冲中：展示旋转 loading 图标替代播放/暂停图标。 */
+    isBuffering: Boolean = false,
+) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(CenterButtonSize)
+                .clip(CircleShape)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(scheme.primary, scheme.tertiary),
+                    ),
+                )
+                .border(width = 2.dp, color = scheme.surface, shape = CircleShape)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onClick,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isSelected && isBuffering) {
+                // 缓冲中：旋转 loading 图标（indeterminate 自动旋转），提示音流正在加载/缓冲。
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.5.dp,
+                    color = scheme.onPrimary,
+                )
+            } else {
+                // 已在音流页时，圆钮常驻显示播放/暂停态（暂停后显示 ▶ 而不是切回音流 Waves 图标），
+                // 它同时是音流页唯一的播放控制入口，状态与图标必须一致。
+                Icon(
+                    imageVector = when {
+                        !isSelected -> Icons.Filled.Waves
+                        isPlaying -> Icons.Filled.Pause
+                        else -> Icons.Filled.PlayArrow
+                    },
+                    contentDescription = when {
+                        !isSelected -> "音流模式"
+                        isPlaying -> "音流播放中，点击暂停"
+                        else -> "音流已暂停，点击播放"
+                    },
+                    modifier = Modifier.size(24.dp),
+                    tint = scheme.onPrimary,
+                )
             }
         }
     }
@@ -232,7 +340,6 @@ private fun CircularTabIndicator(
 private fun FloatingNavItem(
     destination: AppDestinations,
     selected: Boolean,
-    badgeCount: Int = 0,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -262,25 +369,6 @@ private fun FloatingNavItem(
             modifier = Modifier.size(24.dp),
             tint = tint,
         )
-        if (badgeCount > 0) {
-            val badgeSize = if (badgeCount > 9) 18.dp else 16.dp
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 6.dp, y = (-4).dp)
-                    .size(badgeSize)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.error),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = if (badgeCount > 99) "99+" else badgeCount.toString(),
-                    color = MaterialTheme.colorScheme.onError,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
     }
 }
 

@@ -13,7 +13,7 @@ import com.fox.music.feature.player.ui.screen.PlayerScreen
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.core.model.music.PlaybackSourceKind
-import com.fox.music.feature.social.ui.screen.postDetailRoute
+import com.fox.music.feature.social.postDetailRoute
 
 fun NavGraphBuilder.playerNavGraph(
     context: NavGraphContext,

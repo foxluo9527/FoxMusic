@@ -2,6 +2,7 @@ package com.fox.music.core.assistant
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
@@ -24,7 +25,39 @@ data class AssistantAction(
     /** 取整数参数（数字原语或纯数字字符串均可） */
     fun paramLong(key: String): Long? =
         (params[key] as? JsonPrimitive)?.content?.toLongOrNull()
+
+    /** 取整数数组参数（如 play_music_list 的 music_ids） */
+    fun paramLongList(key: String): List<Long> =
+        (params[key] as? JsonArray)?.mapNotNull { element ->
+            (element as? JsonPrimitive)?.content?.toLongOrNull()
+        } ?: emptyList()
 }
+
+/**
+ * 播放类动作（play_music / play_playlist / play_album）。
+ *
+ * 播放是低成本、可逆的操作，端侧用「消息里的可点击芯片」承载即可，
+ * 不需要弹确认对话框打断用户。
+ */
+val AssistantAction.isPlayback: Boolean
+    get() = type.startsWith("play_")
+
+/**
+ * 是否必须弹确认对话框后执行。
+ *
+ * 交互约定（用户明确要求）：AI 给出的结果默认只是「可点击的候选」，
+ * 要用户点了才真的播放；只有用户原话明确要求立即播放时，服务端才会把
+ * 播放动作标成 requiresConfirm=false 由端侧收到即播。
+ *
+ * - 播放类动作：即使 requiresConfirm=true 也不弹窗，只渲染成芯片，点芯片即视为用户授权；
+ * - 发消息 / 加好友等有外部副作用的动作：必须弹窗二次确认。
+ */
+val AssistantAction.needsConfirmDialog: Boolean
+    get() = requiresConfirm && !isPlayback
+
+/** 收到回复后是否可以立即自动执行（服务端判定用户已明确要求） */
+val AssistantAction.autoExecute: Boolean
+    get() = !requiresConfirm
 
 /** POST /api/ai/chat 请求体 */
 @Serializable

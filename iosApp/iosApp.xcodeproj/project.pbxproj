@@ -10,28 +10,73 @@
 		B10000000000000000000001 /* FoxMusicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* FoxMusicApp.swift */; };
 		B10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* ContentView.swift */; };
 		B10000000000000000000003 /* PlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* PlayerModel.swift */; };
-		B10000000000000000000009 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000C /* PlayerView.swift */; };
-		B1000000000000000000000A /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000D /* AuthStore.swift */; };
-		B1000000000000000000000B /* ProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* ProfileTabView.swift */; };
-		B1000000000000000000000C /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* ToastCenter.swift */; };
-		B1000000000000000000000D /* PlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* PlayerSheets.swift */; };
 		B10000000000000000000004 /* FoxShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* FoxShared.framework */; };
 		B10000000000000000000005 /* ComposeSongsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* ComposeSongsView.swift */; };
 		B10000000000000000000006 /* FoxMusicUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* FoxMusicUITests.swift */; };
 		B10000000000000000000007 /* HomeTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000A /* HomeTabView.swift */; };
 		B10000000000000000000008 /* PlaylistTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000B /* PlaylistTabView.swift */; };
+		B10000000000000000000009 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000C /* PlayerView.swift */; };
+		B1000000000000000000000A /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000D /* AuthStore.swift */; };
+		B1000000000000000000000B /* ProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* ProfileTabView.swift */; };
+		B1000000000000000000000C /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* ToastCenter.swift */; };
+		B1000000000000000000000D /* PlayerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* PlayerSheets.swift */; };
+		B1000000000000000000000E /* CommunityTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* CommunityTabView.swift */; };
+		B1000000000000000000000F /* PlaybackPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000013 /* PlaybackPersistence.swift */; };
+		B10000000000000000000010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* Assets.xcassets */; };
+		B10000000000000000000014 /* InAppNotificationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000014 /* InAppNotificationCenter.swift */; };
+		B10000000000000000000015 /* MessagesTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000015 /* MessagesTabView.swift */; };
+		B10000000000000000000016 /* AppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000016 /* AppearanceSettings.swift */; };
+		B10000000000000000000017 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000017 /* NotificationSettingsView.swift */; };
+		B100000000000000000000E1 /* FoxVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000E1 /* FoxVideoPlayerView.swift */; };
+		B100000000000000000000F1 /* ChatSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000F1 /* ChatSettingsView.swift */; };
+		B100000000000000000000F2 /* UserHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000F2 /* UserHomeView.swift */; };
+		B100000000000000000000F3 /* SelectFriendView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000F3 /* SelectFriendView.swift */; };
+		B100000000000000000000F4 /* VoiceMessagePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000F4 /* VoiceMessagePlayer.swift */; };
+		B100000000000000000000F5 /* ManageLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000F5 /* ManageLibraryView.swift */; };
+		B100000000000000000000FA /* ProfileSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000FA /* ProfileSettingsViews.swift */; };
+		B100000000000000000000FB /* SongMoreMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000FB /* SongMoreMenu.swift */; };
+		B100000000000000000000FC /* DownloadManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000FC /* DownloadManagerView.swift */; };
+		B100000000000000000000FD /* MusicDownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000FD /* MusicDownloadManager.swift */; };
+		B100000000000000000000FE /* ChatMediaPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000FE /* ChatMediaPicker.swift */; };
+		B100000000000000000000FF /* ReportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F100000000000000000000FF /* ReportViews.swift */; };
+		B10000000000000000000101 /* MineDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000101 /* MineDrawerView.swift */; };
+		B10000000000000000000102 /* StreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000102 /* StreamView.swift */; };
+		B90000000000000000000001 /* FoxMusicWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90000000000000000000002 /* FoxMusicWidget.swift */; };
+		B90000000000000000000002 /* FoxMusicActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90000000000000000000003 /* FoxMusicActivityAttributes.swift */; };
+		B90000000000000000000003 /* FoxMusicActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90000000000000000000003 /* FoxMusicActivityAttributes.swift */; };
+		B90000000000000000000004 /* FoxMusicWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F90000000000000000000001 /* FoxMusicWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B90000000000000000000005 /* LiveLyricsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90000000000000000000005 /* LiveLyricsManager.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		C90000000000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = R10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = T90000000000000000000001;
+			remoteInfo = FoxMusicWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		P90000000000000000000004 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B90000000000000000000004 /* FoxMusicWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		F10000000000000000000001 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F10000000000000000000001 /* FoxMusic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FoxMusic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F10000000000000000000002 /* FoxMusicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoxMusicApp.swift; sourceTree = "<group>"; };
 		F10000000000000000000003 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F10000000000000000000004 /* PlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerModel.swift; sourceTree = "<group>"; };
-		F1000000000000000000000C /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
-		F1000000000000000000000D /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
-		F1000000000000000000000E /* ProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTabView.swift; sourceTree = "<group>"; };
-		F1000000000000000000000F /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
-		F10000000000000000000010 /* PlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSheets.swift; sourceTree = "<group>"; };
 		F10000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F10000000000000000000006 /* FoxShared.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FoxShared.framework; path = "../iosShared/build/xcode-frameworks/Debug/iphonesimulator/FoxShared.framework"; sourceTree = "<group>"; };
 		F10000000000000000000007 /* ComposeSongsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeSongsView.swift; sourceTree = "<group>"; };
@@ -39,9 +84,47 @@
 		F10000000000000000000009 /* FoxMusicUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoxMusicUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1000000000000000000000A /* HomeTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTabView.swift; sourceTree = "<group>"; };
 		F1000000000000000000000B /* PlaylistTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistTabView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000C /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000D /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
+		F1000000000000000000000E /* ProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTabView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000F /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
+		F10000000000000000000010 /* PlayerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSheets.swift; sourceTree = "<group>"; };
+		F10000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F10000000000000000000012 /* CommunityTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommunityTabView.swift; sourceTree = "<group>"; };
+		F10000000000000000000013 /* PlaybackPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackPersistence.swift; sourceTree = "<group>"; };
+		F10000000000000000000014 /* InAppNotificationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppNotificationCenter.swift; sourceTree = "<group>"; };
+		F10000000000000000000015 /* MessagesTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesTabView.swift; sourceTree = "<group>"; };
+		F10000000000000000000016 /* AppearanceSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettings.swift; sourceTree = "<group>"; };
+		F10000000000000000000017 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
+		F100000000000000000000E1 /* FoxVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoxVideoPlayerView.swift; sourceTree = "<group>"; };
+		F100000000000000000000F1 /* ChatSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSettingsView.swift; sourceTree = "<group>"; };
+		F100000000000000000000F2 /* UserHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserHomeView.swift; sourceTree = "<group>"; };
+		F100000000000000000000F3 /* SelectFriendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectFriendView.swift; sourceTree = "<group>"; };
+		F100000000000000000000F4 /* VoiceMessagePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceMessagePlayer.swift; sourceTree = "<group>"; };
+		F100000000000000000000F5 /* ManageLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageLibraryView.swift; sourceTree = "<group>"; };
+		F100000000000000000000FA /* ProfileSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSettingsViews.swift; sourceTree = "<group>"; };
+		F100000000000000000000FB /* SongMoreMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongMoreMenu.swift; sourceTree = "<group>"; };
+		F100000000000000000000FC /* DownloadManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadManagerView.swift; sourceTree = "<group>"; };
+		F100000000000000000000FD /* MusicDownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicDownloadManager.swift; sourceTree = "<group>"; };
+		F100000000000000000000FE /* ChatMediaPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMediaPicker.swift; sourceTree = "<group>"; };
+		F100000000000000000000FF /* ReportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportViews.swift; sourceTree = "<group>"; };
+		F10000000000000000000101 /* MineDrawerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MineDrawerView.swift; sourceTree = "<group>"; };
+		F10000000000000000000102 /* StreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamView.swift; sourceTree = "<group>"; };
+		F90000000000000000000001 /* FoxMusicWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FoxMusicWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F90000000000000000000002 /* FoxMusicWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoxMusicWidget.swift; sourceTree = "<group>"; };
+		F90000000000000000000003 /* FoxMusicActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoxMusicActivityAttributes.swift; sourceTree = "<group>"; };
+		F90000000000000000000005 /* LiveLyricsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveLyricsManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		P10000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000004 /* FoxShared.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		P10000000000000000000006 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -49,11 +132,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		P10000000000000000000003 /* Frameworks */ = {
+		P90000000000000000000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B10000000000000000000004 /* FoxShared.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,6 +146,7 @@
 			isa = PBXGroup;
 			children = (
 				G10000000000000000000002 /* iosApp */,
+				G90000000000000000000001 /* FoxMusicWidget */,
 				G10000000000000000000003 /* Frameworks */,
 				G10000000000000000000004 /* Products */,
 				G10000000000000000000005 /* iosAppUITests */,
@@ -83,7 +166,30 @@
 				F1000000000000000000000D /* AuthStore.swift */,
 				F1000000000000000000000E /* ProfileTabView.swift */,
 				F1000000000000000000000F /* ToastCenter.swift */,
+				F10000000000000000000014 /* InAppNotificationCenter.swift */,
+				F10000000000000000000015 /* MessagesTabView.swift */,
 				F10000000000000000000010 /* PlayerSheets.swift */,
+				F10000000000000000000012 /* CommunityTabView.swift */,
+				F10000000000000000000013 /* PlaybackPersistence.swift */,
+				F10000000000000000000016 /* AppearanceSettings.swift */,
+				F10000000000000000000017 /* NotificationSettingsView.swift */,
+				F100000000000000000000FF /* ReportViews.swift */,
+				F100000000000000000000FE /* ChatMediaPicker.swift */,
+				F100000000000000000000FD /* MusicDownloadManager.swift */,
+				F100000000000000000000FC /* DownloadManagerView.swift */,
+				F100000000000000000000FB /* SongMoreMenu.swift */,
+				F100000000000000000000FA /* ProfileSettingsViews.swift */,
+				F90000000000000000000003 /* FoxMusicActivityAttributes.swift */,
+				F90000000000000000000005 /* LiveLyricsManager.swift */,
+				F100000000000000000000E1 /* FoxVideoPlayerView.swift */,
+				F100000000000000000000F1 /* ChatSettingsView.swift */,
+				F100000000000000000000F2 /* UserHomeView.swift */,
+				F100000000000000000000F3 /* SelectFriendView.swift */,
+				F100000000000000000000F4 /* VoiceMessagePlayer.swift */,
+				F100000000000000000000F5 /* ManageLibraryView.swift */,
+				F10000000000000000000101 /* MineDrawerView.swift */,
+				F10000000000000000000102 /* StreamView.swift */,
+				F10000000000000000000011 /* Assets.xcassets */,
 				F10000000000000000000005 /* Info.plist */,
 			);
 			path = iosApp;
@@ -100,7 +206,8 @@
 		G10000000000000000000004 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F10000000000000000000001 /* iosApp.app */,
+				F10000000000000000000001 /* FoxMusic.app */,
+				F90000000000000000000001 /* FoxMusicWidget.appex */,
 				F10000000000000000000009 /* FoxMusicUITests.xctest */,
 			);
 			name = Products;
@@ -114,6 +221,14 @@
 			path = iosAppUITests;
 			sourceTree = "<group>";
 		};
+		G90000000000000000000001 /* FoxMusicWidget */ = {
+			isa = PBXGroup;
+			children = (
+				F90000000000000000000002 /* FoxMusicWidget.swift */,
+			);
+			path = FoxMusicWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -125,14 +240,16 @@
 				P10000000000000000000002 /* Sources */,
 				P10000000000000000000003 /* Frameworks */,
 				P10000000000000000000004 /* Resources */,
+				P90000000000000000000004 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				T90000000000000000000002 /* PBXTargetDependency */,
 			);
 			name = iosApp;
 			productName = iosApp;
-			productReference = F10000000000000000000001 /* iosApp.app */;
+			productReference = F10000000000000000000001 /* FoxMusic.app */;
 			productType = "com.apple.product-type.application";
 		};
 		T10000000000000000000002 /* FoxMusicUITests */ = {
@@ -152,6 +269,23 @@
 			productReference = F10000000000000000000009 /* FoxMusicUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		T90000000000000000000001 /* FoxMusicWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = L90000000000000000000001 /* Build configuration list for PBXNativeTarget "FoxMusicWidget" */;
+			buildPhases = (
+				P90000000000000000000001 /* Sources */,
+				P90000000000000000000002 /* Frameworks */,
+				P90000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FoxMusicWidget;
+			productName = FoxMusicWidget;
+			productReference = F90000000000000000000001 /* FoxMusicWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -168,6 +302,9 @@
 					T10000000000000000000002 = {
 						CreatedOnToolsVersion = 27.0;
 						TestTargetID = T10000000000000000000001;
+					};
+					T90000000000000000000001 = {
+						CreatedOnToolsVersion = 27.0;
 					};
 				};
 			};
@@ -187,6 +324,7 @@
 			targets = (
 				T10000000000000000000001 /* iosApp */,
 				T10000000000000000000002 /* FoxMusicUITests */,
+				T90000000000000000000001 /* FoxMusicWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -196,10 +334,18 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000010 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		P10000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		P90000000000000000000003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -244,7 +390,29 @@
 				B1000000000000000000000A /* AuthStore.swift in Sources */,
 				B1000000000000000000000B /* ProfileTabView.swift in Sources */,
 				B1000000000000000000000C /* ToastCenter.swift in Sources */,
+				B10000000000000000000014 /* InAppNotificationCenter.swift in Sources */,
+				B10000000000000000000015 /* MessagesTabView.swift in Sources */,
 				B1000000000000000000000D /* PlayerSheets.swift in Sources */,
+				B1000000000000000000000E /* CommunityTabView.swift in Sources */,
+				B1000000000000000000000F /* PlaybackPersistence.swift in Sources */,
+				B10000000000000000000016 /* AppearanceSettings.swift in Sources */,
+				B10000000000000000000017 /* NotificationSettingsView.swift in Sources */,
+				B100000000000000000000FF /* ReportViews.swift in Sources */,
+				B100000000000000000000FE /* ChatMediaPicker.swift in Sources */,
+				B100000000000000000000FD /* MusicDownloadManager.swift in Sources */,
+				B100000000000000000000FC /* DownloadManagerView.swift in Sources */,
+				B100000000000000000000FB /* SongMoreMenu.swift in Sources */,
+				B100000000000000000000FA /* ProfileSettingsViews.swift in Sources */,
+				B90000000000000000000003 /* FoxMusicActivityAttributes.swift in Sources */,
+				B90000000000000000000005 /* LiveLyricsManager.swift in Sources */,
+				B100000000000000000000E1 /* FoxVideoPlayerView.swift in Sources */,
+				B100000000000000000000F1 /* ChatSettingsView.swift in Sources */,
+				B100000000000000000000F2 /* UserHomeView.swift in Sources */,
+				B100000000000000000000F3 /* SelectFriendView.swift in Sources */,
+				B100000000000000000000F4 /* VoiceMessagePlayer.swift in Sources */,
+				B100000000000000000000F5 /* ManageLibraryView.swift in Sources */,
+				B10000000000000000000101 /* MineDrawerView.swift in Sources */,
+				B10000000000000000000102 /* StreamView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -256,7 +424,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		P90000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B90000000000000000000001 /* FoxMusicWidget.swift in Sources */,
+				B90000000000000000000002 /* FoxMusicActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		T90000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = T90000000000000000000001 /* FoxMusicWidget */;
+			targetProxy = C90000000000000000000010 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		C10000000000000000000001 /* Debug */ = {
@@ -310,9 +495,10 @@
 		C10000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = PW8ABYC6X5;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -327,7 +513,7 @@
 				);
 				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fox.music.iosapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = FoxMusic;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -337,9 +523,10 @@
 		C10000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = PW8ABYC6X5;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -354,7 +541,7 @@
 				);
 				MARKETING_VERSION = 0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fox.music.iosapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = FoxMusic;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -411,6 +598,54 @@
 			};
 			name = Release;
 		};
+		C90000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PW8ABYC6X5;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FoxMusicWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fox.music.iosapp.FoxMusicWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C90000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PW8ABYC6X5;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FoxMusicWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fox.music.iosapp.FoxMusicWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -437,6 +672,15 @@
 			buildConfigurations = (
 				C10000000000000000000005 /* Debug */,
 				C10000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		L90000000000000000000001 /* Build configuration list for PBXNativeTarget "FoxMusicWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C90000000000000000000001 /* Debug */,
+				C90000000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

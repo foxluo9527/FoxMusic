@@ -48,10 +48,61 @@ enum RepeatMode: Int, CaseIterable {
 
 /// 播放来源（队列是从哪个歌单/榜单/歌手点进来的），对应 Android `PlaybackPlaylistSource`。
 struct PlaybackSource: Equatable {
+    /// 来源类别，对齐 Android `PlaybackSourceKind`。
+    /// 仅 playlist / album / rank / post 四类可展示并可跳转（见 `isDisplayable`）。
+    enum Kind: String, Equatable {
+        case playlist, album, rank, post, other
+    }
+
+    var kind: Kind
+    /// 来源实体 id（歌单/专辑/榜单/帖子 id）；其它来源或无效 id 时为 nil。
+    var id: Int64?
     var title: String
     var coverUrl: String?
     /// 中文类型标签，如「歌单」「榜单」。
     var typeLabel: String
+
+    /// 是否可在播放列表里展示为可点击的来源卡片。
+    /// 口径同 Android `PlaybackPlaylistSource.isDisplayable`：
+    /// 四类来源且 id > 0、标题非空才展示；推荐/新歌/收藏等虚拟来源不展示。
+    var isDisplayable: Bool {
+        switch kind {
+        case .playlist, .album, .rank, .post:
+            return (id ?? 0) > 0 &&
+                !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .other:
+            return false
+        }
+    }
+
+    init(
+        kind: Kind = .other,
+        id: Int64? = nil,
+        title: String,
+        coverUrl: String? = nil,
+        typeLabel: String
+    ) {
+        self.kind = kind
+        self.id = id
+        self.title = title
+        self.coverUrl = coverUrl
+        self.typeLabel = typeLabel
+    }
+
+    /// 从共享层 `PlaybackPlaylistSource`（帖子音乐等 Kotlin 入口）折成 Swift 来源。
+    init(_ source: PlaybackPlaylistSource) {
+        switch source.kind {
+        case .playlist: kind = .playlist
+        case .album: kind = .album
+        case .rank: kind = .rank
+        case .post: kind = .post
+        default: kind = .other
+        }
+        id = source.id?.int64Value
+        title = source.title ?? ""
+        coverUrl = source.coverUrl
+        typeLabel = source.typeLabel
+    }
 }
 
 /// 一行歌词。由共享层 `LyricsParser.parseBilingualLrc` 解析后折成，两端同一份解析逻辑。
@@ -105,8 +156,17 @@ final class PlayerModel: ObservableObject {
     @Published private(set) var source: PlaybackSource?
     /// 歌词是否显示翻译（对应 Android 歌词设置的"歌词翻译"开关）。
     @Published var showTranslation = true
+    /// 当前歌词是否含可展示的翻译行（歌词纠正后也以解析结果为准）。
+    /// 无翻译时歌词设置里不展示「歌词翻译」开关。
+    var hasTranslatedLyrics: Bool {
+        lyricLines.contains { ($0.translation ?? "").isEmpty == false }
+    }
     /// 歌词字号（对应 Android 歌词设置的字体大小）。
     @Published var lyricFontSize: Double = 20
+
+    /// 定时关闭：到点时间（nil = 未开启）。对齐 Android 设置页的「定时关闭」。
+    @Published private(set) var sleepTimerEndsAt: Date?
+    private var sleepTimer: Timer?
 
     /// 当前歌词行索引；-1 表示还没唱到第一行。
     var currentLyricIndex: Int { LyricLine.index(for: currentTime, in: lyricLines) }
@@ -142,12 +202,23 @@ final class PlayerModel: ObservableObject {
     private var endObserver: NSObjectProtocol?
 
     /// 歌词纠正：替换后的歌词源。PlayableSong 是 Kotlin data class（属性只读），
-    /// 所以换歌词只能在本层记一份覆盖，而不是回写对象。
+    /// 换歌词时另建副本回填队列（applyLyrics），本字段作为会话内的兜底覆盖：
+    /// 用户之后用**新的** play(queue:) 重进同一首歌时队列会被整体换掉，
+    /// 靠它保证纠正过的歌词仍生效。
     private var lyricOverride: (songId: String, lyrics: String, translation: String?)?
+
+    /// 无歌词歌曲切歌时正在静默拉取歌词的 id（对齐 Android LyricPrefetchCoordinator 的去重）。
+    private var lyricFetchInFlight = Set<String>()
 
     /// 本首已播秒数 / 是否已上报（避免同一首重复上报）。
     private var listenedSeconds: Double = 0
     private var reportedForCurrentSong = false
+
+    /// 恢复播放时要落到的进度点（AVPlayer item 还没 ready 前先记着，ready 后再 seek）。
+    private var pendingStartSeconds: Double = 0
+    /// 进度节流持久化用：上次落盘的时刻与位置。
+    private var lastPositionPersistAt: Date = .distantPast
+    private var lastPersistedPosition: Double = -10
 
     private init() {
         let session = AVAudioSession.sharedInstance()
@@ -160,8 +231,11 @@ final class PlayerModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             self?.reportPlayback()
+            // 进后台把播放态全部 flush 一遍（对应 Android FoxMusicApplication 的 flushPlaybackState）
+            self?.persistPlaybackState(force: true)
         }
         restorePreferences()
+        restorePlayback()
     }
 
     // MARK: - 播放入口
@@ -244,11 +318,65 @@ final class PlayerModel: ObservableObject {
         ToastCenter.shared.show(repeatMode.label)
     }
 
+    func setRepeatMode(_ mode: RepeatMode) {
+        repeatMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: Self.repeatModeKey)
+    }
+
+    // MARK: - 定时关闭（对齐 Android 设置页「定时关闭」）
+
+    /// 可选的定时关闭时长（分钟）；nil = 不限时。
+    static let sleepTimerOptions: [Int] = [15, 30, 60, 90]
+
+    func startSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        sleepTimerEndsAt = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, let end = self.sleepTimerEndsAt else { return }
+            if Date() >= end {
+                self.cancelSleepTimer()
+                self.player?.pause()
+                ToastCenter.shared.show("定时关闭：已暂停播放")
+            }
+        }
+    }
+
+    func cancelSleepTimer() {
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+        sleepTimerEndsAt = nil
+    }
+
     // MARK: - 传输控制
 
     func togglePlayPause() {
+        // 冷启动恢复时 player 是懒创建的（见 restorePlayback）：首次点播放才建
+        // AVPlayer 并从上次位置续播，避免启动即预加载远端 URL 导致的误报失败。
+        if player == nil, !queue.isEmpty, current != nil {
+            let start = pendingStartSeconds > 0 ? pendingStartSeconds : currentTime
+            playAt(index: currentIndex, startAt: start, autoPlay: true)
+            return
+        }
         guard let player else { return }
         if player.rate != 0 { player.pause() } else { player.play() }
+    }
+
+    // MARK: - 瞬态媒体互斥（视频/Live 图带声播放时暂停音乐，结束后恢复）
+
+    private var transientPausedMusic = false
+
+    func beginTransientMediaPlayback() {
+        if isPlaying && !transientPausedMusic {
+            transientPausedMusic = true
+            togglePlayPause()
+        }
+    }
+
+    func endTransientMediaPlayback() {
+        if transientPausedMusic {
+            transientPausedMusic = false
+            togglePlayPause()
+        }
     }
 
     func seek(to time: Double) {
@@ -287,10 +415,23 @@ final class PlayerModel: ObservableObject {
             return
         }
         if index < currentIndex { currentIndex -= 1 }
+        // 队列内容变了，立即重写存档（删的不是当前曲也影响队列签名）
+        persistPlaybackState(force: true)
     }
 
     func clearQueue() {
         stopEverything()
+    }
+
+    /// 下一首播放：插入到当前播放位置的下一首。
+    func insertNext(_ song: PlayableSong) {
+        if queue.isEmpty {
+            play(song)
+            return
+        }
+        let insertAt = currentIndex + 1
+        queue.insert(song, at: min(insertAt, queue.count))
+        persistPlaybackState(force: true)
     }
 
     private func stopEverything() {
@@ -308,9 +449,12 @@ final class PlayerModel: ObservableObject {
         currentTime = 0
         duration = 0
         reportedForCurrentSong = true
+        pendingStartSeconds = 0
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         FoxComposeState.shared.currentSongId = nil
         FoxComposeState.shared.isPlaying = false
+        // 队列清空 = 播放态作废，把存档一并清掉（对齐 Android 的 replaceAll(空)）
+        PlaybackPersistence.clearAll()
     }
 
     // MARK: - 收藏
@@ -339,11 +483,140 @@ final class PlayerModel: ObservableObject {
     // MARK: - 歌词
 
     /// 歌词纠正：用别的歌词源替换当前歌的歌词（Android `updateMusicLyrics` 的等价物）。
+    /// 除了更新内存态，还必须把纠正后的歌词**写回队列里这首歌的副本**并强制落盘——
+    /// 只记内存 override 的话，重启恢复队列后又回到接口原歌词（对齐 Android：队列实体整首重写）。
     func applyLyrics(lyrics: String, translation: String?) {
         guard let song = current else { return }
         lyricOverride = (song.id, lyrics, translation)
         lyricLines = Self.parseBilingual(lyrics, translation)
+        if let idx = queue.firstIndex(where: { $0.id == song.id }) {
+            let patched = PlayableSong(
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                audioUrl: song.audioUrl,
+                coverUrl: song.coverUrl,
+                durationMillis: song.durationMillis,
+                lyric: lyrics,
+                lyricTrans: translation,
+                commentCount: song.commentCount,
+                isFavorite: song.isFavorite
+            )
+            queue[idx] = patched
+            // current 还指向旧对象，同步替换，后续读 current.lyric 才是纠正后的内容
+            if currentIndex == idx { current = patched }
+        }
+        // 歌词长度变了 → 队列内容签名变化 → 强制重写队列存档
+        persistPlaybackState(force: true)
         ToastCenter.shared.show("歌词已更换")
+    }
+
+    /// 下载歌曲歌词离线补全：把随下载持久化的歌词静默写回播放队列。
+    /// 与 [applyLyrics] 的区别：这是系统自动补全（无网络时读本地、播中拉到后补上），
+    /// 不是用户手动纠正，因此**不弹「歌词已更换」toast**，也不设置 lyricOverride。
+    /// 已有歌词（含用户纠正结果）不覆盖。
+    func applyDownloadedLyrics(songId: String, lyrics: String, translation: String?, durationMillis: Int64 = 0) {
+        guard let idx = queue.firstIndex(where: { $0.id == songId }) else { return }
+        let song = queue[idx]
+        var changed = false
+
+        // 老下载记录时长初始为 0，补全后立即校正进度条总时长
+        if durationMillis > 0 && song.durationMillis <= 0 {
+            if current?.id == songId && duration <= 0 {
+                duration = Double(durationMillis) / 1000.0
+            }
+            changed = true
+        }
+
+        // 已有歌词（含用户纠正结果）不覆盖
+        if !lyrics.isEmpty && (song.lyric ?? "").isEmpty {
+            let patched = PlayableSong(
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                audioUrl: song.audioUrl,
+                coverUrl: song.coverUrl,
+                durationMillis: durationMillis > 0 ? durationMillis : song.durationMillis,
+                lyric: lyrics,
+                lyricTrans: translation,
+                commentCount: song.commentCount,
+                isFavorite: song.isFavorite
+            )
+            queue[idx] = patched
+            if currentIndex == idx { current = patched }
+            // 当前正在播这首歌且此前无歌词：立即刷新歌词页
+            if current?.id == songId,
+               lyricOverride?.songId != songId,
+               lyricLines.isEmpty {
+                lyricLines = Self.parseBilingual(lyrics, translation)
+            }
+            changed = true
+        }
+
+        if changed { persistPlaybackState(force: true) }
+    }
+
+    /// 切到一首队列里没带歌词的歌时，静默拉取歌词并写回队列
+    /// （对齐 Android LyricPrefetchCoordinator + FetchMusicLyricsUseCase）。
+    /// 搜索结果、第三方导入等入口的列表项只有音频地址，歌词要在播放时补；
+    /// 已有歌词（含用户纠正结果）不会被覆盖，全程不弹 toast。
+    private func prefetchMissingLyrics(for song: PlayableSong) {
+        guard let musicId = Int64(song.id),
+              !lyricFetchInFlight.contains(song.id) else { return }
+        lyricFetchInFlight.insert(song.id)
+        // 先取详情：同时拿到内嵌歌词与时长；内嵌缺失时再走第三方 import/lyrics
+        FoxIosBridge.shared.fetchPlayableSong(
+            musicId: musicId,
+            onResult: { [weak self] detail in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.lyricFetchInFlight.remove(song.id)
+                    let embedded = detail.lyric?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.applyDownloadedLyrics(
+                        songId: song.id,
+                        lyrics: embedded ?? "",
+                        translation: detail.lyricTrans,
+                        durationMillis: detail.durationMillis
+                    )
+                    if embedded?.isEmpty ?? true {
+                        self.fetchImportedLyrics(songId: song.id, musicId: musicId)
+                    }
+                }
+            },
+            onError: { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.lyricFetchInFlight.remove(song.id)
+                    // 详情失败：第三方导入歌单的歌词仍可能命中 import/lyrics，再兜一次
+                    self.fetchImportedLyrics(songId: song.id, musicId: musicId)
+                }
+            }
+        )
+    }
+
+    /// 第三方歌词兜底（api/import/lyrics）。
+    private func fetchImportedLyrics(songId: String, musicId: Int64) {
+        guard !lyricFetchInFlight.contains(songId) else { return }
+        lyricFetchInFlight.insert(songId)
+        FoxIosBridge.shared.fetchSongLyrics(
+            musicId: musicId,
+            onResult: { [weak self] lyric, translation in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.lyricFetchInFlight.remove(songId)
+                    self.applyDownloadedLyrics(
+                        songId: songId,
+                        lyrics: lyric,
+                        translation: translation
+                    )
+                }
+            },
+            onError: { [weak self] _ in
+                // 拉不到歌词不影响播放，静默
+                DispatchQueue.main.async { self?.lyricFetchInFlight.remove(songId) }
+            }
+        )
     }
 
     /// 用共享层 LyricsParser 解析双语歌词 —— 与 Android 同一份实现，避免两端解析不一致。
@@ -371,13 +644,19 @@ final class PlayerModel: ObservableObject {
 
     // MARK: - 播放实现
 
-    private func playAt(index: Int) {
+    private func playAt(index: Int, startAt: Double = 0, autoPlay: Bool = true) {
         guard queue.indices.contains(index) else { return }
         // 先摘掉上一首的全部观察者（含向**旧** AVPlayer 注销 timeObserver），再建新实例
         detachObservers()
         reportPlayback()
         let song = queue[index]
-        guard let url = URL(string: song.audioUrl) else {
+        // 已下载完成的歌优先走本地文件（对齐 Android 播放前查 DownloadRecord 的本地路径）
+        let url: URL
+        if let localPath = MusicDownloadManager.shared.localPath(for: song.id) {
+            url = URL(fileURLWithPath: localPath)
+        } else if let remote = URL(string: song.audioUrl) {
+            url = remote
+        } else {
             print("PlayerModel: 非法播放地址: \(song.audioUrl)")
             ToastCenter.shared.show("这首歌暂时无法播放")
             return
@@ -385,18 +664,25 @@ final class PlayerModel: ObservableObject {
 
         currentIndex = index
         current = song
-        currentTime = 0
+        currentTime = startAt
         duration = Double(song.durationMillis) / 1000.0
         // 歌词纠正过的歌沿用替换后的歌词，否则用接口自带的
         if let override = lyricOverride, override.songId == song.id {
             lyricLines = Self.parseBilingual(override.lyrics, override.translation)
         } else {
             lyricLines = Self.parseBilingual(song.lyric, song.lyricTrans)
+            // 队列条目没带歌词（搜索结果/第三方导入等列表只给音频地址）：
+            // 切到它时静默拉取并写回队列，对齐 Android LyricPrefetchCoordinator
+            if (song.lyric ?? "").isEmpty {
+                prefetchMissingLyrics(for: song)
+            }
         }
         isFavorite = song.isFavorite
-        isLoading = true
+        isLoading = autoPlay
         listenedSeconds = 0
         reportedForCurrentSong = false
+        // 冷启动恢复场景：item 尚未 ready，先记下目标位置，ready 后再精确 seek
+        pendingStartSeconds = startAt
 
         let item = AVPlayerItem(url: url)
         let newPlayer = AVPlayer(playerItem: item)
@@ -411,13 +697,17 @@ final class PlayerModel: ObservableObject {
         }
 
         observe(item: item, player: newPlayer)
-        updateNowPlayingInfo(song, playing: true)
+        updateNowPlayingInfo(song, playing: autoPlay)
 
         // 回灌给共享 UI（Swift 持有播放状态 → Kotlin state → Compose 重组）
         FoxComposeState.shared.currentSongId = song.id
-        FoxComposeState.shared.isPlaying = true
+        FoxComposeState.shared.isPlaying = autoPlay
 
-        newPlayer.play()
+        if autoPlay {
+            newPlayer.play()
+        }
+        // 切歌即持久化（对齐 Android persistPlaybackState 的触发点之一）
+        persistPlaybackState(force: true)
         print("PlayerModel: 开始播放《\(song.title)》- \(song.artist) [\(index + 1)/\(queue.count)]")
     }
 
@@ -450,6 +740,9 @@ final class PlayerModel: ObservableObject {
                self.listenedSeconds >= min(30, self.duration / 2) {
                 self.reportPlayback()
             }
+            // 进度节流持久化：与 Android POSITION_PERSIST_INTERVAL_MS 同口径
+            // （5 秒一次，或位置变化超过 3 秒立即写）
+            self.persistPlaybackState()
             FoxComposeState.shared.isPlaying = self.player?.rate != 0
         }
 
@@ -461,16 +754,33 @@ final class PlayerModel: ObservableObject {
                 if let song = self.current {
                     self.updateNowPlayingInfo(song, playing: p.rate != 0)
                 }
+                // 暂停/恢复的瞬间落一次盘（暂停位置是用户最容易下次接着听的位置）
+                if p.rate == 0 {
+                    self.persistPlaybackState(force: true)
+                }
             }
         }
 
         statusObserver = item.observe(\.status, options: [.new, .initial]) { [weak self] it, _ in
             DispatchQueue.main.async {
                 guard let self, self.player?.currentItem === it else { return }
-                if it.status == .failed {
+                switch it.status {
+                case .readyToPlay:
+                    // 冷启动恢复：item ready 后把进度精确落到上次听到的位置
+                    if self.pendingStartSeconds > 0 {
+                        let target = self.pendingStartSeconds
+                        self.pendingStartSeconds = 0
+                        self.player?.seek(
+                            to: CMTime(seconds: target, preferredTimescale: 1),
+                            toleranceBefore: .zero, toleranceAfter: .zero
+                        )
+                    }
+                case .failed:
                     self.isLoading = false
                     ToastCenter.shared.show("播放失败，请检查网络")
                     print("PlayerModel: 播放失败 \(String(describing: it.error))")
+                default:
+                    break
                 }
             }
         }
@@ -521,7 +831,18 @@ final class PlayerModel: ObservableObject {
     private func setupRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
         center.playCommand.addTarget { [weak self] _ in
-            self?.player?.play()
+            guard let self else { return .commandFailed }
+            // 冷启动恢复态 player 尚未创建（restorePlayback 只恢复元数据）：
+            // 灵动岛/锁屏/控制中心/耳机的播放命令走的是 playCommand 而不是
+            // togglePlayPauseCommand，旧实现直接 player?.play() 等于空操作，
+            // 表现为「没在 App 内点过播放，灵动岛播放键就永远失灵」。
+            // 与 minibar 的 togglePlayPause 走同一条懒建+续播路径。
+            if self.player == nil, !self.queue.isEmpty, self.current != nil {
+                let start = self.pendingStartSeconds > 0 ? self.pendingStartSeconds : self.currentTime
+                self.playAt(index: self.currentIndex, startAt: start, autoPlay: true)
+            } else {
+                self.player?.play()
+            }
             return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
@@ -565,5 +886,82 @@ final class PlayerModel: ObservableObject {
            let mode = RepeatMode(rawValue: saved) {
             repeatMode = mode
         }
+    }
+
+    // MARK: - 播放态持久化（对齐 Android PlaybackStateStoreImpl）
+
+    /// 持久化当前播放态。
+    ///
+    /// 分两处写（对齐 Android 的 Room + DataStore 分工）：
+    /// - 队列内容 → JSON 文件。**全字段**保存（含 `lyric` / `lyricTrans` / 封面 /
+    ///   评论数 / 收藏态），恢复出来不会是缺歌词的"残缺歌曲"；
+    ///   内容没变时跳过重写（签名比对），避免播放中反复写大文件。
+    /// - 标量（index / 进度 / 模式 / 来源）→ UserDefaults，便宜可频繁写。
+    ///
+    /// `force = false` 时按节流窗口执行（5 秒一次或位移超 3 秒），对应 Android
+    /// `POSITION_PERSIST_INTERVAL_MS` 的节流；`force = true` 立即写（切歌、暂停、
+    /// 队列编辑、进后台）。
+    func persistPlaybackState(force: Bool = false) {
+        guard !queue.isEmpty, currentIndex >= 0 else { return }
+        if force {
+            lastPositionPersistAt = .distantPast
+            lastPersistedPosition = -10
+        } else {
+            let now = Date()
+            let movedEnough = abs(currentTime - lastPersistedPosition) > 3
+            let intervalElapsed = now.timeIntervalSince(lastPositionPersistAt) >= 5
+            guard movedEnough || intervalElapsed else { return }
+            lastPositionPersistAt = now
+            lastPersistedPosition = currentTime
+        }
+
+        let songs = queue.map { StoredPlayableSong($0) }
+        if !PlaybackPersistence.queueMatchesLastSaved(songs) {
+            PlaybackPersistence.saveQueue(songs)
+        }
+        PlaybackPersistence.saveScalars(
+            PlaybackScalarState(
+                index: currentIndex,
+                positionMs: Int64((currentTime * 1000).rounded()),
+                repeatMode: repeatMode.rawValue,
+                source: source.map { StoredPlaybackSource($0) }
+            )
+        )
+    }
+
+    /// 冷启动恢复上次的播放列表与进度（对齐 Android `restoreFromSnapshot`）：
+    /// 恢复队列、当前曲目元数据、歌词、进度与循环模式，**停在暂停态**，
+    /// 不自动出声 —— 用户点播放才从恢复的位置继续。
+    ///
+    /// 注意：这里**故意不创建 AVPlayer/AVPlayerItem**。旧实现恢复时就把远端
+    /// URL 交给 AVPlayer 预加载，App 刚启动网络/鉴权可能还没就绪，item 直接
+    /// `.failed`，于是每次冷启动都弹一次「播放失败，请检查网络」—— 用户根本没
+    /// 点播放。改为纯元数据恢复，player 延迟到 [togglePlayPause] 首次按下时再建。
+    private func restorePlayback() {
+        guard let scalars = PlaybackPersistence.loadScalars(),
+              let stored = PlaybackPersistence.loadQueue(),
+              !stored.isEmpty else { return }
+
+        let songs = stored.map { $0.toPlayableSong() }
+        let index = songs.indices.contains(scalars.index) ? scalars.index : 0
+        let song = songs[index]
+
+        queue = songs
+        currentIndex = index
+        current = song
+        duration = Double(song.durationMillis) / 1000.0
+        lyricLines = Self.parseBilingual(song.lyric, song.lyricTrans)
+        isFavorite = song.isFavorite
+        currentTime = Double(scalars.positionMs) / 1000.0
+        // 懒建 player 时（用户首次点播放）要 seek 到这个位置
+        pendingStartSeconds = currentTime
+        if let src = scalars.source { source = src.toSource() }
+        if let mode = RepeatMode(rawValue: scalars.repeatMode) { repeatMode = mode }
+        // 恢复的这首不触发播放上报（还没真的听）
+        reportedForCurrentSong = true
+
+        FoxComposeState.shared.currentSongId = song.id
+        FoxComposeState.shared.isPlaying = false
+        print("PlayerModel: 恢复播放队列 \(songs.count) 首，第 \(index + 1) 首，位置 \(Int(currentTime))s（已暂停，待用户点播放）")
     }
 }

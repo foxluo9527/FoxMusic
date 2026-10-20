@@ -79,5 +79,18 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
+
+        // iOS 侧 WebSocket 传输层。Android 走 OkHttp（在 :core:network-android），
+        // 两端共用 commonMain 的 WebSocketMessageParser，因此只在这里加传输依赖。
+        // 注意：Ktor 是引擎无关的，这里必须显式给 Darwin 引擎才有 iOS 实现。
+        //
+        // 不要加 ktor-client-websockets：3.6.0 里它已是空壳（jar 内只有
+        // io.ktor.client.plugins.websocket.empty 包），WebSockets 插件与
+        // webSocketSession() 都在 ktor-client-core 内，包名单数
+        // io.ktor.client.plugins.websocket（不是 websockets）。
+        iosMain.dependencies {
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.darwin)
+        }
     }
 }

@@ -4,6 +4,7 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.RepeatMode
+import com.fox.music.core.model.music.ClipRange
 import kotlinx.coroutines.flow.StateFlow
 
 interface MusicController {
@@ -62,6 +63,43 @@ interface MusicController {
     fun seekToQueueItem(index: Int)
 
     /**
+     * 音流模式：以「高潮片段」为单位启动刷歌队列。
+     * @param musics 服务端的音流队列（已是按偏好/风格排好的歌单）
+     * @param clipsByMusic 每首歌的高潮片段（毫秒窗口）；缺省时引擎按曲长兜底 clip
+     * @param startIndex 起始歌曲索引
+     * @param key 播放队列标识
+     * @param source 队列来源（用于决定弹窗是否展示）
+     */
+    fun startStreamQueue(
+        musics: List<Music>,
+        clipsByMusic: Map<Long, List<ClipRange>>,
+        startIndex: Int = 0,
+        key: String,
+        source: PlaybackPlaylistSource? = null,
+    )
+
+    /**
+     * 音流模式：推进到下一个高潮片段；当前歌还有剩余片段则切片段，否则切下一首。
+     * 注意：音流页的「上一首」请用 [seekToQueueItem]（previous() 在 clip 起点会重播当前片段），
+     * 「下一首/上滑」用本方法。
+     */
+    fun advanceStream()
+
+    /**
+     * 音流模式：自由进度跳转（允许拖到高潮片段之外）。
+     * 语义：跳到片段区间外 → 当前曲目不再在片段终点自动 advance，改为完整播放到媒体自然结束；
+     * 跳回片段区间内 → 恢复「只播高潮即切歌」。非音流（无激活片段）时行为等同 [seekTo]。
+     */
+    fun seekFree(positionMs: Long)
+
+    /**
+     * 音流模式：片段播放的页面级开关。
+     * 仅当音流页在前台时开启（true → 只播高潮即切歌）；切到其它 Tab 时关闭（false →
+     * 当前及后续歌曲都完整播放到自然结束再切歌）。开关状态是「粘性」的，切歌不会自行恢复。
+     */
+    fun setStreamClipEnabled(enabled: Boolean)
+
+    /**
      * 立即将当前播放状态写入本地存储（供应用进入后台时调用）
      */
     fun flushPlaybackState()
@@ -75,6 +113,12 @@ interface MusicController {
      * 将详情接口拉取到的歌词写回内存歌单与 UI
      */
     fun updateMusicLyrics(musicId: Long, lyrics: String?, lyricsTrans: String?)
+
+    /**
+     * 音源替换后更新该歌曲的播放地址（写回内存歌单 + 覆盖表 + 持久化队列）。
+     * 若该曲正在播放，会按新地址重建媒体项并尽量保留进度与播放态。
+     */
+    fun updateMusicUrl(musicId: Long, url: String)
 
     /** Live/短视频开始有声播放前调用：若正在播音乐则暂停并记住状态 */
     fun beginTransientMediaPlayback()

@@ -8,7 +8,6 @@ import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.network.model.MusicDto
 import com.fox.music.iosshared.ui.FoxSongsScreen
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import platform.UIKit.UIViewController
 
@@ -27,7 +26,7 @@ import platform.UIKit.UIViewController
  */
 object FoxIosBridge {
 
-    private val scope = MainScope()
+    private val scope = foxMainScope()
     private val api = FoxMusicApi()
 
     /** 拉取第一页歌曲列表，成功/失败各走一个回调。 */
@@ -52,6 +51,76 @@ object FoxIosBridge {
      * 不再需要 iOS 侧维护简化版。
      */
     fun toMusic(music: MusicDto): Music = music.toMusic()
+
+    /**
+     * 按 ID 拉单曲详情并折成可播放结构（通知跳转音乐评论用）。
+     */
+    fun fetchPlayableSong(musicId: Long, onResult: (PlayableSong) -> Unit, onError: (String) -> Unit) {
+        scope.launch {
+            try {
+                val song = toPlayableSong(api.fetchMusicDetail(musicId))
+                if (song != null) onResult(song) else onError("该歌曲暂无播放地址")
+            } catch (e: Exception) {
+                println("FoxIosBridge: 拉取歌曲详情失败: ${e.message}")
+                onError(e.message ?: "歌曲加载失败")
+            }
+        }
+    }
+
+    /**
+     * 播放本地下载歌曲时补歌词（对齐 Android `FetchMusicLyricsUseCase`）：
+     * 详情接口内嵌歌词就直接用；否则按第三方平台来源走 `api/import/lyrics`。
+     * 成功回调 onResult(原始LRC, 翻译LRC?)；两首源都没有走 onError。
+     */
+    fun fetchSongLyrics(musicId: Long, onResult: (String, String?) -> Unit, onError: (String) -> Unit) {
+        scope.launch {
+            try {
+                val dto = api.fetchMusicDetail(musicId)
+                val embedded = dto.lyrics?.takeIf { it.isNotBlank() }
+                if (embedded != null) {
+                    onResult(embedded, dto.lyricsTrans?.takeIf { it.isNotBlank() })
+                    return@launch
+                }
+                val params = resolveImportLyricParams(dto.toMusic())
+                if (params == null) {
+                    onError("暂无歌词")
+                    return@launch
+                }
+                val imported = api.fetchImportLyricsAnon(params.first, params.second)
+                if (imported.lyric.isNotBlank()) {
+                    onResult(imported.lyric, imported.lyricTrans.takeIf { it.isNotBlank() })
+                } else {
+                    onError("暂无歌词")
+                }
+            } catch (e: Exception) {
+                println("FoxIosBridge: 拉取歌词失败: ${e.message}")
+                onError(e.message ?: "歌词加载失败")
+            }
+        }
+    }
+
+    /** 与 Android `FetchMusicLyricsUseCase.resolveImportLyricParams` 同口径。 */
+    private fun resolveImportLyricParams(music: Music): Pair<String, String>? {
+        val platform = music.sourcePlatform
+            ?.lowercase()
+            ?.takeIf { it == "qq" || it == "netease" }
+            ?: music.sourceId
+                .substringBefore('_', missingDelimiterValue = "")
+                .lowercase()
+                .takeIf { it == "qq" || it == "netease" }
+            ?: return null
+
+        val externalId = when {
+            music.sourceId.contains('_') &&
+                music.sourceId.substringBefore('_').equals(platform, ignoreCase = true) ->
+                music.sourceId.substringAfter('_')
+            music.sourceId.isNotBlank() && music.sourceId != music.id.toString() ->
+                music.sourceId
+            else -> null
+        }?.takeIf { it.isNotBlank() } ?: return null
+
+        return platform to externalId
+    }
 
     /**
      * 把一首 MusicDto 折成 Swift 可直接播放的最小结构：

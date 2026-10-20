@@ -44,6 +44,8 @@ kotlin {
             api(compose.material3)
             api(compose.ui)
             api(compose.materialIconsExtended)
+            api(libs.paging.common)
+            api(libs.paging.compose)
         }
     }
 }

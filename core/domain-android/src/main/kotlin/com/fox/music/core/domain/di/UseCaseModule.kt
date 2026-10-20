@@ -7,6 +7,7 @@ import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
 import com.fox.music.core.domain.repository.ImportRepository
+import com.fox.music.core.domain.repository.MusicFeedbackRepository
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.PostDraftRepository
@@ -82,6 +83,8 @@ import com.fox.music.core.domain.usecase.ResolveMusicCommentNavigationUseCase
 import com.fox.music.core.domain.usecase.SaveSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.SearchMusicUseCase
 import com.fox.music.core.domain.usecase.SubmitReportUseCase
+import com.fox.music.core.domain.usecase.SubmitMusicFeedbackUseCase
+import com.fox.music.core.domain.usecase.ReplaceMusicSourceUseCase
 import com.fox.music.core.domain.usecase.ToggleAlbumFavoriteUseCase
 import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.domain.usecase.TogglePlaylistFavoriteUseCase
@@ -313,6 +316,14 @@ object UseCaseModule {
 
     @Provides
     fun provideSubmitReportUseCase(reportRepository: ReportRepository): SubmitReportUseCase = SubmitReportUseCase(reportRepository)
+
+    @Provides
+    fun provideSubmitMusicFeedbackUseCase(musicFeedbackRepository: MusicFeedbackRepository): SubmitMusicFeedbackUseCase =
+        SubmitMusicFeedbackUseCase(musicFeedbackRepository)
+
+    @Provides
+    fun provideReplaceMusicSourceUseCase(musicFeedbackRepository: MusicFeedbackRepository): ReplaceMusicSourceUseCase =
+        ReplaceMusicSourceUseCase(musicFeedbackRepository)
 
     @Provides
     fun provideToggleAlbumFavoriteUseCase(albumRepository: AlbumRepository): ToggleAlbumFavoriteUseCase = ToggleAlbumFavoriteUseCase(albumRepository)

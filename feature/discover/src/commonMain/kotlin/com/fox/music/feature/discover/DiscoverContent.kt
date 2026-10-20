@@ -47,6 +47,8 @@ import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.HotKeywordsCarousel
 import com.fox.music.core.ui.component.MusicListItem
 import com.fox.music.core.ui.component.SectionHeader
+import com.fox.music.core.ui.component.TabPageTopBar
+import com.fox.music.core.ui.component.tabTopBarFullBleed
 import com.fox.music.core.ui.theme.FoxSpacing
 
 /**
@@ -61,6 +63,7 @@ fun DiscoverContent(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
+    onOpenDrawer: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onNewMusicMore: () -> Unit = {},
     onHotArtistMore: () -> Unit = {},
@@ -76,7 +79,8 @@ fun DiscoverContent(
                 columns = GridCells.Fixed(4),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = 12.dp,
+                    // 顶部不再额外内边距，使三横与「我的」页头部图标纵向对齐。
+                    top = 0.dp,
                     bottom = FoxSpacing.tabChromeBottom, // 悬浮 MiniPlayer + 底栏
                     start = 20.dp,
                     end = 20.dp,
@@ -90,17 +94,11 @@ fun DiscoverContent(
                     contentType = "hero",
                 ) {
                     Column(modifier = Modifier.padding(bottom = 4.dp)) {
-                        Text(
-                            text = "发现",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                        Text(
-                            text = "榜单、新声与热门艺人",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                        TabPageTopBar(
+                            title = "发现",
+                            onOpenDrawer = onOpenDrawer,
+                            // 顶部栏位于带 20dp 内边距的网格里，需出血到整屏才能与「我的」页图标对齐。
+                            modifier = Modifier.tabTopBarFullBleed(20.dp),
                         )
                         HotKeywordsCarousel(
                             keywords = state.hotKeywords,

@@ -10,12 +10,36 @@ final class AuthStore: ObservableObject {
 
     private let service = "com.fox.music.iosapp.auth"
     private enum Key: String {
-        case token, refresh, userId, username, nickname, avatar, email
+        case token, refresh, userId, username, nickname, avatar, email, signature
     }
 
     private init() {}
 
     func restoreToKotlin() {
+        // Kotlin 侧 401 自动续期成功后要回写 Keychain —— 服务端会**轮换** refreshToken
+        // （旧 token 作废），不回写的话下次冷启动就续不了期、只能重新登录。
+        // Kotlin 只改内存态，落盘归这里（与 persistFromKotlin 同一套 Keychain 写入口）。
+        FoxAuthStore.shared.onTokensRefreshed = { [weak self] token, refresh in
+            guard let self else { return }
+            // 续期发生在 Ktor/Darwin 的后台线程，回到主线程再写（isLoggedIn 是 @Published）
+            DispatchQueue.main.async {
+                self.set(token, for: .token)
+                self.set(refresh, for: .refresh)
+                self.isLoggedIn = (token?.isEmpty == false)
+            }
+        }
+
+        // 会话真正结束（401 刷新时服务端拒绝 refreshToken，Kotlin 侧已同步 clear 内存态）
+        // → 清 Keychain + 置未登录 + 通知实时链路断开。否则会停在「UI 显示已登录、
+        // 但所有鉴权接口全 401、页面空白」的僵尸态（对齐 Android 的 requireReLogin）。
+        // Ktor 在后台线程回调，UI 状态必须回主线程改。
+        FoxAuthStore.shared.onSessionExpired = { [weak self] in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                self.logout()
+            }
+        }
+
         let token = string(for: .token)
         let refresh = string(for: .refresh)
         let user: AuthUser? = {
@@ -46,16 +70,40 @@ final class AuthStore: ObservableObject {
         set(user.avatarUrl, for: .avatar)
         set(user.email, for: .email)
         isLoggedIn = true
+        // 通知实时链路：登录后要建 WebSocket 并补拉一次未读
+        FoxRealtimeService.shared.onAuthChanged()
     }
 
     func logout() {
         FoxAuthStore.shared.clear()
         clear()
         isLoggedIn = false
+        // 通知实时链路：登出后 Coordinator 会主动断开连接并停掉保活
+        FoxRealtimeService.shared.onAuthChanged()
     }
 
     private func clear() {
         [Key.token, .refresh, .userId, .username, .nickname, .avatar, .email].forEach { delete($0) }
+    }
+
+    /// 当前登录用户 id（未登录为 0）—— 社区等需要判断「是否自己的内容」的页面用。
+    /// Kotlin 侧 Long 不接 nil，所以用 0 表示未登录。
+    var currentUserId: Int64 {
+        Int64(string(for: .userId) ?? "") ?? 0
+    }
+
+    var nickname: String { string(for: .nickname) ?? string(for: .username) ?? "" }
+    var avatarUrl: String? { string(for: .avatar) }
+    var signature: String? { string(for: .signature) }
+
+    /// 资料更新后同步 Keychain + Kotlin 内存态。
+    func updateFrom(user: UserDto) {
+        set(user.nickname, for: .nickname)
+        set(user.avatar, for: .avatar)
+        set(user.signature, for: .signature)
+        set(user.email, for: .email)
+        FoxAuthStore.shared.updateUser(user: user.toAuthUser())
+        objectWillChange.send()
     }
 
     private func string(for key: Key) -> String? {
