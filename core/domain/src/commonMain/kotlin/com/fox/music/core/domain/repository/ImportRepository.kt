@@ -20,6 +20,7 @@ interface ImportRepository {
         matchScore: Int,
         titleRaw: String? = null,
         source: String = "hifinicn",
+        origin: String = "playlist-import",
     ): Result<Unit>
 
     suspend fun reportUnreliableLink(

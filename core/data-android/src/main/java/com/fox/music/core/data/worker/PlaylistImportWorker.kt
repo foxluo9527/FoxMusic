@@ -385,6 +385,7 @@ class PlaylistImportWorker @AssistedInject constructor(
                 matchScore = matchScore,
                 titleRaw = titleRaw,
                 source = sourceKey,
+                origin = "playlist-import",
             )
         } else {
             ImportLog.i(

@@ -104,6 +104,8 @@ data class UpsertSourceLinkRequest(
     val matchScore: Int,
     val titleRaw: String? = null,
     val verified: Boolean = true,
+    /** 记录来源（服务端白名单校验）：导入歌单传 playlist-import，其余走服务端默认 manual */
+    val origin: String? = null,
 )
 
 @Serializable

@@ -145,6 +145,7 @@ class ImportRepositoryImpl @Inject constructor(
         matchScore: Int,
         titleRaw: String?,
         source: String,
+        origin: String,
     ): Result<Unit> = suspendRunCatching {
         val response = sourceLinkApiService.upsert(
             UpsertSourceLinkRequest(
@@ -155,6 +156,7 @@ class ImportRepositoryImpl @Inject constructor(
                 matchScore = matchScore,
                 titleRaw = titleRaw,
                 verified = true,
+                origin = origin,
             ),
         )
         if (!response.isSuccess) throw IllegalStateException(response.message)
