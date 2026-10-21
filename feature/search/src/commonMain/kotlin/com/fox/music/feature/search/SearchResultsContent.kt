@@ -59,7 +59,12 @@ internal fun MusicSearchResults(
         pagingItems = pagingItems,
         emptyMessage = "未找到相关单曲",
         emptyAction = { SearchCollectFooterButton(onCollectClick) },
-        footer = { SearchCollectFooterButton(onCollectClick) },
+        footer = {
+            Box(
+                Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) { SearchCollectFooterButton(onCollectClick) }
+        },
         itemContent = { index ->
             val music = pagingItems[index]
             if (music != null) {
