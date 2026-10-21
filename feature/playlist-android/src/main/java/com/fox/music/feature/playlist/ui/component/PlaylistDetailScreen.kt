@@ -38,6 +38,7 @@ fun PlaylistDetailScreen(
     onAddSelectedToPlaylist: (List<Music>) -> Unit = {},
     onDownloadSelected: (List<Music>) -> Unit = {},
     onSelectionModeChanged: (Boolean) -> Unit = {},
+    onOpenImportDetail: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val pagingItems = viewModel.tracks.collectAsLazyPagingItems()
@@ -144,6 +145,7 @@ fun PlaylistDetailScreen(
         onResumeImport = { viewModel.sendIntent(PlaylistDetailIntent.ResumeImport) },
         onRetryImport = { viewModel.sendIntent(PlaylistDetailIntent.RetryImport) },
         onCancelFailedImport = { viewModel.sendIntent(PlaylistDetailIntent.CancelFailedImport) },
+        onOpenImportDetail = onOpenImportDetail,
         onEditPlaylist = onEditPlaylist,
         onDeletePlaylist = { viewModel.sendIntent(PlaylistDetailIntent.DeletePlaylist) },
         modifier = modifier,

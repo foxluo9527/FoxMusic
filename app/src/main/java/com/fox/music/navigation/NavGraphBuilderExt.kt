@@ -46,6 +46,25 @@ fun NavGraphBuilder.composableStack(
     )
 }
 
+/** 从底部升起的二级页：进入上滑、返回下滑消失（不使用左右滑） */
+fun NavGraphBuilder.composableSheetStack(
+    route: String,
+    arguments: List<NamedNavArgument> = emptyList(),
+    deepLinks: List<NavDeepLink> = emptyList(),
+    content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
+) {
+    composable(
+        route = route,
+        arguments = arguments,
+        deepLinks = deepLinks,
+        enterTransition = { sheetEnter() },
+        exitTransition = { sheetExit() },
+        popEnterTransition = { sheetPopEnter() },
+        popExitTransition = { sheetPopExit() },
+        content = content,
+    )
+}
+
 fun NavGraphBuilder.composablePlayer(
     route: String,
     arguments: List<NamedNavArgument> = emptyList(),

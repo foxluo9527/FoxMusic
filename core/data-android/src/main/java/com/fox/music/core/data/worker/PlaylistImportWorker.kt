@@ -16,6 +16,7 @@ import androidx.work.WorkerParameters
 import com.fox.music.core.common.result.Result as AppResult
 import com.fox.music.core.data.importqueue.ImportLog
 import com.fox.music.core.data.importqueue.PlaylistImportScheduler
+import com.fox.music.core.data.scrape.AudioDurationProbe
 import com.fox.music.core.data.scrape.HifinicnScraper
 import com.fox.music.core.database.dao.ImportJobDao
 import com.fox.music.core.database.entity.ImportTrackJobEntity
@@ -126,8 +127,11 @@ class PlaylistImportWorker @AssistedInject constructor(
     private suspend fun processTrack(track: ImportTrackJobEntity) {
         val firstArtist = track.artistNames.split(",").firstOrNull()?.trim().orEmpty()
         val rejected = track.rejectedLinks().toMutableSet()
+        // 歌单平台官方时长（毫秒）：有值即作为「版本正确性」交叉校验基准
+        val expectedDurationMs = track.durationMs.takeIf { it > 0 }
         ImportLog.i(
-            "①曲库查找: 「$firstArtist - ${track.title}」已拒绝详情数=${rejected.size}",
+            "①曲库查找: 「$firstArtist - ${track.title}」已拒绝详情数=${rejected.size} " +
+                "原曲时长=${expectedDurationMs?.let { "${it}ms" } ?: "未知"}",
         )
 
         when (val found = importRepository.findMusic(track.title, firstArtist)) {
@@ -208,6 +212,18 @@ class PlaylistImportWorker @AssistedInject constructor(
                 ImportLog.i("⑤下载音频(资产) cookieLen=${cookie.length} referer=$referer")
                 audioLocal = downloadWithReferer(resolved, referer, cookie)
                 ImportLog.i("⑤本地下载${if (audioLocal != null) "成功 size=${audioLocal.length()}" else "失败"}")
+                if (audioLocal != null && expectedDurationMs != null) {
+                    val actualMs = AudioDurationProbe.probeMs(audioLocal)
+                    if (!AudioDurationProbe.isClose(actualMs, expectedDurationMs)) {
+                        // 资产是人工/自动验证过的详情页，可信度高于网页搜索：
+                        // 时长偏差只告警不拦（现场版/剪辑版常见），拦了会白丢已验证资产
+                        ImportLog.w(
+                            "⑤资产时长偏差 actual=${actualMs}ms expected=${expectedDurationMs}ms（已入库资产，仍采纳）",
+                        )
+                    } else {
+                        ImportLog.i("⑤资产时长校验通过 actual=${actualMs}ms expected=${expectedDurationMs}ms")
+                    }
+                }
                 audioRemote = ingestAudio(audioLocal, playUrl!!, referer)
                 ImportLog.i("⑥上传/入库音频${if (audioRemote != null) "成功: ${audioRemote.take(80)}" else "失败"}")
             } else {
@@ -242,32 +258,66 @@ class PlaylistImportWorker @AssistedInject constructor(
                     "⑦多站评选采纳: source=$sourceKey score=$matchScore " +
                         "titleRaw=$titleRaw detail=$detailUrl play=${playUrl?.take(100)}",
                 )
-                importJobDao.updateTrack(
-                    trackJobId = track.trackJobId,
-                    status = "running",
-                    detailUrl = detailUrl,
-                    matchScore = matchScore,
-                    titleRaw = titleRaw,
-                    rejectedLinksJson = mergeRejectedLinks(null, rejected),
-                )
-                ImportLog.i("⑧下载音频(多站) source=$sourceKey")
                 audioLocal = downloadWithReferer(
                     clientResolved.playUrl,
                     referer,
                     config.sites[sourceKey]?.cookie.orEmpty(),
                 )
-                ImportLog.i("⑧本地下载${if (audioLocal != null) "成功 size=${audioLocal.length()}" else "失败"}")
-                audioRemote = ingestAudio(audioLocal, clientResolved.playUrl, referer)
-                ImportLog.i("⑨上传/入库音频${if (audioRemote != null) "成功: ${audioRemote.take(80)}" else "失败"}")
-                if (audioRemote == null) {
-                    rememberRejected(
-                        track,
-                        rejected,
-                        listOfNotNull(detailUrl, playUrl),
-                        firstArtist,
-                        sourceKey,
-                        titleRaw,
+                ImportLog.i("⑦.1 本地下载${if (audioLocal != null) "成功 size=${audioLocal.length()}" else "失败"}")
+
+                // 时长闸门：网页标题匹配最易出错版本，实测为试听片段/截断的直接弃用
+                if (audioLocal != null) {
+                    val actualMs = AudioDurationProbe.probeMs(audioLocal)
+                    if (!AudioDurationProbe.acceptable(actualMs, expectedDurationMs)) {
+                        ImportLog.w(
+                            "⑦.2 时长不足（疑似试听/截断），弃用该站候选: source=$sourceKey " +
+                                "actual=${actualMs}ms expected=${expectedDurationMs}ms title=$titleRaw",
+                        )
+                        rememberRejected(
+                            track,
+                            rejected,
+                            listOfNotNull(detailUrl, playUrl),
+                            firstArtist,
+                            sourceKey,
+                            titleRaw,
+                        )
+                        audioLocal.delete()
+                        audioLocal = null
+                        // 重要：清空详情页，避免错误版本被 ⑯ 当作可信资产上报
+                        detailUrl = null
+                        matchScore = 0
+                        titleRaw = null
+                    } else if (!AudioDurationProbe.isClose(actualMs, expectedDurationMs)) {
+                        ImportLog.w(
+                            "⑦.2 时长偏差较大但为完整音频，仍采纳: actual=${actualMs}ms " +
+                                "expected=${expectedDurationMs}ms（可能是不同版本/母带）",
+                        )
+                    } else {
+                        ImportLog.i("⑦.2 时长校验通过 actual=${actualMs}ms expected=${expectedDurationMs}ms")
+                    }
+                }
+
+                if (audioLocal != null) {
+                    importJobDao.updateTrack(
+                        trackJobId = track.trackJobId,
+                        status = "running",
+                        detailUrl = detailUrl,
+                        matchScore = matchScore,
+                        titleRaw = titleRaw,
+                        rejectedLinksJson = mergeRejectedLinks(null, rejected),
                     )
+                    audioRemote = ingestAudio(audioLocal, clientResolved.playUrl, referer)
+                    ImportLog.i("⑦.3 上传/入库音频${if (audioRemote != null) "成功: ${audioRemote.take(80)}" else "失败"}")
+                    if (audioRemote == null) {
+                        rememberRejected(
+                            track,
+                            rejected,
+                            listOfNotNull(detailUrl, playUrl),
+                            firstArtist,
+                            sourceKey,
+                            titleRaw,
+                        )
+                    }
                 }
             } else {
                 ImportLog.w("⑦多站解析无可用结果")
@@ -277,9 +327,87 @@ class PlaylistImportWorker @AssistedInject constructor(
             }
         }
 
+        // ⑦.5 服务端 API 多源候选（2026-10-21 新增）
+        // 音源纠错同款链路：网易云/酷我/Hifini解析/插件源。这些源自带官方时长
+        // 与艺人，比网页标题匹配准得多；一次返回多条候选，逐条试下载，
+        // 单源失效（死链/30s 试听/版本不符）不影响其它候选。
+        if (audioRemote == null) {
+            ImportLog.i("⑦.5 服务端API多源候选: $firstArtist - ${track.title} expected=${expectedDurationMs}ms")
+            when (
+                val resp = importRepository.searchAudioCandidates(
+                    title = track.title,
+                    artist = firstArtist,
+                    durationMs = expectedDurationMs,
+                )
+            ) {
+                is AppResult.Success -> {
+                    val list = resp.data
+                    ImportLog.i(
+                        "⑦.5 候选数=${list.size} " +
+                            list.take(6).joinToString(" | ") {
+                                "${it.source}:${it.score}${if (it.durationMatch) "" else "(时长不符)"}"
+                            },
+                    )
+                    for ((idx, candidate) in list.withIndex()) {
+                        val tag = "[#${idx + 1}/${list.size}] source=${candidate.source} " +
+                            "score=${candidate.score} exact=${candidate.exact} " +
+                            "durationMatch=${candidate.durationMatch} title=${candidate.title}"
+                        if (candidate.url in rejected) {
+                            ImportLog.i("⑦.5 跳过已拒绝候选 $tag")
+                            continue
+                        }
+                        val candidateReferer = candidate.referer ?: referer
+                        ImportLog.i("⑦.5 试下载 $tag")
+                        // API 源不需要音源站 Cookie（带上去反而可能干扰 CDN 校验）
+                        val local = downloadWithReferer(candidate.url, candidateReferer, cookie = "")
+                        if (local == null) {
+                            ImportLog.w("⑦.5 下载失败 $tag")
+                            continue
+                        }
+                        val actualMs = AudioDurationProbe.probeMs(local)
+                        if (!AudioDurationProbe.acceptable(actualMs, expectedDurationMs)) {
+                            ImportLog.w(
+                                "⑦.5 时长不足（疑似试听/截断），换下一条 $tag " +
+                                    "actual=${actualMs}ms expected=${expectedDurationMs}ms",
+                            )
+                            local.delete()
+                            continue
+                        }
+                        if (!AudioDurationProbe.isClose(actualMs, expectedDurationMs)) {
+                            ImportLog.w(
+                                "⑦.5 时长偏差较大但为完整音频，采纳 $tag " +
+                                    "actual=${actualMs}ms expected=${expectedDurationMs}ms",
+                            )
+                        }
+                        val uploaded = ingestAudio(local, candidate.url, candidateReferer)
+                        local.delete()
+                        if (uploaded == null) {
+                            ImportLog.w("⑦.5 上传失败 $tag")
+                            continue
+                        }
+                        audioRemote = uploaded
+                        playUrl = candidate.url
+                        referer = candidateReferer
+                        sourceKey = candidate.source ?: sourceKey
+                        titleRaw = candidate.title.takeIf { it.isNotBlank() }
+                        // 服务端 API 源的 detailUrl 是平台歌曲页（非 hifini 详情页），
+                        // 不参与 ⑯ 的 hifini 资产上报（服务端 resolver 已自行沉淀资产）
+                        detailUrl = null
+                        ImportLog.i(
+                            "⑦.5 采纳 $tag actual=${actualMs}ms audio=${uploaded.take(80)}",
+                        )
+                        break
+                    }
+                    if (audioRemote == null) ImportLog.w("⑦.5 服务端候选全部不可用")
+                }
+                is AppResult.Error -> ImportLog.w("⑦.5 服务端候选查询失败: ${resp.message}")
+                else -> {}
+            }
+        }
+
         if (audioRemote == null) {
             ImportLog.i("⑩服务端 resolve-audio 兜底: $firstArtist - ${track.title}")
-            when (val server = importRepository.resolveAudio(track.title, firstArtist)) {
+            when (val server = importRepository.resolveAudio(track.title, firstArtist, expectedDurationMs)) {
                 is AppResult.Success -> {
                     val r = server.data
                     playUrl = r.url
@@ -288,12 +416,26 @@ class PlaylistImportWorker @AssistedInject constructor(
                     ImportLog.i(
                         "⑩服务端返回 source=${r.source} score=${r.score} exact=${r.exact} url=${r.url.take(100)}",
                     )
+                    // 服务端已用 API 源做过时长判定，这里再实测一次兜住 30s 试听片段
                     audioLocal = downloadWithReferer(
                         r.url,
                         referer,
                         config.sites[sourceKey]?.cookie.orEmpty(),
                     )
-                    audioRemote = ingestAudio(audioLocal, r.url, referer)
+                    if (audioLocal != null) {
+                        val actualMs = AudioDurationProbe.probeMs(audioLocal)
+                        if (!AudioDurationProbe.acceptable(actualMs, expectedDurationMs)) {
+                            ImportLog.w(
+                                "⑩服务端音源时长不足（疑似试听/截断），弃用: actual=${actualMs}ms " +
+                                    "expected=${expectedDurationMs}ms",
+                            )
+                            audioLocal.delete()
+                            audioLocal = null
+                        }
+                    }
+                    if (audioLocal != null) {
+                        audioRemote = ingestAudio(audioLocal, r.url, referer)
+                    }
                     ImportLog.i("⑩服务端音源上传${if (audioRemote != null) "成功" else "失败"}")
                     if (audioRemote == null) {
                         rememberRejected(track, rejected, listOf(r.url), firstArtist, sourceKey, titleRaw)
@@ -305,7 +447,7 @@ class PlaylistImportWorker @AssistedInject constructor(
         }
 
         val finalRemote = audioRemote
-            ?: throw IllegalStateException("多站逆向与服务端兜底均未拿到可用音频")
+            ?: throw IllegalStateException("多站逆向、服务端API候选与服务端兜底均未拿到可用音频")
         audioLocal?.delete()
         ImportLog.i("⑪最终音频 URL: ${finalRemote.take(120)}")
 
@@ -331,15 +473,22 @@ class PlaylistImportWorker @AssistedInject constructor(
             }
         }
 
-        var lyrics = ""
+        var lyrics = track.lyrics.orEmpty()
         var lyricsTrans = ""
         val platform = track.platform
         val externalId = track.externalId
-        if (!platform.isNullOrBlank() && !externalId.isNullOrBlank()) {
+        if (lyrics.isNotBlank()) {
+            // 入队时已预取落库，直接用，省一次网络
+            ImportLog.i("⑬歌词取自本地缓存 lyricLen=${lyrics.length}")
+        } else if (!platform.isNullOrBlank() && !externalId.isNullOrBlank()) {
             when (val lrc = importRepository.fetchLyrics(platform, externalId)) {
                 is AppResult.Success -> {
                     lyrics = lrc.data.lyric
                     lyricsTrans = lrc.data.lyricTrans
+                    if (!lyrics.isNullOrBlank()) {
+                        // 补进任务表，详情页的手动换源也能拿到
+                        runCatching { importJobDao.fillTrackLyrics(track.trackJobId, lyrics) }
+                    }
                     ImportLog.i("⑬歌词拉取成功 lyricLen=${lyrics.length} transLen=${lyricsTrans.length}")
                 }
                 else -> ImportLog.w("⑬歌词拉取失败 platform=$platform id=$externalId")

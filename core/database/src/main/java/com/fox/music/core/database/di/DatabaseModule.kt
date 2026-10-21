@@ -418,6 +418,13 @@ object DatabaseModule {
         }
     }
 
+    /** 16：导入曲目表增加原曲歌词缓存（详情页试听对照 + 导入复用） */
+    private val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `import_track_jobs` ADD COLUMN `lyrics` TEXT")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideFoxMusicDatabase(
@@ -443,6 +450,7 @@ object DatabaseModule {
                 MIGRATION_12_13,
                 MIGRATION_13_14,
                 MIGRATION_14_15,
+                MIGRATION_15_16,
             )
             .build()
     }

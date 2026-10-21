@@ -80,6 +80,7 @@ import com.fox.music.core.model.music.ProviderCandidate
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.PreviewLyricPanel
 import com.fox.music.feature.player.viewmodel.PreviewPlaybackState
 import com.fox.music.feature.player.viewmodel.SourceCorrectEffect
 import com.fox.music.feature.player.viewmodel.SourceCorrectIntent
@@ -234,8 +235,11 @@ fun SourceCorrectScreen(
 
             state.preview.music?.let { previewMusic ->
                 PreviewLyricPanel(
-                    preview = state.preview,
-                    music = previewMusic,
+                    title = previewMusic.title,
+                    artist = previewMusic.artists.joinToString(", ") { it.name },
+                    positionMs = state.preview.positionMs,
+                    durationMs = state.preview.durationMs,
+                    isPlaying = state.preview.isPlaying,
                     lyrics = state.targetLyrics,
                     onPlayPause = { viewModel.sendIntent(SourceCorrectIntent.TogglePreviewPlayPause) },
                     onSeek = { viewModel.sendIntent(SourceCorrectIntent.SeekPreview(it)) },
@@ -696,208 +700,9 @@ private fun queryDisplayName(context: android.content.Context, uri: android.net.
     }
 }
 
-/** 试听面板：进度条（可拖）+ 歌词跟随（纠错/收录共用） */
-@Composable
-internal fun PreviewLyricPanel(
-    preview: PreviewPlaybackState,
-    music: Music,
-    lyrics: List<LyricsParser.LyricLine>,
-    onPlayPause: () -> Unit,
-    onSeek: (Long) -> Unit,
-    onClose: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val duration = preview.durationMs.coerceAtLeast(0L)
-    val listState = rememberLazyListState()
-    // 当前歌词行：跟随试听进度（歌词为原歌曲的，用于对照候选音源是否正确）
-    val currentIndex = lyrics.indexOfLast { preview.positionMs >= it.startTimeMs }
-    LaunchedEffect(currentIndex, lyrics.size) {
-        if (currentIndex >= 0) {
-            listState.animateScrollToItem(currentIndex)
-        }
-    }
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = "原曲歌词 · 对照试听",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 96.dp, max = 200.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (lyrics.isEmpty()) {
-                    Text(
-                        text = "暂无歌词",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        itemsIndexed(
-                            items = lyrics,
-                            key = { index, _ -> index },
-                        ) { index, line ->
-                            val isCurrent = index == currentIndex
-                            Text(
-                                text = line.text,
-                                style = if (isCurrent) {
-                                    MaterialTheme.typography.titleMedium
-                                } else {
-                                    MaterialTheme.typography.bodyMedium
-                                },
-                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isCurrent) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 6.dp),
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = music.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    // 网页解析候选没有真实艺人名（不再回显搜索词），为空则隐藏整行
-                    val artistText = music.artists.joinToString(", ") { it.name }
-                    if (artistText.isNotBlank()) {
-                        Text(
-                            text = artistText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                IconButton(onClick = onPlayPause) {
-                    Icon(
-                        imageVector = if (preview.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (preview.isPlaying) "暂停" else "播放",
-                    )
-                }
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.Close, contentDescription = "关闭试听")
-                }
-            }
-            // 可拖动进度条：拖动即 seek，歌词跟随
-            PreviewProgressSlider(
-                fraction = if (duration > 0) {
-                    (preview.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-                } else {
-                    0f
-                },
-                onSeekFraction = { fraction -> onSeek((fraction * duration).toLong()) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = "${formatMs(preview.positionMs)} / ${formatMs(duration)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
 internal fun formatMs(ms: Long): String {
     val totalSec = (ms / 1000).toInt().coerceAtLeast(0)
     val m = totalSec / 60
     val s = totalSec % 60
     return "%d:%02d".format(m, s)
-}
-
-/**
- * 试听进度条（纠错/收录共用）。
- *
- * 用户 2026-10-21 反馈默认 Slider「一塌糊涂」：轨太高、拇指比轨高、拇指恒在末尾
- * （旧代码把毫秒传给 0f..1f 的 valueRange，值被钳到 1）、轨道末端圆角消失且与拇指有间隙。
- * 这里自定义：4dp 圆角细轨 + 14dp 小拇指、无间隙、点击/拖动均seek。
- */
-@Composable
-internal fun PreviewProgressSlider(
-    fraction: Float,
-    onSeekFraction: (Float) -> Unit,
-    modifier: Modifier = Modifier,
-    activeColor: Color = MaterialTheme.colorScheme.primary,
-    inactiveColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-) {
-    val safeFraction = fraction.coerceIn(0f, 1f)
-    val thumbSize = 14.dp
-    var trackWidthPx by remember { mutableStateOf(0f) }
-    val thumbRadiusPx = with(LocalDensity.current) { thumbSize.toPx() / 2f }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(28.dp)
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    if (trackWidthPx > 0f) {
-                        onSeekFraction((down.position.x / trackWidthPx).coerceIn(0f, 1f))
-                    }
-                    drag(down.id) { change ->
-                        if (trackWidthPx > 0f) {
-                            onSeekFraction((change.position.x / trackWidthPx).coerceIn(0f, 1f))
-                        }
-                    }
-                }
-            },
-        // 子项从左缘起排：轨道铺满，拇指按进度偏移
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        // 轨道（已播放部分同色覆盖，末端保留圆角）
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(inactiveColor)
-                .onSizeChanged { trackWidthPx = it.width.toFloat() },
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(safeFraction)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(activeColor),
-            )
-        }
-        // 拇指（圆心对齐进度点，不出轨）
-        Box(
-            modifier = Modifier
-                .offset {
-                    val x = (safeFraction * trackWidthPx - thumbRadiusPx)
-                        .coerceIn(0f, (trackWidthPx - thumbRadiusPx * 2).coerceAtLeast(0f))
-                    IntOffset(x.roundToInt(), 0)
-                }
-                .size(thumbSize)
-                .clip(CircleShape)
-                .background(activeColor),
-        )
-    }
 }

@@ -53,6 +53,23 @@ interface ImportJobDao {
     @Query("SELECT * FROM import_track_jobs WHERE jobId = :jobId ORDER BY trackIndex ASC")
     fun observeTracks(jobId: String): Flow<List<ImportTrackJobEntity>>
 
+    /**
+     * 导入详情页：按歌单取全部曲目（不再按 jobId 过滤，
+     * 由调用方与最新 job 对齐；重试批次会重建 jobId 之外的记录不变）。
+     */
+    @Query("SELECT * FROM import_track_jobs WHERE playlistId = :playlistId ORDER BY trackIndex ASC")
+    fun observeTracksForPlaylist(playlistId: Long): Flow<List<ImportTrackJobEntity>>
+
+    /** 单曲重试：把该曲目重新放回待处理队列（错误信息一并清掉） */
+    @Query(
+        """
+        UPDATE import_track_jobs
+        SET status = 'queued', errorMessage = NULL, updatedAt = :updatedAt
+        WHERE trackJobId = :trackJobId
+        """,
+    )
+    suspend fun requeueTrack(trackJobId: String, updatedAt: Long = System.currentTimeMillis())
+
     @Query(
         """
         SELECT * FROM import_track_jobs
@@ -65,6 +82,22 @@ interface ImportJobDao {
 
     @Query("SELECT * FROM import_track_jobs WHERE trackJobId = :trackJobId LIMIT 1")
     suspend fun getTrack(trackJobId: String): ImportTrackJobEntity?
+
+    /**
+     * 回写原曲歌词（入队预取 / 详情页兜底拉取后缓存）。
+     * 只在原来为空时写入，避免重复覆盖已有的完整歌词。
+     */
+    @Query(
+        """
+        UPDATE import_track_jobs SET lyrics = :lyrics, updatedAt = :updatedAt
+        WHERE trackJobId = :trackJobId AND (lyrics IS NULL OR lyrics = '')
+        """,
+    )
+    suspend fun fillTrackLyrics(
+        trackJobId: String,
+        lyrics: String,
+        updatedAt: Long = System.currentTimeMillis(),
+    ): Int
 
     @Query(
         """

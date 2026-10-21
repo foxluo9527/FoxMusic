@@ -49,6 +49,14 @@ data class ImportTrackJobEntity(
     val errorMessage: String? = null,
     val musicId: Long? = null,
     val rejectedLinksJson: String? = null,
+    /**
+     * 原曲歌词（LRC 原文）。
+     *
+     * 导入入队时就用 platform/externalId 预取并存在这里：既给导入流程复用，
+     * 也让详情页的手动换源能立刻拿到「原曲歌词」做对照——失败的曲目走不到
+     * 导入成功分支，实时拉取又要等网络，落库后离线也有。
+     */
+    val lyrics: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
 ) {

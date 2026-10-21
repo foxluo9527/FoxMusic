@@ -49,6 +49,7 @@ import com.fox.music.core.model.music.CandidatePlayType
 import com.fox.music.core.model.music.ProviderCandidate
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PlaylistPickerBottomSheet
+import com.fox.music.core.ui.component.PreviewLyricPanel
 import com.fox.music.feature.player.viewmodel.CollectTrackArgs
 import com.fox.music.feature.player.viewmodel.CollectTrackEffect
 import com.fox.music.feature.player.viewmodel.CollectTrackIntent
@@ -260,8 +261,11 @@ fun CollectTrackScreen(
 
             state.preview.music?.let { previewMusic ->
                 PreviewLyricPanel(
-                    preview = state.preview,
-                    music = previewMusic,
+                    title = previewMusic.title,
+                    artist = previewMusic.artists.joinToString(", ") { it.name },
+                    positionMs = state.preview.positionMs,
+                    durationMs = state.preview.durationMs,
+                    isPlaying = state.preview.isPlaying,
                     lyrics = state.previewLyrics,
                     onPlayPause = {
                         viewModel.sendIntent(CollectTrackIntent.TogglePreviewPlayPause)

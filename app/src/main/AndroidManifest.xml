@@ -21,12 +21,14 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- 关闭预测性返回：开启时返回手势会先播系统「整页缩小成圆角卡片」的预览，
+         看起来像缩放动画且 Compose 无法接管；关掉后统一由 NavHost 转场控制 -->
     <application
         android:name=".FoxMusicApplication"
         android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:enableOnBackInvokedCallback="true"
+        android:enableOnBackInvokedCallback="false"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_app"
         android:label="@string/app_name"

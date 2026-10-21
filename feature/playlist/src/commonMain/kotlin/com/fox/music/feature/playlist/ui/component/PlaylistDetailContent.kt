@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -49,9 +50,12 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -66,6 +70,8 @@ import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.DeletePlaylistConfirmDialog
+import com.fox.music.core.ui.component.DetailIntroContent
+import com.fox.music.core.ui.component.DetailIntroData
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.FoxLinearProgress
 import com.fox.music.core.ui.component.LoadingIndicator
@@ -75,7 +81,8 @@ import com.fox.music.core.ui.component.PlaylistManageBottomSheet
 import com.fox.music.feature.playlist.viewmodel.HeaderInfo
 import com.fox.music.feature.playlist.viewmodel.PlaylistDetailState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun PlaylistDetailContent(
     state: PlaylistDetailState,
@@ -104,6 +111,7 @@ fun PlaylistDetailContent(
     onResumeImport: () -> Unit = {},
     onRetryImport: () -> Unit = {},
     onCancelFailedImport: () -> Unit = {},
+    onOpenImportDetail: () -> Unit = {},
     onEditPlaylist: (Long) -> Unit = {},
     onDeletePlaylist: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -123,6 +131,22 @@ fun PlaylistDetailContent(
     }
     var showManageSheet by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showIntro by rememberSaveable { mutableStateOf(false) }
+
+    // 歌单 / 专辑 / 榜单：点头部（封面、名称、简介）进入介绍详情页，完整展示简介
+    val canShowIntro = state.detailType == DetailType.PLAYLIST ||
+            state.detailType == DetailType.ALBUM ||
+            state.detailType == DetailType.RANK
+    val introData = state.headerInfo?.takeIf { showIntro && canShowIntro }?.toDetailIntroData()
+    if (introData != null) {
+        BackHandler { showIntro = false }
+        DetailIntroContent(
+            data = introData,
+            onBack = { showIntro = false },
+            modifier = modifier,
+        )
+        return
+    }
 
     Scaffold(
         modifier = modifier,
@@ -160,7 +184,15 @@ fun PlaylistDetailContent(
                     title = {
                         if (state.headerInfo != null && showToolbarTitle) {
                             Row(
-                                Modifier.height(60.dp),
+                                Modifier
+                                    .height(60.dp)
+                                    .then(
+                                        if (canShowIntro) {
+                                            Modifier.clickable { showIntro = true }
+                                        } else {
+                                            Modifier
+                                        }
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 state.headerInfo?.coverImage?.let { url ->
@@ -290,10 +322,12 @@ fun PlaylistDetailContent(
                         onArtistClick = onArtistClick,
                         onEnterSelectionMode = onEnterSelectionMode,
                         onToggleSelection = onToggleSelection,
+                        onHeaderClick = { showIntro = true },
                         onPauseImport = onPauseImport,
                         onResumeImport = onResumeImport,
                         onRetryImport = onRetryImport,
                         onCancelFailedImport = onCancelFailedImport,
+                        onOpenImportDetail = onOpenImportDetail,
                         suppressRefreshIndicator = isPagingRefreshing,
                         onMeasureHeight = { headerHeightPx = it },
                         modifier = Modifier.fillMaxSize(),
@@ -351,10 +385,12 @@ private fun CollectionDetailContent(
     onArtistClick: (Long) -> Unit,
     onEnterSelectionMode: (Long) -> Unit,
     onToggleSelection: (Long) -> Unit,
+    onHeaderClick: () -> Unit = {},
     onPauseImport: () -> Unit = {},
     onResumeImport: () -> Unit = {},
     onRetryImport: () -> Unit = {},
     onCancelFailedImport: () -> Unit = {},
+    onOpenImportDetail: () -> Unit = {},
     suppressRefreshIndicator: Boolean = false,
     onMeasureHeight: (Float) -> Unit,
     modifier: Modifier = Modifier,
@@ -370,6 +406,7 @@ private fun CollectionDetailContent(
             state.headerInfo?.let { info ->
                 CollectionDetailHeader(
                     headerInfo = info,
+                    onClick = if (!state.isSelectionMode) onHeaderClick else null,
                     modifier = Modifier.onGloballyPositioned { coordinates ->
                         onMeasureHeight(coordinates.size.height.toFloat())
                     }
@@ -409,7 +446,13 @@ private fun CollectionDetailContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            // 点按横幅进入「导入详情」：逐首查看上传状态、失败的可手动选音源
+                            .clickable(onClick = onOpenImportDetail)
+                            .padding(vertical = 2.dp),
+                    ) {
                         val processed =
                             (progress.done + progress.failed).coerceAtMost(progress.total)
                         val fraction = if (progress.total > 0) {
@@ -430,19 +473,37 @@ private fun CollectionDetailContent(
                             "needs_retry" -> "剩余 ${progress.failed} 首导入失败"
                             else -> "正在导入 $processed/${progress.total}"
                         }
-                        Text(
-                            text = titleText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        if (progress.status == "needs_retry") {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "取消",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .padding(top = 4.dp)
-                                    .clickable(onClick = onCancelFailedImport),
+                                text = titleText,
+                                style = MaterialTheme.typography.bodyMedium,
                             )
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = "查看导入详情",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .padding(start = 4.dp)
+                                    .size(18.dp),
+                            )
+                        }
+                        if (progress.status == "needs_retry") {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "取消",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .clickable(onClick = onCancelFailedImport),
+                                )
+                                Text(
+                                    text = "　查看详情",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
                         } else {
                             progress.currentTitle?.takeIf { it.isNotBlank() }?.let { title ->
                                 Text(
@@ -604,11 +665,19 @@ private fun CollectionDetailContent(
 private fun CollectionDetailHeader(
     headerInfo: HeaderInfo,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -682,7 +751,7 @@ private fun CollectionDetailHeader(
                 }
                 headerInfo.releaseDate?.let { date ->
                     Text(
-                        text = " · $date",
+                        text = " · ${formatDate(date)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -808,6 +877,44 @@ private fun RowScope.ActionButton(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+/** 把列表头部信息映射成「介绍」详情页的展示数据。 */
+private fun HeaderInfo.toDetailIntroData(): DetailIntroData {
+    val typeLabel = when (detailType) {
+        DetailType.PLAYLIST -> "歌单"
+        DetailType.ALBUM -> "专辑"
+        DetailType.RANK -> "榜单"
+        DetailType.RECOMMEND -> "推荐"
+        DetailType.NEW_MUSIC -> "新歌"
+        DetailType.FAVORITE_MUSIC -> "收藏"
+        DetailType.PLAY_HISTORY -> "历史"
+    }
+    val isAlbum = detailType == DetailType.ALBUM
+    val subtitle = if (isAlbum) {
+        artists?.takeIf { it.isNotBlank() }?.let { "歌手：$it" }
+    } else {
+        creatorName?.takeIf { it.isNotBlank() }?.let { "创建者：$it" }
+    }
+    val infoRows = buildList {
+        if (isAlbum) {
+            releaseDate?.takeIf { it.isNotBlank() }?.let { add("发行时间" to formatDate(it)) }
+            publisher?.takeIf { it.isNotBlank() }?.let { add("发行公司" to it) }
+            language?.takeIf { it.isNotBlank() }?.let { add("语言" to it) }
+        } else {
+            createdAt?.takeIf { it.isNotBlank() }?.let { add("创建时间" to formatDate(it)) }
+        }
+        if (trackCount > 0) add("曲目数" to "$trackCount 首")
+    }
+    return DetailIntroData(
+        title = title,
+        coverUrl = coverImage,
+        typeLabel = typeLabel,
+        subtitle = subtitle,
+        tags = tags,
+        description = description,
+        infoRows = infoRows,
+    )
 }
 
 private fun getTypeTitle(type: DetailType): String {

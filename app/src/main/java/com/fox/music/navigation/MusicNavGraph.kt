@@ -19,8 +19,11 @@ import com.fox.music.feature.playlist.ui.component.PlaylistListScreen
 import com.fox.music.feature.playlist.ui.screen.ALBUM_LIST_ROUTE
 import com.fox.music.feature.playlist.ui.screen.AlbumListScreen
 import com.fox.music.feature.playlist.ui.screen.PLAYLIST_EDIT_ROUTE
+import com.fox.music.feature.playlist.ui.screen.PLAYLIST_IMPORT_DETAIL_ROUTE
 import com.fox.music.feature.playlist.ui.screen.PlaylistEditScreen
+import com.fox.music.feature.playlist.ui.screen.PlaylistImportDetailScreen
 import com.fox.music.feature.playlist.ui.screen.playlistEditRoute
+import com.fox.music.feature.playlist.ui.screen.playlistImportDetailRoute
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
 import com.fox.music.feature.player.ui.screen.manageSearchRoute
@@ -178,6 +181,8 @@ fun NavGraphBuilder.musicNavGraph(
         ),
     ) {
         val animatedScope = this
+        // 导入横幅点按 → 导入详情（逐首状态 + 失败曲目手动选音源）
+        val detailPlaylistId = it.arguments?.getString("playlistId")?.toLongOrNull() ?: 0L
         with(sharedTransitionScope) {
             MainScreenWithBottomBar(
                 navController = navController,
@@ -209,9 +214,27 @@ fun NavGraphBuilder.musicNavGraph(
                         context.musicActionsViewModel.downloadMusics(musics)
                     },
                     onSelectionModeChanged = context.onHideMiniPlayerInSelectionChange,
+                    onOpenImportDetail = {
+                        if (detailPlaylistId > 0L) {
+                            navController.navigate(playlistImportDetailRoute(detailPlaylistId))
+                        }
+                    },
                 )
             }
         }
+    }
+
+    // 导入详情是「盖上来的一层」：上滑进入、返回下滑消失（不走左右滑）
+    composableSheetStack(
+        route = PLAYLIST_IMPORT_DETAIL_ROUTE,
+        arguments = listOf(
+            navArgument("playlistId") { type = NavType.StringType },
+        ),
+    ) {
+        PlaylistImportDetailScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+        )
     }
 
     composableStack(

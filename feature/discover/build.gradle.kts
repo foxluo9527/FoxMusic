@@ -47,6 +47,7 @@ kotlin {
             api(compose.material3)
             api(compose.ui)
             api(compose.materialIconsExtended)
+            implementation(libs.compose.ui.backhandler)
         }
     }
 }
