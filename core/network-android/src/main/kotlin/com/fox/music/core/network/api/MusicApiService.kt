@@ -17,6 +17,13 @@ import com.fox.music.core.network.model.ReplaceMusicSourceRequest
 import com.fox.music.core.network.model.SubmitMusicFeedbackDto
 import com.fox.music.core.network.model.SubmitMusicFeedbackRequest
 import com.fox.music.core.network.model.TagDto
+import com.fox.music.core.network.model.ProviderSearchResultsDto
+import com.fox.music.core.model.music.ResolveThirdPartyRequest
+import com.fox.music.core.model.music.ResolveThirdPartyDto
+import com.fox.music.core.model.music.MusicExistsDto
+import com.fox.music.core.model.music.ImportSingleRequest
+import com.fox.music.core.model.music.ImportSingleResponseDto
+import com.fox.music.core.model.music.ProviderCandidateGroupDto
 import kotlinx.serialization.json.JsonElement
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -140,4 +147,45 @@ interface MusicApiService {
         @Path("id") id: Long,
         @Body body: ReplaceMusicSourceRequest,
     ): ApiResponse<Unit>
+
+    /** 按精准歌名+艺人拉取多 provider 元数据（纠错/添加单曲/搜索 二级多源 tab 用） */
+    @GET("api/music/third-party/search-providers")
+    suspend fun searchProvidersByTrack(
+        @Query("title") title: String,
+        @Query("artist") artist: String? = null,
+        @Query("platforms") platforms: String? = null,
+        @Query("limit") limit: Int = 8,
+    ): ApiResponse<ProviderSearchResultsDto>
+
+    /**
+     * 按音源渠道分组拉取候选（纠错/收录二级页「音源 tab」用）。
+     * 宽松匹配不过滤；hifini 四站为站点主题列表（RESOLVE），
+     * 其余为官方 API 直链候选（DIRECT）。
+     */
+    @GET("api/music/third-party/provider-candidates")
+    suspend fun getProviderCandidates(
+        @Query("title") title: String,
+        @Query("artist") artist: String? = null,
+        @Query("durationMs") durationMs: Long? = null,
+        @Query("groups") groups: String? = null,
+    ): ApiResponse<List<ProviderCandidateGroupDto>>
+
+    /** 按需解析第三方单曲音源（点选某首后才触发，避免列表整体超时） */
+    @POST("api/music/third-party/resolve")
+    suspend fun resolveThirdPartyAudio(
+        @Body body: ResolveThirdPartyRequest,
+    ): ApiResponse<ResolveThirdPartyDto>
+
+    /** 查询某首歌是否已收录到平台（收录/立即播放判定用） */
+    @GET("api/music/exists")
+    suspend fun checkMusicExists(
+        @Query("title") title: String,
+        @Query("artist") artist: String? = null,
+    ): ApiResponse<MusicExistsDto>
+
+    /** 收录单曲到平台（普通用户也可用，等价于 Hifi 收录） */
+    @POST("api/music/import-single")
+    suspend fun importSingleTrack(
+        @Body body: ImportSingleRequest,
+    ): ApiResponse<ImportSingleResponseDto>
 }

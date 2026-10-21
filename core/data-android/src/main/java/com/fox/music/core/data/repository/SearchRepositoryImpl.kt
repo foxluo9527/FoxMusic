@@ -8,13 +8,28 @@ import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.database.dao.SearchHistoryDao
 import com.fox.music.core.database.entity.SearchHistoryEntity
 import com.fox.music.core.domain.repository.SearchRepository
+import com.fox.music.core.model.music.ProviderCandidateGroupDto
+import com.fox.music.core.model.music.ProviderCandidateGroup
+import com.fox.music.core.model.music.ProviderCandidateDto
+import com.fox.music.core.model.music.ProviderCandidate
+import com.fox.music.core.model.music.CandidatePlayType
+import com.fox.music.core.model.music.CandidateResolveInfo
 import com.fox.music.core.model.music.HotKeyword
+import com.fox.music.core.model.music.ImportSingleRequest
+import com.fox.music.core.model.music.ImportSingleResponseDto
+import com.fox.music.core.model.music.ImportSingleResult
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.MusicExists
+import com.fox.music.core.model.music.MusicExistsDto
+import com.fox.music.core.model.music.ProviderSearchResults
 import com.fox.music.core.model.PagedData
+import com.fox.music.core.model.music.ResolveThirdPartyDto
+import com.fox.music.core.model.music.ResolveThirdPartyRequest
 import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.network.api.MusicApiService
 import com.fox.music.core.network.api.SearchApiService
+import com.fox.music.core.network.model.ProviderSearchResultsDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
@@ -129,4 +144,110 @@ class SearchRepositoryImpl @Inject constructor(
             searchHistoryDao.deleteSearchQueryByText(keyword)
             Unit
         }
+
+    override suspend fun searchProvidersByTrack(
+        title: String,
+        artist: String?,
+        platforms: List<String>?,
+        limit: Int,
+    ): Result<ProviderSearchResults> = suspendRunCatching {
+        val platformsParam = platforms?.joinToString(",")?.takeIf { it.isNotBlank() }
+        val response = musicApi.searchProvidersByTrack(
+            title = title,
+            artist = artist,
+            platforms = platformsParam,
+            limit = limit,
+        )
+        if (!response.isSuccess || response.data == null) {
+            throw IllegalStateException(response.message.takeIf { it.isNotBlank() } ?: "多源搜索失败")
+        }
+        val dto = response.data as ProviderSearchResultsDto
+        val groups = dto.nonEmptyGroups().associate { (provider, list) ->
+            provider to list.mapNotNull { it.toMusic() }
+        }
+        ProviderSearchResults(groups = groups)
+    }
+
+    override suspend fun searchProviderCandidates(
+        title: String,
+        artist: String?,
+        durationMs: Long?,
+        groups: List<String>?,
+    ): Result<List<ProviderCandidateGroup>> = suspendRunCatching {
+        val groupsParam = groups?.joinToString(",")?.takeIf { it.isNotBlank() }
+        val response = musicApi.getProviderCandidates(
+            title = title,
+            artist = artist,
+            durationMs = durationMs,
+            groups = groupsParam,
+        )
+        if (!response.isSuccess || response.data == null) {
+            throw IllegalStateException(response.message.takeIf { it.isNotBlank() } ?: "多源候选搜索失败")
+        }
+        (response.data as List<ProviderCandidateGroupDto>).map { g ->
+            ProviderCandidateGroup(
+                key = g.key,
+                label = g.label,
+                playType = CandidatePlayType.from(g.playType),
+                items = g.items.map { it.toCandidate() },
+            )
+        }
+    }
+
+    override suspend fun resolveThirdPartyAudio(req: ResolveThirdPartyRequest): Result<ResolveThirdPartyDto> =
+        suspendRunCatching {
+            val response = musicApi.resolveThirdPartyAudio(req)
+            if (!response.isSuccess || response.data == null) {
+                throw IllegalStateException(response.message.takeIf { it.isNotBlank() } ?: "音源解析失败")
+            }
+            response.data as ResolveThirdPartyDto
+        }
+
+    override suspend fun checkMusicExists(title: String, artist: String?): Result<MusicExists> =
+        suspendRunCatching {
+            val response = musicApi.checkMusicExists(title = title, artist = artist)
+            if (!response.isSuccess || response.data == null) {
+                throw IllegalStateException(response.message.takeIf { it.isNotBlank() } ?: "收录状态查询失败")
+            }
+            val dto = response.data as MusicExistsDto
+            MusicExists(exists = dto.exists, musicId = dto.musicId)
+        }
+
+    override suspend fun importSingleTrack(req: ImportSingleRequest): Result<ImportSingleResult> =
+        suspendRunCatching {
+            val response = musicApi.importSingleTrack(req)
+            if (!response.isSuccess || response.data == null) {
+                throw IllegalStateException(response.message.takeIf { it.isNotBlank() } ?: "收录失败")
+            }
+            val dto = response.data as ImportSingleResponseDto
+            ImportSingleResult(
+                musicId = dto.musicId,
+                isNew = dto.isNew,
+                playlistId = dto.playlistId,
+                alreadyInPlaylist = dto.alreadyInPlaylist,
+            )
+        }
 }
+
+/** 渠道候选 DTO → 领域模型 */
+private fun ProviderCandidateDto.toCandidate(): ProviderCandidate = ProviderCandidate(
+    id = id,
+    title = title,
+    artist = artist,
+    durationMs = durationMs,
+    playType = CandidatePlayType.from(playType),
+    directUrl = url,
+    referer = referer,
+    score = score,
+    exact = exact,
+    resolveProvider = resolveProvider,
+    resolveParams = resolveParams?.let {
+        CandidateResolveInfo(
+            site = it.site,
+            detailUrl = it.detailUrl,
+            title = it.title,
+            artist = it.artist,
+            durationMs = it.durationMs,
+        )
+    },
+)

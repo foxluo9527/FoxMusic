@@ -65,6 +65,8 @@ import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.sourceCorrectRoute
+import com.fox.music.feature.player.viewmodel.CollectTrackArgs
+import com.fox.music.feature.player.viewmodel.collectTrackRoute
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
 import com.fox.music.feature.profile.ui.screen.EDIT_PROFILE_ROUTE
@@ -254,6 +256,24 @@ fun MainScreen(
         key: String,
         source: PlaybackPlaylistSource? = null,
     ) {
+        // 第三方（网易云/QQ）歌曲不支持连续列表播放：进入单个查看/收录页，
+        // 用户可在该页试听并决定是否收录到平台。
+        if (music.isThirdParty) {
+            navController.navigate(
+                collectTrackRoute(
+                    CollectTrackArgs(
+                        title = music.title,
+                        artist = music.artists.joinToString(", ") { it.name },
+                        platform = music.sourcePlatform ?: "netease",
+                        externalId = music.sourceId,
+                        coverUrl = music.coverImage.orEmpty(),
+                        durationMs = music.duration,
+                        mode = "search",
+                    )
+                )
+            )
+            return
+        }
         val playlist = list.takeIf { it.isNotEmpty() } ?: listOf(music)
         val startIndex = playlist.indexOfFirst { it.id == music.id }.coerceAtLeast(0)
         musicController.setPlaylist(playlist, startIndex, key, source)

@@ -5,6 +5,7 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +42,7 @@ internal fun MusicSearchResults(
     updateMusicList: (List<Music>, String) -> Unit,
     playlistKey: String,
     hasSearched: Boolean,
+    onCollectClick: () -> Unit = {},
 ) {
     LaunchedEffect(pagingItems.itemSnapshotList.items, hasSearched, playlistKey) {
         if (hasSearched) {
@@ -55,18 +57,39 @@ internal fun MusicSearchResults(
     PagingResultList(
         pagingItems = pagingItems,
         emptyMessage = "未找到相关单曲",
-    ) { index ->
-        val music = pagingItems[index]
-        if (music != null) {
-            MusicListItem(
-                music = music,
-                modifier = Modifier.padding(start = 12.dp, end = 8.dp),
-                sharedTransitionScope = sharedTransitionScope,
-                animatedContentScope = animatedContentScope,
-                onClick = { onMusicClick(music) },
-                onMoreClick = { onMusicMoreClick(music) },
-            )
-        }
+        emptyAction = { SearchCollectFooterButton(onCollectClick) },
+        footer = { SearchCollectFooterButton(onCollectClick) },
+        itemContent = { index ->
+            val music = pagingItems[index]
+            if (music != null) {
+                MusicListItem(
+                    music = music,
+                    modifier = Modifier.padding(start = 12.dp, end = 8.dp),
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    onClick = { onMusicClick(music) },
+                    onMoreClick = { onMusicMoreClick(music) },
+                )
+            }
+        },
+    )
+}
+
+/** 列表底部/空态下的「去收录」入口（第三方平台搜索→收录到平台） */
+@Composable
+private fun SearchCollectFooterButton(onCollectClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "没有想要的结果，去收录",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { onCollectClick() },
+        )
     }
 }
 
@@ -78,16 +101,17 @@ internal fun ArtistSearchResults(
     PagingResultList(
         pagingItems = pagingItems,
         emptyMessage = "未找到相关歌手",
-    ) { index ->
-        val artist = pagingItems[index]
-        if (artist != null) {
-            ArtistListItem(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                artist = artist,
-                onClick = { onArtistClick(artist.id) },
-            )
-        }
-    }
+        itemContent = { index ->
+            val artist = pagingItems[index]
+            if (artist != null) {
+                ArtistListItem(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    artist = artist,
+                    onClick = { onArtistClick(artist.id) },
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -98,16 +122,17 @@ internal fun AlbumSearchResults(
     PagingResultList(
         pagingItems = pagingItems,
         emptyMessage = "未找到相关专辑",
-    ) { index ->
-        val album = pagingItems[index]
-        if (album != null) {
-            AlbumListItem(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                album = album,
-                onClick = { onAlbumClick(album) },
-            )
-        }
-    }
+        itemContent = { index ->
+            val album = pagingItems[index]
+            if (album != null) {
+                AlbumListItem(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    album = album,
+                    onClick = { onAlbumClick(album) },
+                )
+            }
+        },
+    )
 }
 
 /** 外壳没注入帖子结果内容时的兜底（比如将来 iOS 端）。 */
@@ -131,6 +156,8 @@ internal fun <T : Any> PagingResultList(
     pagingItems: LazyPagingItems<T>,
     emptyMessage: String,
     itemContent: @Composable (index: Int) -> Unit,
+    emptyAction: (@Composable () -> Unit)? = null,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     when {
         pagingItems.loadState.refresh is LoadState.Loading -> {
@@ -147,11 +174,17 @@ internal fun <T : Any> PagingResultList(
         }
 
         pagingItems.loadState.refresh is LoadState.NotLoading && pagingItems.itemCount == 0 -> {
-            ErrorView(
+            Column(
                 modifier = Modifier.fillMaxSize(),
-                message = emptyMessage,
-                showIcon = false,
-            )
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                ErrorView(
+                    message = emptyMessage,
+                    showIcon = false,
+                )
+                emptyAction?.invoke()
+            }
         }
 
         else -> {
@@ -172,6 +205,12 @@ internal fun <T : Any> PagingResultList(
                     },
                 ) { index ->
                     itemContent(index)
+                }
+
+                if (footer != null) {
+                    item(key = "collect_footer") {
+                        footer()
+                    }
                 }
 
                 when (pagingItems.loadState.append) {

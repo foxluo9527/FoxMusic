@@ -4,8 +4,6 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
 import androidx.lifecycle.viewModelScope
-import androidx.paging.PagingData
-import androidx.paging.cachedIn
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
@@ -13,21 +11,26 @@ import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.UploadRepository
 import com.fox.music.core.domain.usecase.GetMusicDetailUseCase
-import com.fox.music.core.domain.usecase.GetSearchMusicPagingUseCase
 import com.fox.music.core.domain.usecase.ReplaceMusicSourceUseCase
+import com.fox.music.core.domain.usecase.ResolveThirdPartyAudioUseCase
+import com.fox.music.core.domain.usecase.SearchProviderCandidatesUseCase
+import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.CandidatePlayType
+import com.fox.music.core.model.music.CandidateResolveParams
 import com.fox.music.core.model.music.LyricsParser
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.ProviderCandidate
+import com.fox.music.core.model.music.ProviderCandidateGroup
+import com.fox.music.core.model.music.ResolveThirdPartyRequest
 import com.fox.music.core.player.controller.MusicController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SourceCorrectTab(val label: String) {
+enum class SourceCorrectMode(val label: String) {
     SEARCH("搜索替换"),
     UPLOAD("上传文件"),
 }
@@ -38,27 +41,52 @@ data class SourceCorrectState(
     val isTargetLoading: Boolean = false,
     /** 原歌曲歌词（LRC 解析），试听候选音源时对照展示 */
     val targetLyrics: List<LyricsParser.LyricLine> = emptyList(),
-    val activeTab: SourceCorrectTab = SourceCorrectTab.SEARCH,
+    /** 右上角切换：搜索替换 / 上传文件 */
+    val mode: SourceCorrectMode = SourceCorrectMode.SEARCH,
+    /** 单行搜索区：歌名 + 艺人（点击弹窗编辑） */
     val query: String = "",
-    val platform: ManageSearchPlatform = ManageSearchPlatform.NETEASE,
-    val hasSearched: Boolean = false,
-    val musicPaging: Flow<PagingData<Music>> = flowOf(PagingData.empty()),
-    val searchKey: Int = 0,
-    val selectedThirdParty: Music? = null,
+    val artistQuery: String = "",
+    val isSearching: Boolean = false,
+    /** 各音源渠道候选（一个渠道一个 tab，宽松匹配） */
+    val groups: List<ProviderCandidateGroup> = emptyList(),
+    val activeGroupKey: String = "",
+    /** 正在解析的候选 id 集合 */
+    val resolvingIds: Set<String> = emptySet(),
+    /** 已解析出直链的候选：id -> url */
+    val resolvedUrls: Map<String, String> = emptyMap(),
+    /** 当前选中候选 id（已拿到可播直链） */
+    val selectedCandidateId: String? = null,
+    /** 正在试听的候选 id */
+    val previewCandidateId: String? = null,
     val preview: PreviewPlaybackState = PreviewPlaybackState(),
     val pickedFileUri: Uri? = null,
     val pickedFileName: String? = null,
     val isReplacing: Boolean = false,
-) : UiState
+) : UiState {
+    val activeGroup: ProviderCandidateGroup?
+        get() = groups.firstOrNull { it.key == activeGroupKey } ?: groups.firstOrNull()
+
+    val activeCandidates: List<ProviderCandidate>
+        get() = activeGroup?.items.orEmpty()
+
+    val selectedCandidate: ProviderCandidate?
+        get() = groups.asSequence().flatMap { it.items }.firstOrNull { it.id == selectedCandidateId }
+
+    val resolvedCandidate: ProviderCandidate?
+        get() = selectedCandidate?.takeIf { resolvedUrls.containsKey(it.id) }
+}
 
 sealed interface SourceCorrectIntent : UiIntent {
     data class Init(val musicId: Long) : SourceCorrectIntent
-    data class SelectTab(val tab: SourceCorrectTab) : SourceCorrectIntent
-    data class QueryChange(val query: String) : SourceCorrectIntent
-    data class SelectPlatform(val platform: ManageSearchPlatform) : SourceCorrectIntent
-    data object Search : SourceCorrectIntent
-    data class SelectThirdParty(val music: Music?) : SourceCorrectIntent
-    data class Preview(val music: Music) : SourceCorrectIntent
+    data class SwitchMode(val mode: SourceCorrectMode) : SourceCorrectIntent
+    data class EditQuery(val title: String, val artist: String) : SourceCorrectIntent
+    data object SearchProviders : SourceCorrectIntent
+    data class SelectGroup(val key: String) : SourceCorrectIntent
+    /** 勾选候选：DIRECT 直接选中；RESOLVE 先解析再选中 */
+    data class SelectCandidate(val candidate: ProviderCandidate) : SourceCorrectIntent
+    /** 点击候选右侧播放/解析图标：未解析则先解析后自动播放 */
+    data class ToggleCandidatePlay(val candidate: ProviderCandidate) : SourceCorrectIntent
+    data class SeekPreview(val positionMs: Long) : SourceCorrectIntent
     data object TogglePreviewPlayPause : SourceCorrectIntent
     data object StopPreview : SourceCorrectIntent
     data class PickFile(val uri: Uri?, val fileName: String?) : SourceCorrectIntent
@@ -74,7 +102,8 @@ sealed interface SourceCorrectEffect : UiEffect {
 @HiltViewModel
 class SourceCorrectViewModel @Inject constructor(
     private val getMusicDetailUseCase: GetMusicDetailUseCase,
-    private val getSearchMusicPagingUseCase: GetSearchMusicPagingUseCase,
+    private val searchProviderCandidatesUseCase: SearchProviderCandidatesUseCase,
+    private val resolveThirdPartyAudioUseCase: ResolveThirdPartyAudioUseCase,
     private val uploadRepository: UploadRepository,
     private val replaceMusicSourceUseCase: ReplaceMusicSourceUseCase,
     private val musicController: MusicController,
@@ -96,32 +125,20 @@ class SourceCorrectViewModel @Inject constructor(
                 }
                 loadTargetMusic(intent.musicId)
             }
-            is SourceCorrectIntent.SelectTab -> {
+            is SourceCorrectIntent.SwitchMode -> {
                 stopPreviewInternal()
-                updateState { copy(activeTab = intent.tab) }
+                updateState { copy(mode = intent.mode) }
             }
-            is SourceCorrectIntent.QueryChange -> updateState { copy(query = intent.query) }
-            is SourceCorrectIntent.SelectPlatform -> {
-                updateState { copy(platform = intent.platform) }
-                if (currentState.hasSearched && currentState.query.isNotBlank()) {
-                    performSearch()
-                }
+            is SourceCorrectIntent.EditQuery -> {
+                updateState { copy(query = intent.title, artistQuery = intent.artist) }
+                searchProviders()
             }
-            SourceCorrectIntent.Search -> performSearch()
-            is SourceCorrectIntent.SelectThirdParty -> {
-                updateState { copy(selectedThirdParty = intent.music) }
-                // 选中与当前音源时长几乎一致的候选时提醒：极可能是同一首歌
-                val targetDuration = currentState.targetMusic?.duration ?: 0L
-                val candidateDuration = intent.music?.duration ?: 0L
-                if (targetDuration > 0 && candidateDuration > 0 &&
-                    Math.abs(candidateDuration - targetDuration) < 3_000L
-                ) {
-                    sendEffect(
-                        SourceCorrectEffect.ShowMessage("注意：该候选与当前音源时长几乎一致，可能是同一首歌，替换后内容可能不变")
-                    )
-                }
-            }
-            is SourceCorrectIntent.Preview -> startPreview(intent.music)
+            SourceCorrectIntent.SearchProviders -> searchProviders()
+            is SourceCorrectIntent.SelectGroup ->
+                updateState { copy(activeGroupKey = intent.key) }
+            is SourceCorrectIntent.SelectCandidate -> selectCandidate(intent.candidate)
+            is SourceCorrectIntent.ToggleCandidatePlay -> toggleCandidatePlay(intent.candidate)
+            is SourceCorrectIntent.SeekPreview -> seekPreview(intent.positionMs)
             SourceCorrectIntent.TogglePreviewPlayPause -> togglePreviewPlayPause()
             SourceCorrectIntent.StopPreview -> stopPreviewInternal()
             is SourceCorrectIntent.PickFile -> {
@@ -143,16 +160,18 @@ class SourceCorrectViewModel @Inject constructor(
             updateState { copy(isTargetLoading = true) }
             getMusicDetailUseCase(musicId)
                 .onSuccess { detail ->
+                    val title = detail.music.title
+                    val artist = detail.music.artists.joinToString(", ") { it.name }.ifBlank { "" }
                     updateState {
                         copy(
                             targetMusic = detail.music,
                             isTargetLoading = false,
-                            // 搜索框默认带入当前歌曲名；用户已输入过关键词则不覆盖
-                            query = if (query.isBlank()) detail.music.title else query,
-                            // 原歌歌词用于试听对照
+                            query = if (query.isBlank()) title else query,
+                            artistQuery = if (artistQuery.isBlank()) artist else artistQuery,
                             targetLyrics = LyricsParser.parseLrc(detail.music.lyrics.orEmpty()),
                         )
                     }
+                    searchProviders()
                 }
                 .onError { _, _ ->
                     updateState { copy(isTargetLoading = false) }
@@ -160,33 +179,172 @@ class SourceCorrectViewModel @Inject constructor(
         }
     }
 
-    private fun performSearch() {
-        val keyword = currentState.query.trim()
-        if (keyword.isBlank()) {
-            sendEffect(SourceCorrectEffect.ShowMessage("请输入搜索关键词"))
+    /** 按歌名+艺人拉取各音源渠道候选（宽松匹配，不解析直链） */
+    private fun searchProviders() {
+        val title = currentState.query.trim()
+        if (title.isBlank()) {
+            sendEffect(SourceCorrectEffect.ShowMessage("请输入歌名"))
             return
         }
-        val flow = getSearchMusicPagingUseCase(
-            keyword = keyword,
-            platform = currentState.platform.apiValue,
-        ).cachedIn(viewModelScope)
-        updateState {
-            copy(
-                hasSearched = true,
-                musicPaging = flow,
-                searchKey = searchKey + 1,
-                selectedThirdParty = null,
-            )
+        val artist = currentState.artistQuery.trim().ifBlank { null }
+        val durationMs = currentState.targetMusic?.duration?.takeIf { it > 0 }
+        viewModelScope.launch {
+            updateState {
+                copy(
+                    isSearching = true,
+                    groups = emptyList(),
+                    activeGroupKey = "",
+                    resolvingIds = emptySet(),
+                    resolvedUrls = emptyMap(),
+                    selectedCandidateId = null,
+                )
+            }
+            stopPreviewInternal()
+            when (
+                val result = searchProviderCandidatesUseCase(
+                    title = title,
+                    artist = artist,
+                    durationMs = durationMs,
+                )
+            ) {
+                is Result.Success -> {
+                    updateState {
+                        copy(
+                            isSearching = false,
+                            groups = result.data,
+                            activeGroupKey = result.data.firstOrNull()?.key.orEmpty(),
+                        )
+                    }
+                }
+                is Result.Error -> {
+                    updateState { copy(isSearching = false) }
+                    sendEffect(
+                        SourceCorrectEffect.ShowMessage(
+                            result.message ?: result.exception.message ?: "多源搜索失败"
+                        )
+                    )
+                }
+                Result.Loading -> Unit
+            }
         }
     }
 
-    private fun startPreview(music: Music) {
-        val url = music.url
+    /** 勾选候选：DIRECT 直接选中；RESOLVE 先按需解析直链 */
+    private fun selectCandidate(candidate: ProviderCandidate) {
+        if (!candidate.canSelect) {
+            sendEffect(SourceCorrectEffect.ShowMessage("该候选无法解析音源，不能选择"))
+            return
+        }
+        val cached = currentState.resolvedUrls[candidate.id]
+        if (cached != null) {
+            updateState { copy(selectedCandidateId = candidate.id) }
+            return
+        }
+        if (candidate.playType == CandidatePlayType.DIRECT) {
+            val direct = candidate.directUrl
+            if (!direct.isNullOrBlank()) {
+                updateState {
+                    copy(
+                        selectedCandidateId = candidate.id,
+                        resolvedUrls = resolvedUrls + (candidate.id to direct),
+                    )
+                }
+                return
+            }
+        }
+        // RESOLVE：勾选即触发解析
+        updateState { copy(selectedCandidateId = candidate.id) }
+        resolveCandidate(candidate) { url ->
+            if (url != null) {
+                updateState { copy(resolvedUrls = resolvedUrls + (candidate.id to url)) }
+            }
+        }
+    }
+
+    /** 点击播放/解析图标：未解析则先解析，成功后自动播放；已播则暂停 */
+    private fun toggleCandidatePlay(candidate: ProviderCandidate) {
+        if (!candidate.canSelect) {
+            sendEffect(SourceCorrectEffect.ShowMessage("该候选无法解析音源"))
+            return
+        }
+        val url = currentState.resolvedUrls[candidate.id] ?: candidate.directUrl
+        if (url.isNullOrBlank()) {
+            resolveCandidate(candidate) { resolved ->
+                if (resolved != null) {
+                    updateState {
+                        copy(
+                            resolvedUrls = resolvedUrls + (candidate.id to resolved),
+                            selectedCandidateId = candidate.id,
+                        )
+                    }
+                    startPreview(candidate, resolved)
+                }
+            }
+            return
+        }
+        if (currentState.previewCandidateId == candidate.id && currentState.preview.isPlaying) {
+            togglePreviewPlayPause()
+            return
+        }
+        updateState { copy(selectedCandidateId = candidate.id) }
+        startPreview(candidate, url)
+    }
+
+    /** 解析候选直链（DIRECT 直接用缓存直链；RESOLVE 走服务端逆向/代理） */
+    private fun resolveCandidate(candidate: ProviderCandidate, onDone: (String?) -> Unit) {
+        if (currentState.resolvingIds.contains(candidate.id)) return
+        updateState { copy(resolvingIds = resolvingIds + candidate.id) }
+        val req = ResolveThirdPartyRequest(
+            title = candidate.title,
+            artist = candidate.artist.ifBlank { null },
+            durationMs = candidate.durationMs,
+            resolveProvider = candidate.resolveProvider,
+            resolveParams = candidate.resolveParams?.let {
+                CandidateResolveParams(
+                    site = it.site,
+                    detailUrl = it.detailUrl,
+                    title = it.title,
+                    artist = it.artist,
+                    durationMs = it.durationMs,
+                )
+            },
+        )
+        viewModelScope.launch {
+            when (val result = resolveThirdPartyAudioUseCase(req)) {
+                is Result.Success -> {
+                    updateState { copy(resolvingIds = resolvingIds - candidate.id) }
+                    onDone(result.data.url.takeIf { it.isNotBlank() })
+                }
+                is Result.Error -> {
+                    updateState { copy(resolvingIds = resolvingIds - candidate.id) }
+                    sendEffect(
+                        SourceCorrectEffect.ShowMessage(
+                            result.message ?: result.exception.message ?: "音源解析失败"
+                        )
+                    )
+                    onDone(null)
+                }
+                Result.Loading -> Unit
+            }
+        }
+    }
+
+    private fun previewMusicOf(candidate: ProviderCandidate, url: String): Music = Music(
+        id = candidate.id.hashCode().toLong(),
+        sourceId = candidate.id,
+        title = candidate.title,
+        url = url,
+        duration = candidate.durationMs ?: 0L,
+        artists = listOf(Artist(id = 0L, name = candidate.artist)),
+    )
+
+    private fun startPreview(candidate: ProviderCandidate, url: String) {
         if (url.isBlank()) {
-            sendEffect(SourceCorrectEffect.ShowMessage("当前歌曲无法试听"))
+            sendEffect(SourceCorrectEffect.ShowMessage("当前歌曲无法试听（请先解析音源）"))
             return
         }
         stopPreviewInternal()
+        val music = previewMusicOf(candidate, url)
         try {
             val player = MediaPlayer().apply {
                 setAudioAttributes(
@@ -200,12 +358,13 @@ class SourceCorrectViewModel @Inject constructor(
                     mp.start()
                     updateState {
                         copy(
+                            previewCandidateId = candidate.id,
                             preview = PreviewPlaybackState(
                                 music = music,
                                 isPlaying = true,
                                 positionMs = 0,
                                 durationMs = mp.duration.toLong().coerceAtLeast(0),
-                            )
+                            ),
                         )
                     }
                     startProgressTicker()
@@ -216,7 +375,7 @@ class SourceCorrectViewModel @Inject constructor(
                             preview = preview.copy(
                                 isPlaying = false,
                                 positionMs = preview.durationMs,
-                            )
+                            ),
                         )
                     }
                     progressJob?.cancel()
@@ -230,7 +389,10 @@ class SourceCorrectViewModel @Inject constructor(
             }
             mediaPlayer = player
             updateState {
-                copy(preview = PreviewPlaybackState(music = music, isPlaying = false))
+                copy(
+                    previewCandidateId = candidate.id,
+                    preview = PreviewPlaybackState(music = music, isPlaying = false),
+                )
             }
         } catch (_: Exception) {
             stopPreviewInternal()
@@ -255,6 +417,16 @@ class SourceCorrectViewModel @Inject constructor(
         }
     }
 
+    private fun seekPreview(positionMs: Long) {
+        val player = mediaPlayer ?: return
+        try {
+            val target = positionMs.coerceIn(0L, player.duration.toLong().coerceAtLeast(0L))
+            player.seekTo(target.toInt())
+            updateState { copy(preview = preview.copy(positionMs = target)) }
+        } catch (_: Exception) {
+        }
+    }
+
     private fun startProgressTicker() {
         progressJob?.cancel()
         progressJob = viewModelScope.launch {
@@ -267,7 +439,7 @@ class SourceCorrectViewModel @Inject constructor(
                                 positionMs = player.currentPosition.toLong(),
                                 durationMs = player.duration.toLong().coerceAtLeast(0),
                                 isPlaying = player.isPlaying,
-                            )
+                            ),
                         )
                     }
                 } catch (_: Exception) {
@@ -290,28 +462,33 @@ class SourceCorrectViewModel @Inject constructor(
         } catch (_: Exception) {
         }
         mediaPlayer = null
-        updateState { copy(preview = PreviewPlaybackState()) }
+        updateState {
+            copy(
+                previewCandidateId = null,
+                preview = PreviewPlaybackState(),
+            )
+        }
     }
 
     private suspend fun replaceFromThirdParty() {
-        val music = currentState.selectedThirdParty
-        if (music == null) {
-            sendEffect(SourceCorrectEffect.ShowMessage("请先选择一首替换歌曲"))
+        val candidate = currentState.resolvedCandidate
+        if (candidate == null) {
+            sendEffect(SourceCorrectEffect.ShowMessage("请先选择并解析一首替换歌曲"))
             return
         }
-        if (music.url.isBlank()) {
+        val url = currentState.resolvedUrls[candidate.id]
+        if (url.isNullOrBlank()) {
             sendEffect(SourceCorrectEffect.ShowMessage("该歌曲没有可用音源"))
             return
         }
         stopPreviewInternal()
         updateState { copy(isReplacing = true) }
-        val referer = platformReferer(currentState.platform)
         when (
             val result = replaceMusicSourceUseCase(
                 musicId = currentState.musicId,
-                url = music.url,
-                referer = referer,
-                duration = music.duration.takeIf { it > 0 },
+                url = url,
+                referer = null,
+                duration = candidate.durationMs?.takeIf { it > 0 },
             )
         ) {
             is Result.Success -> {
@@ -371,8 +548,6 @@ class SourceCorrectViewModel @Inject constructor(
         ) {
             is Result.Success -> {
                 updateState { copy(isReplacing = false) }
-                // 服务端已换源：拉取最新详情，把新地址同步给播放器（内存歌单 + 队列 + 覆盖表），
-                // 否则列表/队列里的旧 Music 仍会指向替换前的旧音频。
                 refreshPlayerUrl()
                 sendEffect(SourceCorrectEffect.ShowMessage("音源替换成功"))
                 sendEffect(SourceCorrectEffect.ReplaceSucceeded)
@@ -399,10 +574,5 @@ class SourceCorrectViewModel @Inject constructor(
                 musicController.updateMusicUrl(musicId, url)
             }
         }
-    }
-
-    private fun platformReferer(platform: ManageSearchPlatform): String? = when (platform) {
-        ManageSearchPlatform.NETEASE -> "https://music.163.com/"
-        ManageSearchPlatform.QQ -> "https://y.qq.com/"
     }
 }

@@ -80,11 +80,16 @@ import com.fox.music.core.domain.usecase.RemoveTrackFromPlaylistUseCase
 import com.fox.music.core.domain.usecase.RemoveTracksFromPlaylistUseCase
 import com.fox.music.core.domain.usecase.ResetPasswordUseCase
 import com.fox.music.core.domain.usecase.ResolveMusicCommentNavigationUseCase
+import com.fox.music.core.domain.usecase.ResolveThirdPartyAudioUseCase
 import com.fox.music.core.domain.usecase.SaveSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.SearchMusicUseCase
+import com.fox.music.core.domain.usecase.SearchProvidersByTrackUseCase
+import com.fox.music.core.domain.usecase.SearchProviderCandidatesUseCase
 import com.fox.music.core.domain.usecase.SubmitReportUseCase
 import com.fox.music.core.domain.usecase.SubmitMusicFeedbackUseCase
 import com.fox.music.core.domain.usecase.ReplaceMusicSourceUseCase
+import com.fox.music.core.domain.usecase.CheckMusicExistsUseCase
+import com.fox.music.core.domain.usecase.ImportSingleTrackUseCase
 import com.fox.music.core.domain.usecase.ToggleAlbumFavoriteUseCase
 import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.domain.usecase.TogglePlaylistFavoriteUseCase
@@ -354,5 +359,25 @@ object UseCaseModule {
 
     @Provides
     fun provideUpdateProfileUseCase(authRepository: AuthRepository): UpdateProfileUseCase = UpdateProfileUseCase(authRepository)
+
+    @Provides
+    fun provideSearchProvidersByTrackUseCase(searchRepository: SearchRepository): SearchProvidersByTrackUseCase =
+        SearchProvidersByTrackUseCase(searchRepository)
+
+    @Provides
+    fun provideResolveThirdPartyAudioUseCase(searchRepository: SearchRepository): ResolveThirdPartyAudioUseCase =
+        ResolveThirdPartyAudioUseCase(searchRepository)
+
+    @Provides
+    fun provideCheckMusicExistsUseCase(searchRepository: SearchRepository): CheckMusicExistsUseCase =
+        CheckMusicExistsUseCase(searchRepository)
+
+    @Provides
+    fun provideImportSingleTrackUseCase(searchRepository: SearchRepository): ImportSingleTrackUseCase =
+        ImportSingleTrackUseCase(searchRepository)
+
+    @Provides
+    fun provideSearchProviderCandidatesUseCase(searchRepository: SearchRepository): SearchProviderCandidatesUseCase =
+        SearchProviderCandidatesUseCase(searchRepository)
 
 }

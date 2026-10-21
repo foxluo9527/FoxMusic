@@ -19,17 +19,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +36,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -48,7 +48,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,22 +59,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.paging.LoadState
-import androidx.paging.PagingData
-import androidx.paging.compose.collectAsLazyPagingItems
+import com.fox.music.core.model.music.CandidatePlayType
 import com.fox.music.core.model.music.LyricsParser
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.ProviderCandidate
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
-import com.fox.music.core.ui.component.FoxLinearProgress
 import com.fox.music.core.ui.component.LoadingIndicator
-import com.fox.music.feature.player.viewmodel.ManageSearchPlatform
 import com.fox.music.feature.player.viewmodel.PreviewPlaybackState
 import com.fox.music.feature.player.viewmodel.SourceCorrectEffect
 import com.fox.music.feature.player.viewmodel.SourceCorrectIntent
-import com.fox.music.feature.player.viewmodel.SourceCorrectTab
+import com.fox.music.feature.player.viewmodel.SourceCorrectMode
 import com.fox.music.feature.player.viewmodel.SourceCorrectViewModel
-import kotlinx.coroutines.flow.Flow
 
 const val SOURCE_CORRECT_ROUTE = "source_correct/{musicId}"
 
@@ -93,6 +88,7 @@ fun SourceCorrectScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var showReplaceConfirm by remember { mutableStateOf(false) }
+    var showQueryEditor by remember { mutableStateOf(false) }
 
     LaunchedEffect(musicId) {
         viewModel.sendIntent(SourceCorrectIntent.Init(musicId))
@@ -118,6 +114,23 @@ fun SourceCorrectScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
+                actions = {
+                    // 右上角切换「搜索替换 / 上传文件」模式（不再用 tab）
+                    TextButton(
+                        onClick = {
+                            val next = if (state.mode == SourceCorrectMode.SEARCH) {
+                                SourceCorrectMode.UPLOAD
+                            } else {
+                                SourceCorrectMode.SEARCH
+                            }
+                            viewModel.sendIntent(SourceCorrectIntent.SwitchMode(next))
+                        },
+                    ) {
+                        Text(
+                            if (state.mode == SourceCorrectMode.SEARCH) "上传文件" else "搜索替换",
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     scrolledContainerColor = MaterialTheme.colorScheme.surface,
@@ -125,34 +138,34 @@ fun SourceCorrectScreen(
             )
         },
         bottomBar = {
-            Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = when (state.activeTab) {
-                                SourceCorrectTab.SEARCH ->
-                                    state.selectedThirdParty?.let { "已选：${it.title}" } ?: "请选择一首替换歌曲"
-                                SourceCorrectTab.UPLOAD ->
-                                    state.pickedFileName?.let { "已选文件：$it" } ?: "请选择音频文件"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Button(
-                        onClick = { showReplaceConfirm = true },
-                        enabled = when (state.activeTab) {
-                            SourceCorrectTab.SEARCH -> state.selectedThirdParty != null
-                            SourceCorrectTab.UPLOAD -> state.pickedFileUri != null
-                        } && !state.isReplacing,
+            if (state.mode == SourceCorrectMode.SEARCH) {
+                Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (state.isReplacing) "替换中..." else "确认替换")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = when {
+                                    state.resolvedCandidate != null ->
+                                        "已选并解析：${state.resolvedCandidate?.title}"
+                                    state.selectedCandidate != null ->
+                                        "已选：${state.selectedCandidate?.title}（解析中…）"
+                                    else -> "请选择一首候选歌曲（点击自动解析音源）"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Button(
+                            onClick = { showReplaceConfirm = true },
+                            enabled = state.resolvedCandidate != null && !state.isReplacing,
+                        ) {
+                            Text(if (state.isReplacing) "替换中..." else "确认替换")
+                        }
                     }
                 }
             }
@@ -169,39 +182,38 @@ fun SourceCorrectScreen(
                     isLoading = state.isTargetLoading,
                 )
 
-                TabRow(selectedTabIndex = state.activeTab.ordinal) {
-                    SourceCorrectTab.entries.forEach { tab ->
-                        Tab(
-                            selected = state.activeTab == tab,
-                            onClick = { viewModel.sendIntent(SourceCorrectIntent.SelectTab(tab)) },
-                            text = { Text(tab.label) },
-                        )
-                    }
-                }
-
-                when (state.activeTab) {
-                    SourceCorrectTab.SEARCH -> SearchReplaceTab(
+                when (state.mode) {
+                    SourceCorrectMode.SEARCH -> SearchReplaceTab(
                         query = state.query,
-                        platform = state.platform,
-                        hasSearched = state.hasSearched,
-                        musicPaging = state.musicPaging,
-                        searchKey = state.searchKey,
-                        selectedMusic = state.selectedThirdParty,
+                        artistQuery = state.artistQuery,
+                        isSearching = state.isSearching,
+                        groups = state.groups,
+                        activeGroupKey = state.activeGroup?.key.orEmpty(),
+                        candidates = state.activeCandidates,
+                        selectedCandidateId = state.selectedCandidateId,
+                        resolvingIds = state.resolvingIds,
+                        resolvedUrls = state.resolvedUrls,
+                        previewCandidateId = state.previewCandidateId,
+                        isPreviewPlaying = state.preview.isPlaying,
                         targetDurationMs = state.targetMusic?.duration,
-                        onQueryChange = { viewModel.sendIntent(SourceCorrectIntent.QueryChange(it)) },
-                        onSearch = { viewModel.sendIntent(SourceCorrectIntent.Search) },
-                        onSelectPlatform = { viewModel.sendIntent(SourceCorrectIntent.SelectPlatform(it)) },
-                        onSelectMusic = {
-                            viewModel.sendIntent(SourceCorrectIntent.SelectThirdParty(it))
+                        onEditQuery = { showQueryEditor = true },
+                        onSearch = { viewModel.sendIntent(SourceCorrectIntent.SearchProviders) },
+                        onSelectGroup = { viewModel.sendIntent(SourceCorrectIntent.SelectGroup(it)) },
+                        onSelectCandidate = {
+                            viewModel.sendIntent(SourceCorrectIntent.SelectCandidate(it))
                         },
-                        onPreview = { viewModel.sendIntent(SourceCorrectIntent.Preview(it)) },
+                        onTogglePlay = {
+                            viewModel.sendIntent(SourceCorrectIntent.ToggleCandidatePlay(it))
+                        },
                     )
 
-                    SourceCorrectTab.UPLOAD -> UploadReplaceTab(
+                    SourceCorrectMode.UPLOAD -> UploadReplaceTab(
                         pickedFileName = state.pickedFileName,
+                        isReplacing = state.isReplacing,
                         onFilePicked = { uri, name ->
                             viewModel.sendIntent(SourceCorrectIntent.PickFile(uri, name))
                         },
+                        onReplace = { viewModel.sendIntent(SourceCorrectIntent.ReplaceFromFile) },
                     )
                 }
             }
@@ -212,11 +224,24 @@ fun SourceCorrectScreen(
                     music = previewMusic,
                     lyrics = state.targetLyrics,
                     onPlayPause = { viewModel.sendIntent(SourceCorrectIntent.TogglePreviewPlayPause) },
+                    onSeek = { viewModel.sendIntent(SourceCorrectIntent.SeekPreview(it)) },
                     onClose = { viewModel.sendIntent(SourceCorrectIntent.StopPreview) },
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
         }
+    }
+
+    if (showQueryEditor) {
+        QueryEditorDialog(
+            initialTitle = state.query,
+            initialArtist = state.artistQuery,
+            onDismiss = { showQueryEditor = false },
+            onConfirm = { title, artist ->
+                showQueryEditor = false
+                viewModel.sendIntent(SourceCorrectIntent.EditQuery(title, artist))
+            },
+        )
     }
 
     if (showReplaceConfirm) {
@@ -225,24 +250,14 @@ fun SourceCorrectScreen(
             title = { Text("确认替换音源") },
             text = {
                 Text(
-                    when (state.activeTab) {
-                        SourceCorrectTab.SEARCH ->
-                            "将把「${state.targetMusic?.title ?: "当前歌曲"}」的音源替换为「${state.selectedThirdParty?.title ?: ""}」，替换后会自动重新分析高潮片段。"
-                        SourceCorrectTab.UPLOAD ->
-                            "将把「${state.targetMusic?.title ?: "当前歌曲"}」的音源替换为上传的文件「${state.pickedFileName ?: ""}」，替换后会自动重新分析高潮片段。"
-                    }
+                    "将把「${state.targetMusic?.title ?: "当前歌曲"}」的音源替换为「${state.resolvedCandidate?.title ?: ""}」，替换后会自动重新分析高潮片段。"
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showReplaceConfirm = false
-                        when (state.activeTab) {
-                            SourceCorrectTab.SEARCH ->
-                                viewModel.sendIntent(SourceCorrectIntent.ReplaceFromThirdParty)
-                            SourceCorrectTab.UPLOAD ->
-                                viewModel.sendIntent(SourceCorrectIntent.ReplaceFromFile)
-                        }
+                        viewModel.sendIntent(SourceCorrectIntent.ReplaceFromThirdParty)
                     },
                 ) {
                     Text("确认替换")
@@ -299,165 +314,152 @@ private fun SourceCorrectHeader(
     }
 }
 
+/** 单行搜索区：名称 · 艺人 + 搜索按钮；点击整行弹窗编辑 */
+/** 单行搜索区：名称 · 艺人 + 搜索按钮；点击「编辑」弹窗修改（纠错/收录共用） */
+@Composable
+internal fun SearchQueryBar(
+    query: String,
+    artistQuery: String,
+    isSearching: Boolean,
+    onEditQuery: () -> Unit,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = MaterialTheme.shapes.medium,
+        tonalElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
+            ) {
+                Text(
+                    text = query.ifBlank { "歌曲名称" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = artistQuery.ifBlank { "艺人（可留空，宽松匹配）" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TextButton(onClick = onEditQuery) {
+                Text("编辑")
+            }
+            Button(onClick = onSearch, enabled = !isSearching) {
+                Text(if (isSearching) "搜索中" else "搜索")
+            }
+        }
+    }
+}
+
 @Composable
 private fun SearchReplaceTab(
     query: String,
-    platform: ManageSearchPlatform,
-    hasSearched: Boolean,
-    musicPaging: Flow<PagingData<Music>>,
-    searchKey: Int,
-    selectedMusic: Music?,
-    /** 当前歌曲时长（毫秒）：用于「疑似同一首歌」提示，防无效替换 */
+    artistQuery: String,
+    isSearching: Boolean,
+    groups: List<com.fox.music.core.model.music.ProviderCandidateGroup>,
+    activeGroupKey: String,
+    candidates: List<ProviderCandidate>,
+    selectedCandidateId: String?,
+    resolvingIds: Set<String>,
+    resolvedUrls: Map<String, String>,
+    previewCandidateId: String?,
+    isPreviewPlaying: Boolean,
     targetDurationMs: Long?,
-    onQueryChange: (String) -> Unit,
+    onEditQuery: () -> Unit,
     onSearch: () -> Unit,
-    onSelectPlatform: (ManageSearchPlatform) -> Unit,
-    onSelectMusic: (Music?) -> Unit,
-    onPreview: (Music) -> Unit,
+    onSelectGroup: (String) -> Unit,
+    onSelectCandidate: (ProviderCandidate) -> Unit,
+    onTogglePlay: (ProviderCandidate) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("输入关键词搜索...") },
-                singleLine = true,
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-            )
-            Button(onClick = onSearch) {
-                Text("搜索")
-            }
-        }
+        SearchQueryBar(
+            query = query,
+            artistQuery = artistQuery,
+            isSearching = isSearching,
+            onEditQuery = onEditQuery,
+            onSearch = onSearch,
+        )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            ManageSearchPlatform.entries.forEach { item ->
-                FilterChip(
-                    selected = platform == item,
-                    onClick = { onSelectPlatform(item) },
-                    label = { Text(item.label) },
-                )
+        if (groups.isNotEmpty()) {
+            TabRow(selectedTabIndex = groups.indexOfFirst { it.key == activeGroupKey }.coerceAtLeast(0)) {
+                groups.forEach { group ->
+                    Tab(
+                        selected = activeGroupKey == group.key,
+                        onClick = { onSelectGroup(group.key) },
+                        text = { Text("${group.label} ${group.size}") },
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (!hasSearched) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "搜索网易云 / QQ 音乐，试听选中后替换",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        when {
+            isSearching -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    LoadingIndicator()
+                }
             }
-        } else {
-            key(searchKey) {
-                SourceCorrectResultList(
-                    musicPaging = musicPaging,
-                    selectedMusic = selectedMusic,
-                    targetDurationMs = targetDurationMs,
-                    onSelectMusic = onSelectMusic,
-                    onPreview = onPreview,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SourceCorrectResultList(
-    musicPaging: Flow<PagingData<Music>>,
-    selectedMusic: Music?,
-    targetDurationMs: Long?,
-    onSelectMusic: (Music?) -> Unit,
-    onPreview: (Music) -> Unit,
-) {
-    val musicItems = musicPaging.collectAsLazyPagingItems()
-
-    when (val refresh = musicItems.loadState.refresh) {
-        is LoadState.Loading -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LoadingIndicator()
-            }
-        }
-
-        is LoadState.Error -> {
-            ErrorView(
-                message = refresh.error.message ?: "搜索失败",
-                onRetry = { musicItems.retry() },
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-
-        else -> {
-            if (musicItems.itemCount == 0) {
+            groups.isEmpty() -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "没有搜索结果",
+                        text = "从各音源渠道搜索候选，勾选后自动解析音源",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            } else {
+            }
+            candidates.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "该音源没有候选结果",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
                 ) {
-                    items(
-                        count = musicItems.itemCount,
-                        // 注意：第三方搜索结果中同一首歌可能重复出现，仅用 sourceId_id 会撞 key 崩溃，必须拼上 index
-                        key = { index ->
-                            musicItems.peek(index)?.let { "${index}_${it.sourceId}_${it.id}" }
-                                ?: index
-                        },
-                    ) { index ->
-                        val music = musicItems[index] ?: return@items
-                        SourceCorrectRow(
-                            music = music,
-                            selected = selectedMusic != null &&
-                                selectedMusic.sourceId == music.sourceId &&
-                                selectedMusic.id == music.id,
+                    itemsIndexed(
+                        items = candidates,
+                        key = { index, candidate -> "${index}_${candidate.id}" },
+                    ) { _, candidate ->
+                        val resolved = resolvedUrls.containsKey(candidate.id) ||
+                            candidate.playType == CandidatePlayType.DIRECT
+                        val isPreviewing = previewCandidateId == candidate.id
+                        CandidateRow(
+                            candidate = candidate,
+                            selected = selectedCandidateId == candidate.id,
+                            resolved = resolved,
+                            isResolving = resolvingIds.contains(candidate.id),
+                            isPreviewing = isPreviewing && isPreviewPlaying,
                             targetDurationMs = targetDurationMs,
-                            onSelect = { onSelectMusic(music) },
-                            onPreview = { onPreview(music) },
+                            onSelect = { onSelectCandidate(candidate) },
+                            onTogglePlay = { onTogglePlay(candidate) },
                         )
-                    }
-                    item {
-                        when (musicItems.loadState.append) {
-                            is LoadState.Loading -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                                }
-                            }
-
-                            is LoadState.Error -> {
-                                TextButton(
-                                    onClick = { musicItems.retry() },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text("加载失败，点击重试")
-                                }
-                            }
-
-                            else -> Unit
-                        }
                     }
                 }
             }
@@ -465,47 +467,95 @@ private fun SourceCorrectResultList(
     }
 }
 
+/** 搜索条件编辑弹窗（纠错/收录共用） */
 @Composable
-private fun SourceCorrectRow(
-    music: Music,
+internal fun QueryEditorDialog(
+    initialTitle: String,
+    initialArtist: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit,
+) {
+    var title by remember { mutableStateOf(initialTitle) }
+    var artist by remember { mutableStateOf(initialArtist) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("搜索条件") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("歌曲名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = artist,
+                    onValueChange = { artist = it },
+                    label = { Text("艺人（可留空，宽松匹配）") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(title.trim(), artist.trim()) },
+                enabled = title.isNotBlank(),
+            ) {
+                Text("搜索")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        },
+    )
+}
+
+/** 候选行：单选 + 标题/艺人 + 右侧解析/播放图标（纠错/收录共用） */
+@Composable
+internal fun CandidateRow(
+    candidate: ProviderCandidate,
     selected: Boolean,
+    resolved: Boolean,
+    isResolving: Boolean,
+    isPreviewing: Boolean,
     targetDurationMs: Long?,
     onSelect: () -> Unit,
-    onPreview: () -> Unit,
+    onTogglePlay: () -> Unit,
 ) {
-    // 候选与当前音源时长差 < 3 秒：极可能是同一首歌，替换后内容不会变，需醒目提示
+    val canSelect = candidate.canSelect
     val sameAsCurrent = targetDurationMs != null &&
         targetDurationMs > 0 &&
-        music.duration > 0 &&
-        kotlin.math.abs(music.duration - targetDurationMs) < 3_000
+        (candidate.durationMs ?: 0L) > 0 &&
+        kotlin.math.abs((candidate.durationMs ?: 0L) - targetDurationMs) < 3_000
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioButton(selected = selected, onClick = onSelect)
-        CachedImage(
-            imageUrl = music.coverImage,
-            contentDescription = music.title,
-            modifier = Modifier.size(52.dp),
-            shape = MaterialTheme.shapes.small,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
+        RadioButton(selected = selected, onClick = onSelect, enabled = canSelect)
+        Spacer(modifier = Modifier.width(4.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = music.title,
+                text = candidate.title,
                 style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = music.artists.joinToString(", ") { it.name }.ifBlank { "未知歌手" },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (candidate.artist.isNotBlank()) {
+                Text(
+                    text = candidate.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             if (sameAsCurrent) {
                 Text(
                     text = "⚠ 疑似当前音源（时长几乎一致，替换后内容可能不变）",
@@ -515,9 +565,23 @@ private fun SourceCorrectRow(
                 )
             }
         }
-        if (music.url.isNotBlank()) {
-            TextButton(onClick = onPreview) {
-                Text("试听")
+        Spacer(modifier = Modifier.width(8.dp))
+        when {
+            isResolving -> CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+            )
+            // 官方 API 直链 / 已解析成功：播放图标（图标，非「试听」文字）
+            resolved -> IconButton(onClick = onTogglePlay) {
+                Icon(
+                    imageVector = if (isPreviewing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isPreviewing) "暂停" else "播放",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            // hifini 等需逆向：展示「解析」，勾选或点击均可触发
+            canSelect -> TextButton(onClick = onTogglePlay) {
+                Text("解析")
             }
         }
     }
@@ -526,7 +590,9 @@ private fun SourceCorrectRow(
 @Composable
 private fun UploadReplaceTab(
     pickedFileName: String?,
+    isReplacing: Boolean,
     onFilePicked: (android.net.Uri?, String?) -> Unit,
+    onReplace: () -> Unit,
 ) {
     val context = LocalContext.current
     val pickerLauncher = rememberLauncherForActivityResult(
@@ -565,6 +631,16 @@ private fun UploadReplaceTab(
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = onReplace,
+            enabled = pickedFileName != null && !isReplacing,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (isReplacing) "替换中..." else "确认替换")
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "支持 mp3 / flac / wav / m4a / aac 等常见音频格式",
@@ -585,20 +661,18 @@ private fun queryDisplayName(context: android.content.Context, uri: android.net.
     }
 }
 
+/** 试听面板：进度条（可拖）+ 歌词跟随（纠错/收录共用） */
 @Composable
-private fun PreviewLyricPanel(
+internal fun PreviewLyricPanel(
     preview: PreviewPlaybackState,
     music: Music,
     lyrics: List<LyricsParser.LyricLine>,
     onPlayPause: () -> Unit,
+    onSeek: (Long) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val progress = if (preview.durationMs > 0) {
-        preview.positionMs.toFloat() / preview.durationMs.toFloat()
-    } else {
-        0f
-    }
+    val duration = preview.durationMs.coerceAtLeast(0L)
     val listState = rememberLazyListState()
     // 当前歌词行：跟随试听进度（歌词为原歌曲的，用于对照候选音源是否正确）
     val currentIndex = lyrics.indexOfLast { preview.positionMs >= it.startTimeMs }
@@ -666,13 +740,6 @@ private fun PreviewLyricPanel(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CachedImage(
-                    imageUrl = music.coverImage,
-                    contentDescription = music.title,
-                    modifier = Modifier.size(44.dp),
-                    shape = MaterialTheme.shapes.small,
-                )
-                Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = music.title,
@@ -690,19 +757,26 @@ private fun PreviewLyricPanel(
                 }
                 IconButton(onClick = onPlayPause) {
                     Icon(
-                        imageVector = if (preview.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        imageVector = if (preview.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                         contentDescription = if (preview.isPlaying) "暂停" else "播放",
                     )
                 }
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "关闭试听")
+                    Icon(Icons.Filled.Close, contentDescription = "关闭试听")
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            FoxLinearProgress(progress = { progress.coerceIn(0f, 1f) })
-            Spacer(modifier = Modifier.height(4.dp))
+            // 可拖动进度条：拖动即 seek，歌词跟随
+            Slider(
+                value = if (duration > 0) {
+                    preview.positionMs.toFloat().coerceIn(0f, duration.toFloat())
+                } else {
+                    0f
+                },
+                onValueChange = { onSeek(it.toLong()) },
+                modifier = Modifier.fillMaxWidth(),
+            )
             Text(
-                text = "${formatMs(preview.positionMs)} / ${formatMs(preview.durationMs)}",
+                text = "${formatMs(preview.positionMs)} / ${formatMs(duration)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -710,7 +784,7 @@ private fun PreviewLyricPanel(
     }
 }
 
-private fun formatMs(ms: Long): String {
+internal fun formatMs(ms: Long): String {
     val totalSec = (ms / 1000).toInt().coerceAtLeast(0)
     val m = totalSec / 60
     val s = totalSec % 60

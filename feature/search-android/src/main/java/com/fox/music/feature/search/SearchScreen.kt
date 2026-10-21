@@ -63,6 +63,8 @@ fun SearchScreen(
     onPostClick: (Long) -> Unit = {},
     onBack: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
+    /** 「去收录」：跳转第三方平台搜索（添加单曲）页，带入当前关键词 */
+    onCollectClick: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val postResults = state.postResults.collectAsLazyPagingItems()
@@ -123,6 +125,7 @@ fun SearchScreen(
                 onTagClick = viewModel::onPostTagClick,
             )
         },
+        onCollectClick = onCollectClick,
     )
 }
 

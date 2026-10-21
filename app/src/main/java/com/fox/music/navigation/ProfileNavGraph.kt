@@ -20,11 +20,16 @@ import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.player.lyric.manager.LyricSyncManager
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
 import com.fox.music.feature.player.ui.screen.MANAGE_SEARCH_ROUTE
+import com.fox.music.feature.player.ui.screen.manageSearchRoute
 import com.fox.music.feature.player.ui.screen.ManageScreen
 import com.fox.music.feature.player.ui.screen.ManageSearchScreen
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.SOURCE_CORRECT_ROUTE
 import com.fox.music.feature.player.ui.screen.SourceCorrectScreen
+import com.fox.music.feature.player.ui.screen.CollectTrackScreen
+import com.fox.music.feature.player.viewmodel.COLLECT_TRACK_ROUTE
+import com.fox.music.feature.player.viewmodel.collectTrackArgsFrom
+import com.fox.music.feature.player.viewmodel.collectTrackRoute
 import com.fox.music.feature.profile.ui.screen.DESKTOP_LYRIC_SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.DESKTOP_WIDGET_ROUTE
 import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
@@ -249,16 +254,54 @@ fun NavGraphBuilder.profileNavGraph(
         ManageScreen(
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
-            onAddMusic = { navController.navigate(MANAGE_SEARCH_ROUTE) },
+            onAddMusic = { navController.navigate(manageSearchRoute()) },
             onLogin = { navController.navigate(LOGIN_ROUTE) },
         )
     }
 
-    composableStack(MANAGE_SEARCH_ROUTE) {
+    composableStack(
+        route = MANAGE_SEARCH_ROUTE,
+        arguments = listOf(navArgument("query") { type = NavType.StringType }),
+    ) { backStackEntry ->
         ManageSearchScreen(
             modifier = Modifier.fillMaxSize(),
+            initialQuery = backStackEntry.arguments?.getString("query").orEmpty(),
             onBack = { navController.popBackStack() },
             onLogin = { navController.navigate(LOGIN_ROUTE) },
+            onNavigateToCollect = { music ->
+                navController.navigate(
+                    collectTrackRoute(
+                        com.fox.music.feature.player.viewmodel.CollectTrackArgs(
+                            title = music.title,
+                            artist = music.artists.joinToString(", ") { it.name },
+                            platform = music.sourcePlatform ?: "netease",
+                            externalId = music.sourceId,
+                            coverUrl = music.coverImage.orEmpty(),
+                            durationMs = music.duration,
+                            mode = "add_single",
+                        )
+                    )
+                )
+            },
+        )
+    }
+
+    composableStack(
+        route = COLLECT_TRACK_ROUTE,
+        arguments = listOf(
+            navArgument("title") { type = NavType.StringType },
+            navArgument("artist") { type = NavType.StringType },
+            navArgument("platform") { type = NavType.StringType },
+            navArgument("externalId") { type = NavType.StringType },
+            navArgument("coverUrl") { type = NavType.StringType },
+            navArgument("durationMs") { type = NavType.StringType },
+            navArgument("mode") { type = NavType.StringType },
+        ),
+    ) { backStackEntry ->
+        CollectTrackScreen(
+            args = collectTrackArgsFrom(backStackEntry.savedStateHandle),
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
         )
     }
 

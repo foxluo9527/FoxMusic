@@ -23,6 +23,7 @@ import com.fox.music.feature.playlist.ui.screen.PlaylistEditScreen
 import com.fox.music.feature.playlist.ui.screen.playlistEditRoute
 import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
+import com.fox.music.feature.player.ui.screen.manageSearchRoute
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
@@ -82,6 +83,10 @@ fun NavGraphBuilder.musicNavGraph(
                     },
                     onMusicMoreClick = context.onMusicMoreClick,
                     onBack = { navController.popBackStack() },
+                    // 「去收录」：跳转第三方平台搜索（添加单曲）页，带入当前关键词
+                    onCollectClick = { keyword ->
+                        navController.navigate(manageSearchRoute(keyword))
+                    },
                 )
             }
         }

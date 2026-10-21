@@ -99,6 +99,8 @@ fun SearchContent(
     onPostLikeClick: (Post) -> Unit = {},
     onPostTagClick: (String) -> Unit = {},
     postResultsContent: (@Composable () -> Unit)? = null,
+    /** 「去收录」：跳转第三方平台搜索（添加单曲）页，带入当前关键词 */
+    onCollectClick: (String) -> Unit = {},
 ) {
     val musicResults = state.musicResults.collectAsLazyPagingItems()
     val artistResults = state.artistResults.collectAsLazyPagingItems()
@@ -166,14 +168,6 @@ fun SearchContent(
                 }
             }
 
-            if (showResultsChrome && state.selectedTab == SearchResultTab.MUSIC) {
-                MusicPlatformSelector(
-                    selected = state.selectedMusicPlatform,
-                    onSelect = { onIntent(SearchIntent.SelectMusicPlatform(it)) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-
             Box(modifier = Modifier.fillMaxSize()) {
                 when {
                     showRecommendPanel -> RecommendOrSuggestContent(
@@ -205,6 +199,7 @@ fun SearchContent(
                         updateMusicList = updateMusicList,
                         playlistKey = playlistKey,
                         hasSearched = state.hasSearched,
+                        onCollectClick = { onCollectClick(state.query) },
                     )
 
                     state.selectedTab == SearchResultTab.ARTIST -> ArtistSearchResults(
@@ -226,26 +221,6 @@ fun SearchContent(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun MusicPlatformSelector(
-    selected: SearchMusicPlatform,
-    onSelect: (SearchMusicPlatform) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        SearchMusicPlatform.entries.forEach { platform ->
-            FilterChip(
-                selected = selected == platform,
-                onClick = { onSelect(platform) },
-                label = { Text(platform.label) },
-            )
         }
     }
 }

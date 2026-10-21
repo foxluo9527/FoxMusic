@@ -77,7 +77,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 
 const val MANAGE_ROUTER = "manage"
-const val MANAGE_SEARCH_ROUTE = "manage_search"
+const val MANAGE_SEARCH_ROUTE = "manage_search?query={query}"
+
+/** 第三方平台搜索（添加单曲/去收录）一级页路由，可带入初始关键词 */
+fun manageSearchRoute(query: String = ""): String =
+    "manage_search?query=${android.net.Uri.encode(query)}"
 
 private const val ManageMenuAnimMs = 220
 private val ManageMenuFloatSpec = tween<Float>(
