@@ -16,6 +16,7 @@ import com.fox.music.core.domain.repository.AdminMusicRepository
 import com.fox.music.core.domain.repository.CreateAdminMusicInput
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.UploadRepository
+import com.fox.music.core.domain.usecase.FetchScrapedLyricsUseCase
 import com.fox.music.core.domain.usecase.GetSearchMusicPagingUseCase
 import com.fox.music.core.model.music.Music
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -91,6 +92,7 @@ class ManageSearchViewModel @Inject constructor(
     private val uploadRepository: UploadRepository,
     private val adminMusicRepository: AdminMusicRepository,
     private val importRepository: ImportRepository,
+    private val fetchScrapedLyricsUseCase: FetchScrapedLyricsUseCase,
 ) : MviViewModel<ManageSearchState, ManageSearchIntent, ManageSearchEffect>(ManageSearchState()) {
 
     private var mediaPlayer: MediaPlayer? = null
@@ -374,6 +376,18 @@ class ManageSearchViewModel @Inject constructor(
                 null
             }
 
+            // 歌词：列表元数据（网易云/QQ 平台歌词）优先；为空时按 歌名+艺人 刮削补充
+            // （LRCLIB/lyrics.ovh，服务端免费源，尽力而为不阻塞导入——2026-10-21 用户要求）
+            val lyrics = music.lyrics?.takeIf { it.isNotBlank() } ?: run {
+                val artistName = music.artists.firstOrNull()?.name.orEmpty()
+                if (artistName.isBlank()) "" else {
+                    when (val r = fetchScrapedLyricsUseCase(music.title, artistName, music.duration.takeIf { it > 0 })) {
+                        is Result.Success -> r.data.orEmpty()
+                        else -> ""
+                    }
+                }
+            }
+
             val artists = if (music.artists.isNotEmpty()) {
                 music.artists.map { artist ->
                     val avatar = artist.avatar?.takeIf { it.isNotBlank() }?.let { url ->
@@ -393,7 +407,6 @@ class ManageSearchViewModel @Inject constructor(
                 listOf(AdminArtistInput(name = "未知歌手"))
             }
 
-            val lyrics = music.lyrics.orEmpty()
             when (
                 adminMusicRepository.createAdminMusic(
                     CreateAdminMusicInput(

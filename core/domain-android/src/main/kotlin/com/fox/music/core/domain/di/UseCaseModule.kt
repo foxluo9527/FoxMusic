@@ -90,6 +90,7 @@ import com.fox.music.core.domain.usecase.SubmitMusicFeedbackUseCase
 import com.fox.music.core.domain.usecase.ReplaceMusicSourceUseCase
 import com.fox.music.core.domain.usecase.CheckMusicExistsUseCase
 import com.fox.music.core.domain.usecase.ImportSingleTrackUseCase
+import com.fox.music.core.domain.usecase.FetchScrapedLyricsUseCase
 import com.fox.music.core.domain.usecase.ToggleAlbumFavoriteUseCase
 import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.domain.usecase.TogglePlaylistFavoriteUseCase
@@ -379,5 +380,9 @@ object UseCaseModule {
     @Provides
     fun provideSearchProviderCandidatesUseCase(searchRepository: SearchRepository): SearchProviderCandidatesUseCase =
         SearchProviderCandidatesUseCase(searchRepository)
+
+    @Provides
+    fun provideFetchScrapedLyricsUseCase(searchRepository: SearchRepository): FetchScrapedLyricsUseCase =
+        FetchScrapedLyricsUseCase(searchRepository)
 
 }

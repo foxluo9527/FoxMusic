@@ -24,6 +24,7 @@ import com.fox.music.core.model.music.MusicExistsDto
 import com.fox.music.core.model.music.ImportSingleRequest
 import com.fox.music.core.model.music.ImportSingleResponseDto
 import com.fox.music.core.model.music.ProviderCandidateGroupDto
+import com.fox.music.core.model.music.ScrapedLyricsDto
 import kotlinx.serialization.json.JsonElement
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -188,4 +189,12 @@ interface MusicApiService {
     suspend fun importSingleTrack(
         @Body body: ImportSingleRequest,
     ): ApiResponse<ImportSingleResponseDto>
+
+    /** 按 歌名+艺人 刮削歌词（LRCLIB 优先 + lyrics.ovh 兜底） */
+    @GET("api/music/lyrics/fetch")
+    suspend fun fetchScrapedLyrics(
+        @Query("title") title: String,
+        @Query("artist") artist: String,
+        @Query("durationMs") durationMs: Long? = null,
+    ): ApiResponse<ScrapedLyricsDto>
 }

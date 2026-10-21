@@ -41,6 +41,15 @@ data class ResolveThirdPartyDto(
     val source: String = "",
 )
 
+/** 刮削歌词（/api/music/lyrics/fetch，LRCLIB 优先 + lyrics.ovh 兜底） */
+@Serializable
+data class ScrapedLyricsDto(
+    val lyric: String? = null,
+    val plain: String? = null,
+    val synced: String? = null,
+    val instrumental: Boolean = false,
+)
+
 /** 平台是否已收录某首歌（/api/music/exists） */
 @Serializable
 data class MusicExistsDto(
@@ -60,6 +69,10 @@ data class ImportSingleRequest(
     @SerialName("durationMs")
     val durationMs: Long? = null,
     val audioUrl: String? = null,
+    /** 歌词（可选）：二级页预拉的刮削歌词或一级页平台歌词，缺了服务端按 歌名+艺人 自动补 */
+    val lyrics: String? = null,
+    @SerialName("lyricsTrans")
+    val lyricsTrans: String? = null,
     val playlistId: Long? = null,
 )
 

@@ -60,4 +60,14 @@ interface SearchRepository {
 
     /** 收录单曲到平台（普通用户也可用） */
     suspend fun importSingleTrack(req: ImportSingleRequest): Result<ImportSingleResult>
+
+    /**
+     * 按 歌名+艺人 刮削歌词（LRCLIB 优先 + lyrics.ovh 兜底，服务端免费无 key 源）。
+     * 二级页打开时预拉，收录时随 import-single 落库；失败返回 success(null) 不阻塞。
+     */
+    suspend fun fetchScrapedLyrics(
+        title: String,
+        artist: String,
+        durationMs: Long? = null,
+    ): Result<String?>
 }

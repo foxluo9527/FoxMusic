@@ -25,6 +25,7 @@ import com.fox.music.core.model.music.ProviderSearchResults
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.music.ResolveThirdPartyDto
 import com.fox.music.core.model.music.ResolveThirdPartyRequest
+import com.fox.music.core.model.music.ScrapedLyricsDto
 import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.network.api.MusicApiService
@@ -227,6 +228,21 @@ class SearchRepositoryImpl @Inject constructor(
                 alreadyInPlaylist = dto.alreadyInPlaylist,
             )
         }
+
+    override suspend fun fetchScrapedLyrics(
+        title: String,
+        artist: String,
+        durationMs: Long?,
+    ): Result<String?> = suspendRunCatching {
+        val response = musicApi.fetchScrapedLyrics(
+            title = title,
+            artist = artist,
+            durationMs = durationMs?.takeIf { it > 0 },
+        )
+        // 歌词刮削是尽力而为：HTTP 层失败（超时/限流）静默返回 null，不阻塞收录
+        val dto = response.data as? ScrapedLyricsDto ?: return@suspendRunCatching null
+        (dto.synced ?: dto.lyric ?: dto.plain)?.takeIf { it.isNotBlank() }
+    }
 }
 
 /** 渠道候选 DTO → 领域模型 */

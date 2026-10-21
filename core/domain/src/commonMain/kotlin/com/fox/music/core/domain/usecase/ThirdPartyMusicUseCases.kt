@@ -71,3 +71,22 @@ class SearchProviderCandidatesUseCase constructor(
         groups = groups,
     )
 }
+
+/**
+ * 预拉刮削歌词（LRCLIB 优先 + lyrics.ovh 兜底）。
+ * 二级页打开即调：用户浏览/试听期间后台拉好，收录时随 import-single 落库，
+ * 避免收录流程卡在歌词上（国际链路 4~12s，平台歌词才是主力）。
+ */
+class FetchScrapedLyricsUseCase constructor(
+    private val searchRepository: SearchRepository
+) {
+    suspend operator fun invoke(
+        title: String,
+        artist: String,
+        durationMs: Long? = null,
+    ): Result<String?> = searchRepository.fetchScrapedLyrics(
+        title = title,
+        artist = artist,
+        durationMs = durationMs,
+    )
+}

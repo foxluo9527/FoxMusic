@@ -10,6 +10,7 @@ import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.usecase.CheckMusicExistsUseCase
+import com.fox.music.core.domain.usecase.FetchScrapedLyricsUseCase
 import com.fox.music.core.domain.usecase.GetMusicDetailUseCase
 import com.fox.music.core.domain.usecase.ImportSingleTrackUseCase
 import com.fox.music.core.domain.usecase.ResolveThirdPartyAudioUseCase
@@ -56,6 +57,9 @@ data class CollectTrackState(
     val preview: PreviewPlaybackState = PreviewPlaybackState(),
     /** 平台已收录时拉到的歌词（试听对照） */
     val previewLyrics: List<LyricsParser.LyricLine> = emptyList(),
+    /** 预拉的刮削歌词（LRCLIB/lyrics.ovh），收录时随 import-single 落库 */
+    val prefetchedLyrics: String? = null,
+    val isPrefetchingLyrics: Boolean = false,
     /** 是否已收录到平台 */
     val exists: MusicExists? = null,
     val isCheckingExists: Boolean = false,
@@ -117,6 +121,7 @@ class CollectTrackViewModel @Inject constructor(
     private val resolveThirdPartyAudioUseCase: ResolveThirdPartyAudioUseCase,
     private val checkMusicExistsUseCase: CheckMusicExistsUseCase,
     private val importSingleTrackUseCase: ImportSingleTrackUseCase,
+    private val fetchScrapedLyricsUseCase: FetchScrapedLyricsUseCase,
     private val playlistRepository: PlaylistRepository,
     private val getMusicDetailUseCase: GetMusicDetailUseCase,
 ) : MviViewModel<CollectTrackState, CollectTrackIntent, CollectTrackEffect>(CollectTrackState()) {
@@ -124,6 +129,7 @@ class CollectTrackViewModel @Inject constructor(
     private var initArgs: CollectTrackArgs? = null
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
+    private var lyricsPrefetchJob: Job? = null
 
     override fun onCleared() {
         stopPreviewInternal()
@@ -133,10 +139,14 @@ class CollectTrackViewModel @Inject constructor(
     override fun handleIntent(intent: CollectTrackIntent) {
         when (intent) {
             CollectTrackIntent.Init -> initArgs?.let { init(it) }
-            is CollectTrackIntent.EditTitleChange ->
+            is CollectTrackIntent.EditTitleChange -> {
                 updateState { copy(editTitle = intent.value) }
-            is CollectTrackIntent.EditArtistChange ->
+                scheduleLyricsReprefetch()
+            }
+            is CollectTrackIntent.EditArtistChange -> {
                 updateState { copy(editArtist = intent.value) }
+                scheduleLyricsReprefetch()
+            }
             CollectTrackIntent.SearchProviders -> searchProviders()
             is CollectTrackIntent.SelectGroup -> {
                 // 切换渠道：清空选择与试听，底部「提交收录」随之禁用
@@ -201,6 +211,39 @@ class CollectTrackViewModel @Inject constructor(
         searchProviders()
         // 同时查询平台是否已收录（命中则拉歌词供试听对照）
         checkExists(args.title, args.artist)
+        // 预拉刮削歌词（LRCLIB 优先 + lyrics.ovh 兜底）：用户浏览/试听期间后台拉，
+        // 收录时带上落库（2026-10-21 用户要求歌词入库；平台歌词没有时才用刮削的）
+        prefetchLyrics(args.title, args.artist, args.durationMs)
+    }
+
+    /**
+     * 预拉刮削歌词。编辑过名称/艺人后按当前值重拉一次（用户可能修正了错别字）。
+     * 失败静默（国际链路不稳，尽力而为），不阻塞任何交互。
+     */
+    private fun prefetchLyrics(title: String, artist: String, durationMs: Long) {
+        val t = title.trim()
+        val a = artist.trim()
+        if (t.isBlank() || a.isBlank()) return
+        lyricsPrefetchJob?.cancel()
+        lyricsPrefetchJob = viewModelScope.launch {
+            updateState { copy(isPrefetchingLyrics = true) }
+            val result = fetchScrapedLyricsUseCase(t, a, durationMs.takeIf { it > 0 })
+            if (result is Result.Success) {
+                updateState { copy(prefetchedLyrics = result.data, isPrefetchingLyrics = false) }
+            } else {
+                updateState { copy(isPrefetchingLyrics = false) }
+            }
+        }
+    }
+
+    /** 编辑名称/艺人后 800ms 防抖重拉（用户停手才发请求） */
+    private fun scheduleLyricsReprefetch() {
+        lyricsPrefetchJob?.cancel()
+        lyricsPrefetchJob = viewModelScope.launch {
+            delay(800)
+            val s = currentState
+            prefetchLyrics(s.editTitle, s.editArtist, s.argsDurationMs)
+        }
     }
 
     private fun checkExists(title: String, artist: String) {
@@ -549,6 +592,7 @@ class CollectTrackViewModel @Inject constructor(
             coverUrl = s.argsCoverUrl,
             durationMs = s.argsDurationMs.takeIf { it > 0 } ?: selected.durationMs,
             audioUrl = audioUrl,
+            lyrics = s.prefetchedLyrics,
             playlistId = playlistId,
         )
         viewModelScope.launch {
