@@ -3,22 +3,31 @@ package com.fox.music.feature.player.ui.screen
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -36,10 +45,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -53,12 +61,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlin.math.roundToInt
 import com.fox.music.core.model.music.CandidatePlayType
 import com.fox.music.core.model.music.LyricsParser
 import com.fox.music.core.model.music.Music
@@ -314,8 +328,10 @@ private fun SourceCorrectHeader(
     }
 }
 
-/** 单行搜索区：名称 · 艺人 + 搜索按钮；点击整行弹窗编辑 */
-/** 单行搜索区：名称 · 艺人 + 搜索按钮；点击「编辑」弹窗修改（纠错/收录共用） */
+/**
+ * 单行搜索区：名称 · 艺人 + 编辑 + 搜索按钮。
+ * 用户 2026-10-21：「搜索词区的高度减少一点」——名称与艺人合并为单行展示。
+ */
 @Composable
 internal fun SearchQueryBar(
     query: String,
@@ -328,41 +344,33 @@ internal fun SearchQueryBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = MaterialTheme.shapes.medium,
         tonalElevation = 2.dp,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 Icons.Filled.Search,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Column(
+            Text(
+                text = queryDisplayText(query, artistQuery),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
+                    .clickable { onEditQuery() }
                     .padding(end = 8.dp),
-            ) {
-                Text(
-                    text = query.ifBlank { "歌曲名称" },
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = artistQuery.ifBlank { "艺人（可留空，宽松匹配）" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            )
             TextButton(onClick = onEditQuery) {
                 Text("编辑")
             }
@@ -371,6 +379,13 @@ internal fun SearchQueryBar(
             }
         }
     }
+}
+
+/** 单行展示「名称 · 艺人」；名称为空时展示占位符，艺人可留空 */
+private fun queryDisplayText(query: String, artistQuery: String): String {
+    val name = query.ifBlank { "歌曲名称" }
+    val artist = artistQuery.trim()
+    return if (artist.isBlank()) name else "$name · $artist"
 }
 
 @Composable
@@ -403,12 +418,19 @@ private fun SearchReplaceTab(
         )
 
         if (groups.isNotEmpty()) {
-            TabRow(selectedTabIndex = groups.indexOfFirst { it.key == activeGroupKey }.coerceAtLeast(0)) {
+            // 用户 2026-10-21：tab 应可超出屏幕、单行文字、左右滑动查看；
+            // 数量不放 tab，改在列表 footer 展示
+            ScrollableTabRow(
+                selectedTabIndex = groups.indexOfFirst { it.key == activeGroupKey }.coerceAtLeast(0),
+                edgePadding = 12.dp,
+                modifier = Modifier.fillMaxWidth(),
+                divider = {},
+            ) {
                 groups.forEach { group ->
                     Tab(
                         selected = activeGroupKey == group.key,
                         onClick = { onSelectGroup(group.key) },
-                        text = { Text("${group.label} ${group.size}") },
+                        text = { Text(group.label, maxLines = 1) },
                     )
                 }
             }
@@ -459,6 +481,18 @@ private fun SearchReplaceTab(
                             targetDurationMs = targetDurationMs,
                             onSelect = { onSelectCandidate(candidate) },
                             onTogglePlay = { onTogglePlay(candidate) },
+                        )
+                    }
+                    // 渠道候选数量统一在 footer 展示（不放 tab）
+                    item(key = "channel_count_footer") {
+                        Text(
+                            text = "共 ${candidates.size} 条结果",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
                         )
                     }
                 }
@@ -543,7 +577,8 @@ internal fun CandidateRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = candidate.title,
-                style = MaterialTheme.typography.bodyLarge,
+                // 用户 2026-10-21：网页解析标题字号减小
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -747,13 +782,17 @@ internal fun PreviewLyricPanel(
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    Text(
-                        text = music.artists.joinToString(", ") { it.name },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    // 网页解析候选没有真实艺人名（不再回显搜索词），为空则隐藏整行
+                    val artistText = music.artists.joinToString(", ") { it.name }
+                    if (artistText.isNotBlank()) {
+                        Text(
+                            text = artistText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 IconButton(onClick = onPlayPause) {
                     Icon(
@@ -766,13 +805,13 @@ internal fun PreviewLyricPanel(
                 }
             }
             // 可拖动进度条：拖动即 seek，歌词跟随
-            Slider(
-                value = if (duration > 0) {
-                    preview.positionMs.toFloat().coerceIn(0f, duration.toFloat())
+            PreviewProgressSlider(
+                fraction = if (duration > 0) {
+                    (preview.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                 } else {
                     0f
                 },
-                onValueChange = { onSeek(it.toLong()) },
+                onSeekFraction = { fraction -> onSeek((fraction * duration).toLong()) },
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
@@ -789,4 +828,76 @@ internal fun formatMs(ms: Long): String {
     val m = totalSec / 60
     val s = totalSec % 60
     return "%d:%02d".format(m, s)
+}
+
+/**
+ * 试听进度条（纠错/收录共用）。
+ *
+ * 用户 2026-10-21 反馈默认 Slider「一塌糊涂」：轨太高、拇指比轨高、拇指恒在末尾
+ * （旧代码把毫秒传给 0f..1f 的 valueRange，值被钳到 1）、轨道末端圆角消失且与拇指有间隙。
+ * 这里自定义：4dp 圆角细轨 + 14dp 小拇指、无间隙、点击/拖动均seek。
+ */
+@Composable
+internal fun PreviewProgressSlider(
+    fraction: Float,
+    onSeekFraction: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    activeColor: Color = MaterialTheme.colorScheme.primary,
+    inactiveColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+) {
+    val safeFraction = fraction.coerceIn(0f, 1f)
+    val thumbSize = 14.dp
+    var trackWidthPx by remember { mutableStateOf(0f) }
+    val thumbRadiusPx = with(LocalDensity.current) { thumbSize.toPx() / 2f }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    if (trackWidthPx > 0f) {
+                        onSeekFraction((down.position.x / trackWidthPx).coerceIn(0f, 1f))
+                    }
+                    drag(down.id) { change ->
+                        if (trackWidthPx > 0f) {
+                            onSeekFraction((change.position.x / trackWidthPx).coerceIn(0f, 1f))
+                        }
+                    }
+                }
+            },
+        // 子项从左缘起排：轨道铺满，拇指按进度偏移
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        // 轨道（已播放部分同色覆盖，末端保留圆角）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(CircleShape)
+                .background(inactiveColor)
+                .onSizeChanged { trackWidthPx = it.width.toFloat() },
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(safeFraction)
+                    .fillMaxHeight()
+                    .clip(CircleShape)
+                    .background(activeColor),
+            )
+        }
+        // 拇指（圆心对齐进度点，不出轨）
+        Box(
+            modifier = Modifier
+                .offset {
+                    val x = (safeFraction * trackWidthPx - thumbRadiusPx)
+                        .coerceIn(0f, (trackWidthPx - thumbRadiusPx * 2).coerceAtLeast(0f))
+                    IntOffset(x.roundToInt(), 0)
+                }
+                .size(thumbSize)
+                .clip(CircleShape)
+                .background(activeColor),
+        )
+    }
 }

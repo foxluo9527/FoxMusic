@@ -24,9 +24,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -166,10 +167,14 @@ fun CollectTrackScreen(
                 )
 
                 if (state.groups.isNotEmpty()) {
-                    TabRow(
+                    // tab 可超出屏幕左右滑动；数量不放 tab，改在列表 footer 展示（用户 2026-10-21）
+                    ScrollableTabRow(
                         selectedTabIndex = state.groups
                             .indexOfFirst { it.key == state.activeGroup?.key }
                             .coerceAtLeast(0),
+                        edgePadding = 12.dp,
+                        modifier = Modifier.fillMaxWidth(),
+                        divider = {},
                     ) {
                         state.groups.forEach { group ->
                             Tab(
@@ -177,7 +182,7 @@ fun CollectTrackScreen(
                                 onClick = {
                                     viewModel.sendIntent(CollectTrackIntent.SelectGroup(group.key))
                                 },
-                                text = { Text("${group.label} ${group.size}") },
+                                text = { Text(group.label, maxLines = 1) },
                             )
                         }
                     }
@@ -234,6 +239,18 @@ fun CollectTrackScreen(
                                     onTogglePlay = {
                                         viewModel.sendIntent(CollectTrackIntent.ToggleCandidatePlay(candidate))
                                     },
+                                )
+                            }
+                            // 渠道候选数量统一在 footer 展示（不放 tab）
+                            item(key = "channel_count_footer") {
+                                Text(
+                                    text = "共 ${candidates.size} 条结果",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp),
                                 )
                             }
                         }

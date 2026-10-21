@@ -134,8 +134,18 @@ class SourceCorrectViewModel @Inject constructor(
                 searchProviders()
             }
             SourceCorrectIntent.SearchProviders -> searchProviders()
-            is SourceCorrectIntent.SelectGroup ->
-                updateState { copy(activeGroupKey = intent.key) }
+            is SourceCorrectIntent.SelectGroup -> {
+                // 切换渠道：清空选择与试听，底部「确认替换」随之禁用
+                // （用户 2026-10-21：切 tab 后没有选择 item，按钮不应可点）
+                if (currentState.activeGroupKey == intent.key) return
+                stopPreviewInternal()
+                updateState {
+                    copy(
+                        activeGroupKey = intent.key,
+                        selectedCandidateId = null,
+                    )
+                }
+            }
             is SourceCorrectIntent.SelectCandidate -> selectCandidate(intent.candidate)
             is SourceCorrectIntent.ToggleCandidatePlay -> toggleCandidatePlay(intent.candidate)
             is SourceCorrectIntent.SeekPreview -> seekPreview(intent.positionMs)

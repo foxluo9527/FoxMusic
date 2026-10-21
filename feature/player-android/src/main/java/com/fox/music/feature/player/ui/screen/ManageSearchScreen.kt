@@ -17,8 +17,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
@@ -381,7 +381,7 @@ private fun ManageSearchRow(
         }
         IconButton(onClick = onOpen) {
             Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
+                Icons.Default.KeyboardArrowRight,
                 contentDescription = "进入",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )

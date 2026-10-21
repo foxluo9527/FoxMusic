@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,18 +79,11 @@ internal fun MusicSearchResults(
 /** 列表底部/空态下的「去收录」入口（第三方平台搜索→收录到平台） */
 @Composable
 private fun SearchCollectFooterButton(onCollectClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center,
+    OutlinedButton(
+        onClick = onCollectClick,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Text(
-            text = "没有想要的结果，去收录",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { onCollectClick() },
-        )
+        Text("没有想要的结果，去收录")
     }
 }
 
@@ -179,9 +173,12 @@ internal fun <T : Any> PagingResultList(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
+                // 注意：ErrorView 默认 fillMaxSize，必须显式覆盖为 wrapContent，
+                // 否则它会吃满整个 Column，把下面的 emptyAction 挤出屏幕（用户反馈看不到按钮）
                 ErrorView(
                     message = emptyMessage,
                     showIcon = false,
+                    modifier = Modifier.padding(16.dp),
                 )
                 emptyAction?.invoke()
             }

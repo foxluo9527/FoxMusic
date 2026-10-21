@@ -138,8 +138,18 @@ class CollectTrackViewModel @Inject constructor(
             is CollectTrackIntent.EditArtistChange ->
                 updateState { copy(editArtist = intent.value) }
             CollectTrackIntent.SearchProviders -> searchProviders()
-            is CollectTrackIntent.SelectGroup ->
-                updateState { copy(activeGroupKey = intent.key) }
+            is CollectTrackIntent.SelectGroup -> {
+                // 切换渠道：清空选择与试听，底部「提交收录」随之禁用
+                // （用户 2026-10-21：切 tab 后没有选择 item，按钮不应可点）
+                if (currentState.activeGroupKey == intent.key) return
+                stopPreviewInternal()
+                updateState {
+                    copy(
+                        activeGroupKey = intent.key,
+                        selectedCandidateId = null,
+                    )
+                }
+            }
             is CollectTrackIntent.SelectCandidate -> selectCandidate(intent.candidate)
             is CollectTrackIntent.ToggleCandidatePlay -> toggleCandidatePlay(intent.candidate)
             is CollectTrackIntent.SeekPreview -> seekPreview(intent.positionMs)
