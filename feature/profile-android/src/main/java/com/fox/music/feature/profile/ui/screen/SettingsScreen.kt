@@ -62,6 +62,7 @@ fun SettingsScreen(
     onManageLibrary: () -> Unit = {},
     onDownloadManager: () -> Unit = {},
     onReportHistory: () -> Unit = {},
+    onFeedbackHistory: () -> Unit = {},
     onPrivacySettings: () -> Unit = {},
     onNotificationSettings: () -> Unit = {},
     onInstallApk: (File) -> Unit = {},
@@ -81,6 +82,7 @@ fun SettingsScreen(
                 SettingsEffect.NavigateToManageLibrary -> onManageLibrary()
                 SettingsEffect.NavigateToDownloadManager -> onDownloadManager()
                 SettingsEffect.NavigateToReportHistory -> onReportHistory()
+                SettingsEffect.NavigateToFeedbackHistory -> onFeedbackHistory()
                 SettingsEffect.NavigateToLogin -> onLogout()
                 is SettingsEffect.ShowMessage -> {
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
@@ -332,6 +334,12 @@ fun SettingsScreen(
                             title = "举报历史",
                             subtitle = "查看你提交的举报记录",
                             onClick = { viewModel.sendIntent(SettingsIntent.OnReportHistoryClick) },
+                        )
+                        SettingsDivider()
+                        SettingsNavigationItem(
+                            title = "音源反馈记录",
+                            subtitle = "查看音源纠错进度与自动匹配结果",
+                            onClick = { viewModel.sendIntent(SettingsIntent.OnFeedbackHistoryClick) },
                         )
                         SettingsDivider()
                         SettingsNavigationItem(

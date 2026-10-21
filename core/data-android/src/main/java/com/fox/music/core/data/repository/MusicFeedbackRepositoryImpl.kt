@@ -2,8 +2,13 @@ package com.fox.music.core.data.repository
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatchingWithParser
+import com.fox.music.core.data.mapper.toMusicFeedbackRecord
+import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.domain.repository.MusicFeedbackRepository
+import com.fox.music.core.model.PagedData
+import com.fox.music.core.model.feedback.MusicFeedbackRecord
 import com.fox.music.core.network.api.MusicApiService
+import com.fox.music.core.network.model.PagedResponse
 import com.fox.music.core.network.model.ReplaceMusicSourceRequest
 import com.fox.music.core.network.model.SubmitMusicFeedbackRequest
 import com.fox.music.core.network.util.ErrorParser
@@ -26,6 +31,20 @@ class MusicFeedbackRepositoryImpl @Inject constructor(
             Unit
         } else {
             throw Exception(response.message.ifBlank { "反馈提交失败" })
+        }
+    }
+
+    override suspend fun getMyFeedbacks(
+        page: Int,
+        limit: Int,
+        status: String?,
+    ): Result<PagedData<MusicFeedbackRecord>> = suspendRunCatchingWithParser(ErrorParser::parseError) {
+        val response = musicApi.getMyMusicFeedbacks(page = page, limit = limit, status = status)
+        if (response.isSuccess) {
+            (response.data ?: PagedResponse())
+                .toPagedData { it.toMusicFeedbackRecord() }
+        } else {
+            throw Exception(response.message.ifBlank { "获取反馈记录失败" })
         }
     }
 

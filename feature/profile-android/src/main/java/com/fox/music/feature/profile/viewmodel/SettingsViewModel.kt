@@ -90,6 +90,7 @@ sealed interface SettingsIntent : UiIntent {
     data object ShowDownloadQualityPicker : SettingsIntent
     data object OnDownloadManagerClick : SettingsIntent
     data object OnReportHistoryClick : SettingsIntent
+    data object OnFeedbackHistoryClick : SettingsIntent
     data object OnCheckUpdateClick : SettingsIntent
     data object DismissUpdateDialog : SettingsIntent
     data object ConfirmUpdate : SettingsIntent
@@ -104,6 +105,7 @@ sealed interface SettingsEffect : UiEffect {
     data object NavigateToManageLibrary : SettingsEffect
     data object NavigateToDownloadManager : SettingsEffect
     data object NavigateToReportHistory : SettingsEffect
+    data object NavigateToFeedbackHistory : SettingsEffect
     data object NavigateToLogin : SettingsEffect
     data class ShowMessage(val message: String) : SettingsEffect
     data class LaunchInstall(val file: File) : SettingsEffect
@@ -187,6 +189,7 @@ class SettingsViewModel @Inject constructor(
             SettingsIntent.ShowDownloadQualityPicker -> showDownloadQualityPicker()
             SettingsIntent.OnDownloadManagerClick -> sendEffect(SettingsEffect.NavigateToDownloadManager)
             SettingsIntent.OnReportHistoryClick -> sendEffect(SettingsEffect.NavigateToReportHistory)
+            SettingsIntent.OnFeedbackHistoryClick -> sendEffect(SettingsEffect.NavigateToFeedbackHistory)
             SettingsIntent.OnCheckUpdateClick -> checkForUpdate()
             SettingsIntent.DismissUpdateDialog -> {
                 if (!currentState.forceUpdate) {

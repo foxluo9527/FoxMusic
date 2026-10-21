@@ -9,6 +9,7 @@ import com.fox.music.core.network.model.FindOrCreateMusicDto
 import com.fox.music.core.network.model.FindOrCreateMusicRequest
 import com.fox.music.core.network.model.ListeningStatsDto
 import com.fox.music.core.network.model.MusicDto
+import com.fox.music.core.network.model.MyMusicFeedbackDto
 import com.fox.music.core.network.model.PagedResponse
 import com.fox.music.core.network.model.PlayHistoryDto
 import com.fox.music.core.network.model.PlayRecordRequest
@@ -141,6 +142,14 @@ interface MusicApiService {
     suspend fun submitMusicFeedback(
         @Body body: SubmitMusicFeedbackRequest,
     ): ApiResponse<SubmitMusicFeedbackDto>
+
+    /** 我的音源反馈记录（分页，含自动匹配状态） */
+    @GET("api/music/feedback/mine")
+    suspend fun getMyMusicFeedbacks(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20,
+        @Query("status") status: String? = null,
+    ): ApiResponse<PagedResponse<MyMusicFeedbackDto>>
 
     /** 替换音乐音源（仅管理员） */
     @POST("api/music/{id}/replace-source")

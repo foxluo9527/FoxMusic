@@ -87,6 +87,7 @@ import com.fox.music.core.domain.usecase.SearchProvidersByTrackUseCase
 import com.fox.music.core.domain.usecase.SearchProviderCandidatesUseCase
 import com.fox.music.core.domain.usecase.SubmitReportUseCase
 import com.fox.music.core.domain.usecase.SubmitMusicFeedbackUseCase
+import com.fox.music.core.domain.usecase.GetMyMusicFeedbacksUseCase
 import com.fox.music.core.domain.usecase.ReplaceMusicSourceUseCase
 import com.fox.music.core.domain.usecase.CheckMusicExistsUseCase
 import com.fox.music.core.domain.usecase.ImportSingleTrackUseCase
@@ -326,6 +327,10 @@ object UseCaseModule {
     @Provides
     fun provideSubmitMusicFeedbackUseCase(musicFeedbackRepository: MusicFeedbackRepository): SubmitMusicFeedbackUseCase =
         SubmitMusicFeedbackUseCase(musicFeedbackRepository)
+
+    @Provides
+    fun provideGetMyMusicFeedbacksUseCase(musicFeedbackRepository: MusicFeedbackRepository): GetMyMusicFeedbacksUseCase =
+        GetMyMusicFeedbacksUseCase(musicFeedbackRepository)
 
     @Provides
     fun provideReplaceMusicSourceUseCase(musicFeedbackRepository: MusicFeedbackRepository): ReplaceMusicSourceUseCase =

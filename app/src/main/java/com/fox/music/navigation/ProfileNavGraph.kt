@@ -43,6 +43,8 @@ import com.fox.music.feature.profile.ui.screen.LOCK_SCREEN_LYRIC_ROUTE
 import com.fox.music.feature.profile.ui.screen.LockScreenLyricSettingsScreen
 import com.fox.music.feature.profile.ui.screen.REPORT_HISTORY_ROUTE
 import com.fox.music.feature.profile.ui.screen.ReportHistoryScreen
+import com.fox.music.feature.profile.ui.screen.FEEDBACK_HISTORY_ROUTE
+import com.fox.music.feature.profile.ui.screen.FeedbackHistoryScreen
 import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.SettingsScreen
 import com.fox.music.feature.profile.ui.screen.THEME_SETTINGS_ROUTE
@@ -85,6 +87,7 @@ fun NavGraphBuilder.profileNavGraph(
             onManageLibrary = { navController.navigate(MANAGE_ROUTER) },
             onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
             onReportHistory = { navController.navigate(REPORT_HISTORY_ROUTE) },
+            onFeedbackHistory = { navController.navigate(FEEDBACK_HISTORY_ROUTE) },
             onPrivacySettings = { navController.navigate(PRIVACY_SETTINGS_ROUTE) },
             // 通知设置页（feature:chat 的 NotificationSettingsScreen）原本只挂在
             // MessagesContent 的 showBackButton=true 分支上，而两端都传 false →
@@ -171,6 +174,13 @@ fun NavGraphBuilder.profileNavGraph(
 
     composableStack(REPORT_HISTORY_ROUTE) {
         ReportHistoryScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composableStack(FEEDBACK_HISTORY_ROUTE) {
+        FeedbackHistoryScreen(
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
         )
@@ -278,6 +288,7 @@ fun NavGraphBuilder.profileNavGraph(
                             externalId = music.sourceId,
                             coverUrl = music.coverImage.orEmpty(),
                             durationMs = music.duration,
+                            album = music.album?.title ?: "",
                             mode = "add_single",
                         )
                     )
@@ -295,6 +306,7 @@ fun NavGraphBuilder.profileNavGraph(
             navArgument("externalId") { type = NavType.StringType },
             navArgument("coverUrl") { type = NavType.StringType },
             navArgument("durationMs") { type = NavType.StringType },
+            navArgument("album") { type = NavType.StringType },
             navArgument("mode") { type = NavType.StringType },
         ),
     ) { backStackEntry ->
