@@ -3,7 +3,10 @@ package com.fox.music.feature.discover
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -47,9 +50,12 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
@@ -60,8 +66,11 @@ import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.DetailIntroContent
+import com.fox.music.core.ui.component.DetailIntroData
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.PostImagePreviewDialog
 import com.fox.music.core.ui.component.MusicListItem
 import com.fox.music.core.ui.component.SectionHeader
 
@@ -71,7 +80,8 @@ import com.fox.music.core.ui.component.SectionHeader
  * Toast 不在这里弹——[ArtistDetailEffect.ShowToast] 由 Android 外壳用 LocalContext 处理，
  * 这样这块 UI 才能进 commonMain（LocalContext 是 Android 专属）。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ArtistDetailContent(
     state: ArtistDetailState,
@@ -86,9 +96,46 @@ fun ArtistDetailContent(
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
 ) {
     val artist = state.artist
+    var showIntro by rememberSaveable { mutableStateOf(false) }
+    var previewImageUrl by remember { mutableStateOf<String?>(null) }
+    // 预览兜底链：库里存在「avatar 指向的 OSS 文件已失效、coverImage 仍可显示」的艺人
+    // （实测 190+ 位）。CachedImage 有 errorImageUrl 兜底所以列表里看不出异常，
+    // 长按预览只传 avatar 就是纯黑，这里补上第二图源。
+    var previewFallbackUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    previewImageUrl?.let { url ->
+        PostImagePreviewDialog(
+            images = listOf(url),
+            initialIndex = 0,
+            onDismiss = { previewImageUrl = null },
+            fallbackImages = previewFallbackUrls,
+        )
+    }
+
+    // 点头部（头像、名称、简介）进入介绍详情页，完整展示歌手简介与资料
+    if (showIntro && artist != null) {
+        BackHandler { showIntro = false }
+        DetailIntroContent(
+            data = artist.toDetailIntroData(),
+            onBack = { showIntro = false },
+            modifier = modifier,
+        )
+        return
+    }
+
     val playlistKey = "artist_detail/${artist?.id ?: 0}"
     val listState = rememberLazyListState()
     var headerHeightPx by remember { mutableStateOf(0f) }
+    // 长按看图：主图（avatar）失败时自动切封面，与列表 CachedImage 的兜底语义一致
+    val openArtistPreview: (String?) -> Unit = { url ->
+        val main = url?.takeIf { it.isNotBlank() }
+        if (main != null) {
+            previewImageUrl = main
+            previewFallbackUrls = listOfNotNull(
+                artist?.coverImage?.takeIf { it.isNotBlank() && it != main },
+            )
+        }
+    }
     val showCollapsedTitle by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 ||
@@ -109,7 +156,9 @@ fun ArtistDetailContent(
                 title = {
                     if (artist != null && showCollapsedTitle) {
                         Row(
-                            Modifier.height(60.dp),
+                            Modifier
+                                .height(60.dp)
+                                .clickable { showIntro = true },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             CachedImage(
@@ -118,7 +167,15 @@ fun ArtistDetailContent(
                                 contentDescription = artist.name,
                                 modifier = Modifier
                                     .size(40.dp)
-                                    .clip(CircleShape),
+                                    .clip(CircleShape)
+                                .combinedClickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { showIntro = true },
+                                    onLongClick = {
+                                        openArtistPreview(artist.avatar ?: artist.coverImage)
+                                    },
+                                ),
                                 placeholderIcon = Icons.Filled.Person,
                             )
                             Spacer(Modifier.width(10.dp))
@@ -202,6 +259,8 @@ fun ArtistDetailContent(
                     onFavoriteClick = {
                         onIntent(ArtistDetailIntent.ToggleFavorite)
                     },
+                    onHeaderClick = { showIntro = true },
+                    onCoverLongClick = { openArtistPreview(it) },
                     onHeaderHeightMeasured = { headerHeightPx = it },
                     isFavoriteLoading = state.isFavoriteLoading,
                     modifier = Modifier
@@ -225,6 +284,8 @@ private fun ArtistDetailBody(
     onAlbumClick: (Album) -> Unit,
     onMusicMoreClick: (Music) -> Unit,
     onFavoriteClick: () -> Unit,
+    onHeaderClick: () -> Unit = {},
+    onCoverLongClick: (String) -> Unit = {},
     onHeaderHeightMeasured: (Float) -> Unit,
     modifier: Modifier = Modifier,
     isFavoriteLoading: Boolean,
@@ -238,6 +299,8 @@ private fun ArtistDetailBody(
             ArtistDetailHeader(
                 artist = artist,
                 onFavoriteClick = onFavoriteClick,
+                onClick = onHeaderClick,
+                onCoverLongClick = onCoverLongClick,
                 isFavoriteLoading = isFavoriteLoading,
                 modifier = Modifier.onGloballyPositioned { coordinates ->
                     onHeaderHeightMeasured(coordinates.size.height.toFloat())
@@ -335,11 +398,20 @@ private fun ArtistDetailHeader(
     modifier: Modifier = Modifier,
     onFavoriteClick: () -> Unit,
     isFavoriteLoading: Boolean,
+    onClick: (() -> Unit)? = null,
+    onCoverLongClick: (String) -> Unit = {},
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
             .padding(8.dp)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -350,7 +422,16 @@ private fun ArtistDetailHeader(
             contentDescription = artist.name,
             modifier = Modifier
                 .size(100.dp)
-                .clip(RoundedCornerShape(12.dp)),
+                .clip(RoundedCornerShape(12.dp))
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { onClick?.invoke() },
+                    onLongClick = {
+                        (artist.avatar ?: artist.coverImage)?.takeIf { it.isNotBlank() }
+                            ?.let(onCoverLongClick)
+                    },
+                ),
             shape = RoundedCornerShape(12.dp),
             placeholderIcon = Icons.Filled.Person,
         )
@@ -478,4 +559,27 @@ private fun ArtistAlbumItem(
             )
         }
     }
+}
+
+/** 把歌手信息映射成「介绍」详情页的展示数据。 */
+private fun Artist.toDetailIntroData(): DetailIntroData {
+    val infoRows = buildList {
+        region?.takeIf { it.isNotBlank() }?.let { add("地区" to it) }
+        birthDate?.takeIf { it.isNotBlank() }?.let { add("出生日期" to it.take(10)) }
+        debutDate?.takeIf { it.isNotBlank() }?.let { add("出道时间" to it.take(10)) }
+        if (musicCount > 0) add("歌曲数" to "$musicCount 首")
+        if (albumCount > 0) add("专辑数" to "$albumCount 张")
+    }
+    return DetailIntroData(
+        title = name,
+        coverUrl = avatar ?: coverImage,
+        coverFallbackUrl = coverImage,
+        coverIsCircle = true,
+        coverPlaceholderIcon = Icons.Filled.Person,
+        typeLabel = "歌手",
+        subtitle = alias?.takeIf { it.isNotBlank() },
+        tags = tags.map { it.name },
+        description = description,
+        infoRows = infoRows,
+    )
 }
