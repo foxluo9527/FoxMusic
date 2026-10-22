@@ -31,7 +31,9 @@ class AlbumListViewModel @Inject constructor(
     private fun loadAlbums() {
         updateState {
             copy(
-                albums = getAlbumListUseCase.getPagingSource().flow.cachedIn(viewModelScope),
+                // 推荐专辑页：接后端 sort=recommend 综合分（真实播放量+收藏+曲目数+运营精选）。
+                // 此前传 null 走默认 latest，页面实际是「最新上传」而不是「推荐」。
+                albums = getAlbumListUseCase.getPagingSource(sort = "recommend").flow.cachedIn(viewModelScope),
                 isLoading = false,
                 error = null
             )

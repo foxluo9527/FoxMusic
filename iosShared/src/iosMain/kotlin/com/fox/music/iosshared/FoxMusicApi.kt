@@ -713,12 +713,22 @@ class FoxMusicApi {
         null
     }
 
-    /** POST api/import/resolve-audio —— 服务端解析可用音源（iOS 导入的主链路）。 */
-    suspend fun resolveAudio(title: String, artist: String): ResolveAudioDto {
+    /**
+     * POST api/import/resolve-audio —— 服务端解析可用音源（iOS 导入的主链路）。
+     * [durationMs] 有值时服务端优先走 API 多源（网易云/酷我/插件源，自带官方时长），
+     * 并按原曲时长过滤 30s 试听片段/错版本。
+     */
+    suspend fun resolveAudio(title: String, artist: String, durationMs: Long? = null): ResolveAudioDto {
         val response: ApiResponse<ResolveAudioDto> = client
             .post("${FoxNetworkConfig.API_BASE_URL}api/import/resolve-audio") {
                 contentType(ContentType.Application.Json)
-                setBody(ResolveAudioRequest(title = title, artist = artist))
+                setBody(
+                    ResolveAudioRequest(
+                        title = title,
+                        artist = artist,
+                        durationMs = durationMs?.takeIf { it > 0 },
+                    ),
+                )
             }
             .body()
         val data = response.data
@@ -925,11 +935,12 @@ class FoxMusicApi {
     }
 
     /** GET /api/albums —— 专辑列表分页（后端 noAuth）。 */
-    suspend fun fetchAlbums(page: Int = 1, limit: Int = 20): List<AlbumDto> {
+    suspend fun fetchAlbums(page: Int = 1, limit: Int = 20, sort: String? = null): List<AlbumDto> {
         val response: ApiResponse<PagedResponse<AlbumDto>> = client
             .get("${FoxNetworkConfig.API_BASE_URL}api/albums") {
                 parameter("page", page)
                 parameter("limit", limit)
+                if (sort != null) parameter("sort", sort)
             }
             .body()
         return response.data?.list.orEmpty()

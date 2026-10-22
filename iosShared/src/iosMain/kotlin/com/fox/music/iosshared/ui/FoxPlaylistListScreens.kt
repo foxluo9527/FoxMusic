@@ -170,14 +170,15 @@ object FoxAlbumListScreen {
     }
 }
 
-/** 专辑分页源：GET api/albums?page&limit（与 Android AlbumPagingSource 同接口）。 */
+/** 专辑分页源：GET api/albums?page&limit&sort=recommend（与 Android AlbumPagingSource 同接口）。
+ * 推荐专辑页接后端 recommend 综合分（真实播放量+收藏+曲目数+运营精选），此前不传 sort 走的是最新上传。 */
 internal class AlbumListPagingSource(
     private val api: FoxMusicApi,
 ) : PagingSource<Int, Album>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Album> = try {
         val page = params.key ?: 1
-        val list = api.fetchAlbums(page, params.loadSize).map { it.toAlbum() }
+        val list = api.fetchAlbums(page, params.loadSize, sort = "recommend").map { it.toAlbum() }
         LoadResult.Page(
             data = list,
             prevKey = if (page == 1) null else page - 1,
