@@ -64,6 +64,8 @@ sealed interface SearchIntent : UiIntent {
     data class QueryChange(val query: String) : SearchIntent
     data object Search : SearchIntent
     data class SelectHistory(val keyword: String) : SearchIntent
+    /** 删除单条历史（chip 上的 ×） */
+    data class DeleteHistory(val keyword: String) : SearchIntent
     data class SelectHotKeyword(val keyword: String) : SearchIntent
     data class SelectSuggest(val suggest: SearchSuggest) : SearchIntent
     data class FocusChanged(val focused: Boolean) : SearchIntent
@@ -73,6 +75,8 @@ sealed interface SearchIntent : UiIntent {
     data object ClearHistory : SearchIntent
     data object RefreshHotKeywords : SearchIntent
     data object ClearPostTag : SearchIntent
+    /** 从「去收录」流程返回后，强制重新拉取一次搜索结果 */
+    data object RefreshSearch : SearchIntent
     data class FilterPostTag(val tag: String) : SearchIntent
     data class TogglePostLike(val post: Post) : SearchIntent
 }

@@ -158,6 +158,7 @@ class SearchViewModel @Inject constructor(
                 updateState { copy(isHistoryExpanded = !isHistoryExpanded) }
             }
             SearchIntent.ClearHistory -> clearHistory()
+            is SearchIntent.DeleteHistory -> deleteHistoryItem(intent.keyword)
             SearchIntent.RefreshHotKeywords -> refreshHotKeywords()
             SearchIntent.ClearPostTag -> {
                 updateState { copy(postTag = null) }
@@ -387,6 +388,15 @@ class SearchViewModel @Inject constructor(
             clearSearchHistoryUseCase().onSuccess {
                 updateState { copy(searchHistory = emptyList(), isHistoryExpanded = false) }
             }
+        }
+    }
+
+    /** 单条历史删除：先乐观移除本地状态，再打仓库；失败则由历史流回补 */
+    private fun deleteHistoryItem(keyword: String) {
+        val remaining = currentState.searchHistory.filterNot { it.keyword == keyword }
+        updateState { copy(searchHistory = remaining) }
+        viewModelScope.launch {
+            searchRepository.removeSearchHistoryItem(keyword)
         }
     }
 

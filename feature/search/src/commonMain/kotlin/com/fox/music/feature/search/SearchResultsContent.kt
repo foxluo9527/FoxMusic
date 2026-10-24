@@ -10,26 +10,37 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.social.Post
-import com.fox.music.core.ui.component.AlbumListItem
-import com.fox.music.core.ui.component.ArtistListItem
+import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxEditorialRow
 import com.fox.music.core.ui.component.LoadingIndicator
-import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.core.ui.theme.InkQuaternary
+import com.fox.music.core.ui.util.formatTrackDuration
 
 @Composable
 internal fun MusicSearchResults(
@@ -55,6 +66,10 @@ internal fun MusicSearchResults(
         }
     }
 
+    // 本页没有全局播放态：把「刚点过、正送去播放」的那一行标为正在播放，
+    // 与 FoxEditorialRow 的左侧 2.5dp 强调竖条对应。
+    var playingMusicId by remember { mutableStateOf<Long?>(null) }
+
     PagingResultList(
         pagingItems = pagingItems,
         emptyMessage = "未找到相关单曲",
@@ -68,13 +83,47 @@ internal fun MusicSearchResults(
         itemContent = { index ->
             val music = pagingItems[index]
             if (music != null) {
-                MusicListItem(
-                    music = music,
-                    modifier = Modifier.padding(start = 12.dp, end = 8.dp),
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    onClick = { onMusicClick(music) },
-                    onMoreClick = { onMusicMoreClick(music) },
+                FoxEditorialRow(
+                    title = music.title,
+                    number = (index + 1).toString(),
+                    leading = {
+                        CachedImage(
+                            imageUrl = music.coverImage,
+                            contentDescription = music.title,
+                            modifier = Modifier.size(52.dp),
+                            shape = RoundedCornerShape(9.dp),
+                        )
+                    },
+                    subtitle = music.artists.joinToString { it.name }
+                        .takeIf { it.isNotBlank() },
+                    isPlaying = playingMusicId == music.id,
+                    trailing = {
+                        Text(
+                            text = formatTrackDuration(music.duration),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 11.sp,
+                                fontFeatureSettings = "tnum",
+                            ),
+                            color = InkQuaternary,
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable { onMusicMoreClick(music) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.MoreVert,
+                                contentDescription = "更多",
+                                modifier = Modifier.size(18.dp),
+                                tint = InkQuaternary,
+                            )
+                        }
+                    },
+                    onClick = {
+                        playingMusicId = music.id
+                        onMusicClick(music)
+                    },
                 )
             }
         },
@@ -103,9 +152,18 @@ internal fun ArtistSearchResults(
         itemContent = { index ->
             val artist = pagingItems[index]
             if (artist != null) {
-                ArtistListItem(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    artist = artist,
+                FoxEditorialRow(
+                    title = artist.name,
+                    number = (index + 1).toString(),
+                    leading = {
+                        CachedImage(
+                            imageUrl = artist.avatar ?: artist.coverImage,
+                            contentDescription = artist.name,
+                            modifier = Modifier.size(52.dp),
+                            shape = RoundedCornerShape(26.dp),
+                        )
+                    },
+                    subtitle = "${artist.musicCount} 首作品".takeIf { artist.musicCount > 0 },
                     onClick = { onArtistClick(artist.id) },
                 )
             }
@@ -124,9 +182,29 @@ internal fun AlbumSearchResults(
         itemContent = { index ->
             val album = pagingItems[index]
             if (album != null) {
-                AlbumListItem(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    album = album,
+                FoxEditorialRow(
+                    title = album.title,
+                    number = (index + 1).toString(),
+                    leading = {
+                        CachedImage(
+                            imageUrl = album.coverImage,
+                            contentDescription = album.title,
+                            modifier = Modifier.size(52.dp),
+                            shape = RoundedCornerShape(9.dp),
+                        )
+                    },
+                    subtitle = album.artists.joinToString { it.name }
+                        .takeIf { it.isNotBlank() },
+                    trailing = {
+                        Text(
+                            text = formatTrackDuration(album.duration),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 11.sp,
+                                fontFeatureSettings = "tnum",
+                            ),
+                            color = InkQuaternary,
+                        )
+                    },
                     onClick = { onAlbumClick(album) },
                 )
             }

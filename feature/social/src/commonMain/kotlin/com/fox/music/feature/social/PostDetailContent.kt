@@ -2,6 +2,7 @@ package com.fox.music.feature.social
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,12 +24,15 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.ModeComment
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -48,10 +52,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.LazyPagingItems
@@ -68,13 +75,18 @@ import com.fox.music.core.model.user.User
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.CommentMoreBottomSheet
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxEditorialCircleButton
+import com.fox.music.core.ui.component.FoxEditorialSectionLabel
 import com.fox.music.core.ui.component.LoadingIndicator
-import com.fox.music.core.ui.component.PostCommentInputBar
 import com.fox.music.core.ui.component.PostMediaCarousel
 import com.fox.music.core.ui.component.PostMediaPreviewDialog
 import com.fox.music.core.ui.component.PostMoreBottomSheet
 import com.fox.music.core.ui.component.PostMusicBarExtended
-import com.fox.music.core.ui.component.PostTagsRow
+import com.fox.music.core.ui.theme.FoxEditorial
+import com.fox.music.core.ui.theme.InkMuted
+import com.fox.music.core.ui.theme.InkQuaternary
+import com.fox.music.core.ui.theme.InkTertiary
+import com.fox.music.core.ui.theme.PaperHairline
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -238,7 +250,6 @@ fun PostDetailContent(
                 // 会露出页面渐变，与底栏之间出现一道色带断层。
                 Box(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
                     PostDetailBottomBar(
-                        post = post,
                         commentInput = state.commentInput,
                         replyHint = state.replyHint,
                         isSending = state.isCommentSending,
@@ -248,13 +259,6 @@ fun PostDetailContent(
                             .padding(bottom = bottomBarBottomInset),
                         onCommentChange = { onIntent(PostDetailIntent.UpdateCommentInput(it)) },
                         onSend = { onIntent(PostDetailIntent.SendComment) },
-                        onLike = {
-                            if (!isLoggedIn) {
-                                onLoginRequired()
-                            } else {
-                                onIntent(PostDetailIntent.ToggleLike)
-                            }
-                        },
                     )
                 }
             }
@@ -334,6 +338,20 @@ fun PostDetailContent(
                                 PostDetailBody(
                                     post = post,
                                     onTagClick = onTagClick,
+                                    onLike = {
+                                        if (!isLoggedIn) {
+                                            onLoginRequired()
+                                        } else {
+                                            onIntent(PostDetailIntent.ToggleLike)
+                                        }
+                                    },
+                                    onShare = {
+                                        if (!isLoggedIn) {
+                                            onLoginRequired()
+                                        } else {
+                                            onSharePost(post)
+                                        }
+                                    },
                                 )
                             }
                             item(key = "feed_tabs") {
@@ -345,11 +363,19 @@ fun PostDetailContent(
                                         onSelectTab = { onIntent(PostDetailIntent.SelectFeedTab(it)) },
                                     )
                                 } else {
-                                    Text(
-                                        text = "评论 ${post.commentCount}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                    FoxEditorialSectionLabel(
+                                        number = "02",
+                                        title = "评论",
+                                        modifier = Modifier.padding(top = 16.dp, bottom = 2.dp),
+                                        trailing = {
+                                            Text(
+                                                text = post.commentCount.toString(),
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontSize = 11.sp,
+                                                ),
+                                                color = InkQuaternary,
+                                            )
+                                        },
                                     )
                                 }
                             }
@@ -523,13 +549,19 @@ private fun PostDetailTopBar(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+        FoxEditorialCircleButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                modifier = Modifier.size(18.dp),
+                tint = InkMuted,
+            )
         }
         if (post != null) {
+            Spacer(Modifier.width(8.dp))
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -539,20 +571,37 @@ private fun PostDetailTopBar(
                 CachedImage(
                     imageUrl = post.authorAvatar,
                     contentDescription = post.authorName,
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(30.dp),
                     shape = CircleShape,
                     placeholderIcon = Icons.Default.Person,
                 )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = post.authorName ?: "用户",
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Spacer(Modifier.width(9.dp))
+                Column {
+                    Text(
+                        text = post.authorName ?: "用户",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = formatPostDetailTime(post.createdAt).substringBefore(" "),
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.5.sp),
+                        color = InkQuaternary,
+                        maxLines = 1,
+                    )
+                }
             }
-            IconButton(onClick = onMore) {
-                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+            FoxEditorialCircleButton(onClick = onMore) {
+                Icon(
+                    imageVector = Icons.Outlined.MoreVert,
+                    contentDescription = "更多",
+                    modifier = Modifier.size(17.dp),
+                    tint = InkMuted,
+                )
             }
         } else {
             Spacer(Modifier.weight(1f))
@@ -564,16 +613,18 @@ private fun PostDetailTopBar(
 private fun PostDetailBody(
     post: Post,
     onTagClick: (String) -> Unit,
+    onLike: () -> Unit,
+    onShare: () -> Unit,
 ) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
         val title = post.title?.takeIf { it.isNotBlank() && it != "无标题" }
         if (title != null) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                style = FoxEditorial.articleTitle,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
         }
         val bodyText = post.content.trim().takeIf { content ->
             content.isNotBlank() && content != title
@@ -581,71 +632,180 @@ private fun PostDetailBody(
         if (bodyText != null) {
             Text(
                 text = bodyText,
-                style = MaterialTheme.typography.bodyLarge,
+                // 14.5sp / 行高 1.72 ≈ 24.8sp：与 22sp 衬线标题拉开层级
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 14.5.sp,
+                    lineHeight = 24.8.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
         if (post.tags.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            PostTagsRow(tags = post.tags.map { it.name }, onTagClick = onTagClick)
+            Spacer(Modifier.height(9.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                post.tags.forEach { tag ->
+                    Text(
+                        text = "#${tag.name}",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { onTagClick(tag.name) },
+                    )
+                }
+            }
         }
         Spacer(Modifier.height(10.dp))
         Text(
             text = formatPostDetailTime(post.createdAt),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+            color = InkTertiary,
+        )
+        Spacer(Modifier.height(12.dp))
+        HorizontalDivider(color = PaperHairline)
+        PostDetailInteractionRow(
+            post = post,
+            onLike = onLike,
+            onShare = onShare,
+        )
+        HorizontalDivider(color = PaperHairline)
+    }
+}
+
+/**
+ * 互动行：赞 / 评论 / 分享。线性 SVG（禁 emoji），与正文之间用 1px 发丝线隔开。
+ * 强调色只出现在「已赞」这一个选中态上。
+ */
+@Composable
+private fun PostDetailInteractionRow(
+    post: Post,
+    onLike: () -> Unit,
+    onShare: () -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 11.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PostDetailInteractionItem(
+            icon = Icons.Outlined.Favorite,
+            contentDescription = if (post.isLiked) "取消赞" else "赞",
+            text = post.likeCount.toString(),
+            tint = if (post.isLiked) accent else InkTertiary,
+            onClick = onLike,
+        )
+        PostDetailInteractionItem(
+            icon = Icons.Outlined.ModeComment,
+            contentDescription = "评论",
+            text = post.commentCount.toString(),
+            tint = InkTertiary,
+        )
+        PostDetailInteractionItem(
+            icon = Icons.Outlined.Share,
+            contentDescription = "分享",
+            text = "分享",
+            tint = InkTertiary,
+            onClick = onShare,
+        )
+    }
+}
+
+@Composable
+private fun PostDetailInteractionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    text: String,
+    tint: Color,
+    onClick: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .height(44.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(16.dp),
+            tint = tint,
+        )
+        Spacer(Modifier.width(5.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            color = tint,
         )
     }
 }
 
 @Composable
 private fun PostDetailBottomBar(
-    post: Post,
     commentInput: String,
     replyHint: String?,
     isSending: Boolean,
     modifier: Modifier = Modifier,
     onCommentChange: (String) -> Unit,
     onSend: () -> Unit,
-    onLike: () -> Unit,
 ) {
-    Column(
+    val pillShape = RoundedCornerShape(19.dp)
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface),
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
+        BasicTextField(
+            value = commentInput,
+            onValueChange = onCommentChange,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .weight(1f)
+                .height(38.dp),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 12.5.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            decorationBox = { innerTextField ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(1.dp, PaperHairline, pillShape)
+                        .padding(horizontal = 15.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (commentInput.isEmpty()) {
+                        Text(
+                            text = replyHint ?: "说点什么…",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
+                            color = InkQuaternary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+        )
+        Spacer(Modifier.width(10.dp))
+        Box(
+            modifier = Modifier
+                .height(44.dp)
+                .clickable(enabled = !isSending && commentInput.isNotBlank()) { onSend() }
+                .padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(modifier = Modifier.weight(1f)) {
-                PostCommentInputBar(
-                    value = commentInput,
-                    onValueChange = onCommentChange,
-                    onSend = onSend,
-                    placeholder = replyHint ?: "说点什么...",
-                    isSending = isSending,
-                )
-            }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clickable(onClick = onLike)
-                    .padding(horizontal = 8.dp),
-            ) {
-                Icon(
-                    imageVector = if (post.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "点赞",
-                    tint = if (post.isLiked) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
-                Text(
-                    text = post.likeCount.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = if (isSending) "发送中" else "发送",
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -665,7 +825,7 @@ private fun PostDetailCommentItem(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         Row(
             modifier = Modifier
@@ -677,7 +837,7 @@ private fun PostDetailCommentItem(
                 imageUrl = comment.displayAuthorAvatar,
                 contentDescription = comment.displayAuthorName,
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(32.dp)
                     .clickable { onUserClick(comment.userId) },
                 shape = CircleShape,
                 placeholderIcon = Icons.Default.Person,
@@ -693,16 +853,37 @@ private fun PostDetailCommentItem(
                     ),
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = comment.displayAuthorName,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { onUserClick(comment.userId) },
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = comment.displayAuthorName,
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .clickable { onUserClick(comment.userId) },
+                        )
+                        val date = formatPostDetailTime(comment.createdAt).substringBefore(" ")
+                        if (date.isNotBlank()) {
+                            Text(
+                                text = "· $date",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = InkQuaternary,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
                     Text(
                         text = comment.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 4.dp),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 13.5.sp,
+                            lineHeight = 20.9.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }
@@ -863,13 +1044,12 @@ private fun PostDetailFeedTabs(
     onSelectTab: (PostDetailFeedTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scheme = MaterialTheme.colorScheme
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Bottom,
     ) {
         PostDetailFeedTabItem(
             text = "评论 $commentCount",
@@ -882,23 +1062,39 @@ private fun PostDetailFeedTabs(
             onClick = { onSelectTab(PostDetailFeedTab.LIKES) },
         )
     }
-    HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.35f))
+    HorizontalDivider(color = PaperHairline)
 }
 
+/** v10：选中 = 13.5sp 强调色 + 底部 2dp 强调色下划线；未选中 ink3。 */
 @Composable
 private fun PostDetailFeedTabItem(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val scheme = MaterialTheme.colorScheme
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        color = if (selected) scheme.onSurface else scheme.onSurfaceVariant,
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        modifier = Modifier
+            .height(44.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+                color = if (selected) accent else InkTertiary,
+            )
+            Spacer(modifier = Modifier.height(9.dp))
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(if (selected) accent else Color.Transparent),
+        )
+    }
 }
 
 @Composable

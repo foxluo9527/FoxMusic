@@ -262,6 +262,7 @@ object FoxSearchScreen {
                             is SearchIntent.ToggleHistoryExpanded ->
                                 historyExpanded = !historyExpanded
                             is SearchIntent.ClearHistory -> Unit // 历史需登录，暂不接
+                            is SearchIntent.DeleteHistory -> Unit // 历史需登录，暂不接
                             is SearchIntent.RefreshHotKeywords -> Unit
                             is SearchIntent.ClearPostTag -> postTag = null
                             is SearchIntent.FilterPostTag -> postTag = intent.tag
