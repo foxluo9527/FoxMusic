@@ -19,20 +19,20 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,17 +43,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.social.PostMedia
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
-import com.fox.music.core.ui.component.PostCard
 import com.fox.music.core.ui.component.PostCommentInputBar
 import com.fox.music.core.ui.component.PostMediaPreviewDialog
 import com.fox.music.core.ui.component.PostNoteGridCard
-import com.fox.music.core.ui.component.TabPageTopBar
+import com.fox.music.core.ui.component.FoxCircleIconButton
+import com.fox.music.core.ui.component.FoxPageHeader
 import com.fox.music.core.ui.theme.FoxSpacing
 
 const val COMMUNITY_PLAZA_ROUTE = "community_plaza"
@@ -86,9 +85,35 @@ fun CommunityPlazaContent(
     onNavigateToPlayer: () -> Unit = {},
     playerState: PlayerState = PlayerState(),
     onTagClick: (String) -> Unit = {},
+    /** 分页首屏到手：回传给宿主落快照（下次进页面先渲染这批，见 [CommunityPlazaState.cachedPosts]）。 */
+    onPostsLoaded: (List<Post>) -> Unit = {},
 ) {
     val postPagingItems = state.posts.collectAsLazyPagingItems()
     val layoutMode = state.layoutMode
+    // 缓存优先：分页空窗期用上一次的帖子顶上
+    val cachedPosts = state.cachedPosts
+    val postCount = postPagingItems.itemCount.takeIf { it > 0 } ?: cachedPosts.size
+
+    // 必须现读 itemCount 再取：LazyPagingItems.get(index) 在 index >= itemCount 时
+    // 直接抛 IndexOutOfBoundsException（刷新换新 PagingData、首屏未回时 itemCount 为 0，
+    // 而 count 可能还是按缓存算出来的 → get(0) 崩）。
+    fun postAt(index: Int): Post? =
+        if (index < postPagingItems.itemCount) {
+            postPagingItems[index]
+        } else {
+            cachedPosts.getOrNull(index)
+        }
+
+    // key 带来源前缀：缓存条目与分页条目 id 相同时也不会撞 key
+    fun postKeyAt(index: Int): String {
+        val fromPaging = index < postPagingItems.itemCount
+        val id = postAt(index)?.id ?: index
+        return if (fromPaging) "$id" else "cached_$id"
+    }
+
+    LaunchedEffect(postPagingItems.itemSnapshotList.items) {
+        onPostsLoaded(postPagingItems.itemSnapshotList.items)
+    }
     var previewMedia by remember { mutableStateOf<List<PostMedia>?>(null) }
     var previewIndex by remember { mutableStateOf(0) }
 
@@ -119,15 +144,16 @@ fun CommunityPlazaContent(
             )
 
             when {
+                // 有缓存时优先展示旧数据（下面统一走列表分支），只有「无缓存 + 加载中」才转圈
                 postPagingItems.loadState.refresh is LoadState.Loading &&
-                    postPagingItems.itemCount == 0 -> {
+                    postPagingItems.itemCount == 0 && cachedPosts.isEmpty() -> {
                     LoadingIndicator(
                         modifier = Modifier.fillMaxSize(),
                         useLottie = false,
                     )
                 }
                 postPagingItems.loadState.refresh is LoadState.Error &&
-                    postPagingItems.itemCount == 0 -> {
+                    postPagingItems.itemCount == 0 && cachedPosts.isEmpty() -> {
                     ErrorView(
                         modifier = Modifier.fillMaxSize(),
                         message = (postPagingItems.loadState.refresh as LoadState.Error)
@@ -136,7 +162,7 @@ fun CommunityPlazaContent(
                     )
                 }
                 postPagingItems.loadState.refresh is LoadState.NotLoading &&
-                    postPagingItems.itemCount == 0 -> {
+                    postPagingItems.itemCount == 0 && cachedPosts.isEmpty() -> {
                     ErrorView(
                         modifier = Modifier.fillMaxSize(),
                         message = "暂无动态，点击右上角发布第一条吧",
@@ -145,7 +171,9 @@ fun CommunityPlazaContent(
                 }
                 else -> {
                     PullToRefreshBox(
-                        isRefreshing = state.isRefreshing,
+                        // 已有内容（缓存或已加载）时分页在后台刷新 → 顶部转圈提示「新数据在路上」
+                        isRefreshing = state.isRefreshing ||
+                            (postPagingItems.loadState.refresh is LoadState.Loading && postCount > 0),
                         onRefresh = { onIntent(CommunityPlazaIntent.Refresh) },
                         modifier = Modifier.fillMaxSize(),
                     ) {
@@ -159,10 +187,10 @@ fun CommunityPlazaContent(
                                     verticalItemSpacing = 8.dp,
                                 ) {
                                     items(
-                                        count = postPagingItems.itemCount,
-                                        key = postPagingItems.itemKey { it.id },
+                                        count = postCount,
+                                        key = { index -> postKeyAt(index) },
                                     ) { index ->
-                                        val post = postPagingItems[index] ?: return@items
+                                        val post = postAt(index) ?: return@items
                                         val displayPost = state.applyLikeOverride(post)
                                         PostNoteGridCard(
                                             post = displayPost,
@@ -188,17 +216,24 @@ fun CommunityPlazaContent(
                             PlazaLayoutMode.LIST -> {
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentPadding = listContentPadding,
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    // 条目自带 20dp 横向内边距（FoxEditorialPostItem），这里不能再叠
+                                    // pagePadding，否则内容会离屏边 44dp；条目之间用发丝线分隔，
+                                    // 所以纵向间隔取 0（旧写法 12dp 会让发丝线悬空成"卡片"）。
+                                    contentPadding = PaddingValues(
+                                        start = 0.dp,
+                                        end = 0.dp,
+                                        top = 8.dp,
+                                        bottom = FoxSpacing.tabChromeBottom,
+                                    ),
                                 ) {
                                     items(
-                                        count = postPagingItems.itemCount,
-                                        key = postPagingItems.itemKey { it.id },
+                                        count = postCount,
+                                        key = { index -> postKeyAt(index) },
                                     ) { index ->
-                                        val post = postPagingItems[index] ?: return@items
+                                        val post = postAt(index) ?: return@items
                                         val displayPost = state.applyLikeOverride(post)
                                         val isOwn = displayPost.userId == currentUserId
-                                        PostCard(
+                                        FoxEditorialPostItem(
                                             post = displayPost,
                                             previewComment = state.commentPreviews[post.id],
                                             isOwnPost = isOwn,
@@ -223,7 +258,8 @@ fun CommunityPlazaContent(
                                                 previewIndex = imageIndex
                                             },
                                             onMusicPlayClick = {
-                                                val music = displayPost.music ?: return@PostCard
+                                                val music = displayPost.music
+                                                    ?: return@FoxEditorialPostItem
                                                 if (playerState.currentMusic?.id == music.id) {
                                                     onTogglePlay()
                                                 } else {
@@ -294,39 +330,31 @@ private fun PlazaTabHeader(
             onPublishQueue = onPublishQueue,
         )
     }
-    TabPageTopBar(
+    FoxPageHeader(
         title = "广场",
         onOpenDrawer = onOpenDrawer,
-        // 顶部不再额外内边距，使三横与「我的」页头部图标纵向对齐。
-        modifier = Modifier.padding(bottom = 4.dp),
         actions = {
-            IconButton(onClick = onSearchClick) {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = "搜索帖子",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            IconButton(onClick = onToggleLayout) {
-                Icon(
-                    imageVector = when (layoutMode) {
-                        PlazaLayoutMode.STAGGERED -> Icons.AutoMirrored.Filled.ViewList
-                        PlazaLayoutMode.LIST -> Icons.Filled.GridView
-                    },
-                    contentDescription = when (layoutMode) {
-                        PlazaLayoutMode.STAGGERED -> "切换为列表"
-                        PlazaLayoutMode.LIST -> "切换为瀑布流"
-                    },
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            IconButton(onClick = { showPostMenu = true }) {
-                Icon(
-                    imageVector = Icons.Filled.AddCircle,
-                    contentDescription = "发帖",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+            FoxCircleIconButton(
+                icon = Icons.Filled.Search,
+                contentDescription = "搜索帖子",
+                onClick = onSearchClick,
+            )
+            FoxCircleIconButton(
+                icon = when (layoutMode) {
+                    PlazaLayoutMode.STAGGERED -> Icons.AutoMirrored.Filled.ViewList
+                    PlazaLayoutMode.LIST -> Icons.Filled.GridView
+                },
+                contentDescription = when (layoutMode) {
+                    PlazaLayoutMode.STAGGERED -> "切换为列表"
+                    PlazaLayoutMode.LIST -> "切换为瀑布流"
+                },
+                onClick = onToggleLayout,
+            )
+            FoxCircleIconButton(
+                icon = Icons.Filled.Add,
+                contentDescription = "发帖",
+                onClick = { showPostMenu = true },
+            )
         },
     )
 }
@@ -346,7 +374,7 @@ private fun PlazaPostMenuBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = FoxSpacing.pagePadding, vertical = 8.dp),
         ) {
             PlazaPostMenuActionRow(
                 icon = Icons.Default.EditNote,

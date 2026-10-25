@@ -1,6 +1,7 @@
 package com.fox.music.core.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,13 +28,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.social.PostMediaType
+import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.theme.foxEditorialAccent
+
+/** 瀑布流卡片外形：10dp 圆角 + 发丝线描边（无投影）。 */
+private val CardShape = RoundedCornerShape(10.dp)
 
 @Composable
 fun PostNoteGridCard(
@@ -43,12 +48,15 @@ fun PostNoteGridCard(
     onTagClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val accent = foxEditorialAccent
     val cover = post.displayMedia.firstOrNull()
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            // 无投影：边界靠 1dp 发丝线 + 10dp 圆角，不再靠色差"卡片墙"
+            .clip(CardShape)
             .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, PaperHairline, CardShape)
             .clickable(onClick = onClick),
     ) {
         if (cover != null) {
@@ -56,7 +64,7 @@ fun PostNoteGridCard(
             val (coverAspect, aspectReady) = rememberPostMediaAspectRatioLoaded(
                 media = cover,
                 fallback = fallbackAspect,
-                min = PostFeedMediaAspectRatio.MIN,
+                min = PostFeedMediaAspectRatio.WATERFALL_MIN,
                 max = PostFeedMediaAspectRatio.MAX,
             )
             Box(
@@ -178,7 +186,7 @@ fun PostNoteGridCard(
                         imageVector = if (post.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "点赞",
                         modifier = Modifier.size(14.dp),
-                        tint = if (post.isLiked) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (post.isLiked) accent else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.width(2.dp))
                     Text(

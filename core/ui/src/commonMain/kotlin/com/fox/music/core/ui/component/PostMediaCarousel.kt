@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.social.PostMedia
 import com.fox.music.core.model.social.PostMediaType
+import com.fox.music.core.ui.theme.foxEditorialAccent
 
 /**
  * Live 徽章：Android 用矢量 drawable（ic_post_live_badge），
@@ -202,7 +203,8 @@ fun PostMediaCarousel(
                             .size(if (index == pagerState.currentPage) 7.dp else 6.dp)
                             .clip(CircleShape)
                             .background(
-                                if (index == pagerState.currentPage) Color(0xFFE53935)
+                                // 硬编码红 → 强调色令牌（跟随主题预设，深色下自动提亮）
+                                if (index == pagerState.currentPage) foxEditorialAccent
                                 else Color.White.copy(alpha = 0.7f),
                             ),
                     )
