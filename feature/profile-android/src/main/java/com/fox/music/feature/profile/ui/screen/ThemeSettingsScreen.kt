@@ -51,6 +51,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.common.R
 import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.model.user.AppThemeIntensity
+import com.fox.music.core.model.user.DarkMode
 import com.fox.music.core.ui.component.FoxColorCard
 import com.fox.music.core.ui.component.FoxEditorialRow
 import com.fox.music.core.ui.component.FoxTopBar
@@ -60,8 +61,6 @@ import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
-import com.fox.music.core.ui.theme.PaperSurface
-import com.fox.music.core.ui.theme.PaperVariant
 import com.fox.music.core.ui.theme.SeedSwatch
 import com.fox.music.core.ui.theme.previewColorScheme
 import com.fox.music.feature.profile.viewmodel.ThemeSettingsEffect
@@ -151,6 +150,9 @@ fun ThemeSettingsScreen(
                     swatches = state.seedSwatches,
                     selectedArgb = state.customThemeSeedArgb,
                     isCustomTheme = state.appThemeId == AppThemeIds.CUSTOM,
+                    // 当前真正生效的主色：预设主题（如黑胶夜场）也能在网格里标出对应色卡，
+                    // 否则非自定义主题下 9 张卡全都没有选中态。
+                    activePrimaryArgb = MaterialTheme.colorScheme.primary.toArgb(),
                     onSelectSwatch = { argb ->
                         viewModel.sendIntent(ThemeSettingsIntent.SelectCustomHue(argb))
                     },
@@ -181,23 +183,29 @@ fun ThemeSettingsScreen(
                 )
             }
             item {
-                // 深色开关（设计稿①03）：页面渲染成编辑行。
-                // TODO(v10)：等 ViewModel 暴露 darkMode 状态后再接真实切换，
-                // 目前只反映系统当前的深色设置，不写用户偏好。
+                // 深色开关（设计稿①03）：接真实偏好 —— FOLLOW_SYSTEM 时按系统解析，
+                // 拨动即写 DarkMode.DARK / LIGHT，主 Activity 的 darkTheme 直接读偏好流，
+                // 所以整页立刻变深，退出重进也不会回滚。
                 val systemDark = isSystemInDarkTheme()
-                var darkChecked by remember { mutableStateOf(systemDark) }
+                val darkChecked = when (state.darkMode) {
+                    DarkMode.DARK -> true
+                    DarkMode.LIGHT -> false
+                    else -> systemDark
+                }
                 FoxEditorialRow(
                     title = "深色模式",
-                    modifier = pagePadding,
                     trailing = {
                         Switch(
                             checked = darkChecked,
-                            onCheckedChange = { darkChecked = it },
+                            onCheckedChange = { enabled ->
+                                viewModel.sendIntent(ThemeSettingsIntent.SetDarkMode(enabled))
+                            },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = MaterialTheme.colorScheme.primary,
                                 uncheckedThumbColor = Color.White,
-                                uncheckedTrackColor = PaperVariant,
+                                // 轨道走语义色：深色下是 #2A241D，不再固定用浅色 variant
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
                             ),
                         )
                     },
@@ -209,7 +217,6 @@ fun ThemeSettingsScreen(
                     onApplyHex = { argb ->
                         viewModel.sendIntent(ThemeSettingsIntent.SelectCustomHue(argb))
                     },
-                    modifier = pagePadding,
                 )
             }
             item {
@@ -226,7 +233,7 @@ private fun ThemeMasthead(modifier: Modifier = Modifier) {
         Text(
             text = "APPEARANCE",
             style = FoxEditorial.kicker.copy(fontSize = 9.5.sp, lineHeight = 12.sp),
-            color = InkQuaternary,
+            color = foxInkMuted(),
         )
         Text(
             text = "主题",
@@ -240,7 +247,7 @@ private fun ThemeMasthead(modifier: Modifier = Modifier) {
                 fontSize = 11.5.sp,
                 lineHeight = 15.sp,
             ),
-            color = InkTertiary,
+            color = foxInkMuted(),
             modifier = Modifier.padding(top = 7.dp),
         )
     }
@@ -275,7 +282,8 @@ private fun ThemeLivePreview(
             modifier = modifier
                 .fillMaxWidth()
                 .clip(cardShape)
-                .border(width = 1.dp, color = PaperHairline, shape = cardShape)
+                // 发丝线走深色感知：深底上用 #3A322A，浅底用 PaperHairline
+                .border(width = 1.dp, color = foxHairline(), shape = cardShape)
                 .background(previewScheme.surface),
         ) {
             Row(
@@ -343,7 +351,7 @@ private fun ThemeLivePreview(
                                 fontSize = 10.5.sp,
                                 lineHeight = 14.sp,
                             ),
-                            color = InkTertiary,
+                            color = foxInkMuted(),
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
@@ -411,7 +419,7 @@ private fun ThemeSectionHeader(
             modifier = Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(PaperHairline),
+                .background(foxHairline()),
         )
     }
 }
@@ -425,6 +433,7 @@ private fun ThemeSwatchGrid(
     swatches: List<SeedSwatch>,
     selectedArgb: Long,
     isCustomTheme: Boolean,
+    activePrimaryArgb: Int,
     onSelectSwatch: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -441,7 +450,10 @@ private fun ThemeSwatchGrid(
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 row.forEach { swatch ->
-                    val isSelected = isCustomTheme && selectedArgb == swatch.argb
+                    // 选中判定两条路：① 自定义主题 → 比对已存的 seed；
+                    // ② 预设主题 → 比对当前真正生效的 primary（预设主题下否则一张都不选中）
+                    val isSelected = (isCustomTheme && selectedArgb == swatch.argb) ||
+                        activePrimaryArgb == swatch.argb.toInt()
                     FoxColorCard(
                         name = swatch.name,
                         containerColor = Color(swatch.argb),
@@ -495,10 +507,11 @@ private fun AmbiencePill(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(PaperSurface)
+            // 底色走语义 surface：深色下是 #1E1A15，不再硬编码浅色纸面（旧值深底上白得刺眼）
+            .background(MaterialTheme.colorScheme.surface)
             .border(
                 width = 1.dp,
-                color = if (selected) accent else PaperHairline,
+                color = if (selected) accent else foxHairline(),
                 shape = shape,
             )
             .clickable(onClick = onClick)
@@ -512,7 +525,7 @@ private fun AmbiencePill(
                 lineHeight = 16.sp,
             ),
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) accent else InkTertiary,
+            color = if (selected) accent else foxInkMuted(),
         )
     }
 }
@@ -540,7 +553,7 @@ private fun ThemeHexEntry(
                         fontSize = 11.5.sp,
                         lineHeight = 15.sp,
                     ),
-                    color = InkQuaternary,
+                    color = foxInkFaint(),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -549,7 +562,7 @@ private fun ThemeHexEntry(
                         fontSize = 15.sp,
                         lineHeight = 18.sp,
                     ),
-                    color = InkQuaternary,
+                    color = foxInkFaint(),
                 )
             },
         )
@@ -663,6 +676,27 @@ private fun HexInputRow(
         }
     }
 }
+
+// ── 深色感知的语义色（v10 验收返工） ─────────────────────────────────────
+/** 发丝线：深色下取设计稿的 #3A322A，浅色取 PaperHairline #E4DDD1。 */
+@Composable
+private fun foxHairline(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF3A322A) else PaperHairline
+
+/**
+ * 次级文字（眼标 / 副标 / 元信息）色。
+ *
+ * 深色下上修到 #A99F92：设计稿深色 ink4 = #7E7568 在 #17140F 上只有 4.05:1，
+ * 不过 WCAG AA；#A99F92 是 7.0:1。**这是对设计稿做的可访问性上修**，不是风格改动。
+ */
+@Composable
+private fun foxInkMuted(): Color =
+    if (isSystemInDarkTheme()) Color(0xFFA99F92) else InkTertiary
+
+/** 占位级文字（hex 值 / › 指示）：深色下 #8A8175（≈5.3:1）。 */
+@Composable
+private fun foxInkFaint(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF8A8175) else InkQuaternary
 
 /** 0xAARRGGBB → "#RRGGBB"（大写）。 */
 private fun hexOf(argb: Int): String =

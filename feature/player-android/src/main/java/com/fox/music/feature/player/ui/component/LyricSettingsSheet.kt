@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -105,24 +106,28 @@ fun LyricSettingsSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = SheetTopShape,
-        containerColor = PaperSurface,
+        // 浮层底走语义 surface：深色下是 #1E1A15，不再固定浅色纸面
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = { FoxSheetDragHandle() },
     ) {
-        // 内容比屏幕高时可滚动（小屏 / 大字号下不会被裁掉最后几行）
+        // 内容比屏幕高时可滚动（小屏 / 大字号下不会被裁掉最后几行）。
+        // 注意：这里**不加** horizontal padding —— FoxEditorialRow 自带 20dp 页面边距，
+        // 再叠一层会变成 40dp；非编辑行的块（预览卡 / thumbnail 条 / 按钮）各自加。
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
                 .padding(bottom = 18.dp),
         ) {
             if (showCustomPage) {
-                LyricCustomColorPage(
-                    styleManager = styleManager,
-                    onBack = { showCustomPage = false },
-                    onFinish = { showCustomPage = false },
-                )
+                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    LyricCustomColorPage(
+                        styleManager = styleManager,
+                        onBack = { showCustomPage = false },
+                        onFinish = { showCustomPage = false },
+                    )
+                }
             } else {
                 LyricSettingsMainPage(
                     styleManager = styleManager,
@@ -184,6 +189,7 @@ private fun LyricSettingsMainPage(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 20.dp)
                 .padding(bottom = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -191,7 +197,7 @@ private fun LyricSettingsMainPage(
                 Text(
                     text = "LYRICS",
                     style = FoxEditorial.kicker.copy(fontSize = 9.5.sp, lineHeight = 12.sp),
-                    color = InkQuaternary,
+                    color = foxInkMuted(),
                 )
                 Text(
                     text = "歌词",
@@ -215,8 +221,22 @@ private fun LyricSettingsMainPage(
             )
         }
 
+        // 高亮色：用户自定义优先，否则取方案自带的 highlightColor —— 与 thumbnail 保持
+        // 一致，避免「跟随主题」方案下大卡取主题 accent、缩略图取方案色，两边对不上。
+        val currentPalette = remember(paletteTick) { styleManager.currentPalette }
+        val customHighlight = remember(paletteTick) { styleManager.customColors.highlight }
+        val previewHighlightArgb = if (customHighlight != LyricCustomColors.UNSET) {
+            customHighlight
+        } else {
+            currentPalette.highlightColor.toInt()
+        }
+
         // 实拍预览（设计稿②）：占满宽的大卡，用当前方案渐变底 + 真实字号渲染三行歌词
-        LyricPreviewCard(colors = paletteColors)
+        LyricPreviewCard(
+            colors = paletteColors,
+            highlightArgb = previewHighlightArgb,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
 
         Spacer(Modifier.height(12.dp))
 
@@ -224,7 +244,8 @@ private fun LyricSettingsMainPage(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             LyricPalettes.all.forEach { palette ->
@@ -237,7 +258,7 @@ private fun LyricSettingsMainPage(
         }
 
         Spacer(Modifier.height(14.dp))
-        HorizontalDivider(thickness = 1.dp, color = PaperHairline)
+        HorizontalDivider(thickness = 1.dp, color = foxHairline())
 
         // 字号：A− / 滑杆 / A+（无容器编辑行）
         FoxEditorialRow(
@@ -249,7 +270,7 @@ private fun LyricSettingsMainPage(
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                     ),
-                    color = InkTertiary,
+                    color = foxInkMuted(),
                     modifier = Modifier.clickable {
                         styleManager.setFontSize(style.fontSize - 1)
                     },
@@ -268,7 +289,7 @@ private fun LyricSettingsMainPage(
                     colors = SliderDefaults.colors(
                         thumbColor = MaterialTheme.colorScheme.primary,
                         activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = PaperVariant,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
                     ),
                 )
                 Spacer(Modifier.width(9.dp))
@@ -279,7 +300,7 @@ private fun LyricSettingsMainPage(
                         lineHeight = 16.sp,
                     ),
                     fontWeight = FontWeight.SemiBold,
-                    color = InkTertiary,
+                    color = foxInkMuted(),
                     modifier = Modifier.clickable {
                         styleManager.setFontSize(style.fontSize + 1)
                     },
@@ -329,7 +350,7 @@ private fun LyricSettingsMainPage(
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SwatchDot(Color(paletteColors.bgTop), PaperHairline)
+                    SwatchDot(Color(paletteColors.bgTop), foxHairline())
                     SwatchDot(Color(paletteColors.normal), null)
                     SwatchDot(Color(paletteColors.highlight), null)
                 }
@@ -342,6 +363,7 @@ private fun LyricSettingsMainPage(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 20.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.primary)
                 .clickable(onClick = onFinish)
@@ -362,13 +384,13 @@ private fun LyricSettingsMainPage(
     }
 }
 
-/** 开关配色：选中轨道 accent + 白钮；未选中轨道 variant + 白钮。 */
+/** 开关配色：选中轨道 accent + 白钮；未选中轨道走语义 surfaceVariant（深色下不再固定浅色）。 */
 @Composable
 private fun switchColors() = SwitchDefaults.colors(
     checkedThumbColor = Color.White,
     checkedTrackColor = MaterialTheme.colorScheme.primary,
     uncheckedThumbColor = Color.White,
-    uncheckedTrackColor = PaperVariant,
+    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
 )
 
 /** 编辑行右侧的 › 指示（不用图标字体，走普通文本避免 emoji 化）。 */
@@ -380,22 +402,28 @@ private fun ChevronText() {
             fontSize = 16.sp,
             lineHeight = 18.sp,
         ),
-        color = InkQuaternary,
+        color = foxInkFaint(),
     )
 }
 
 /**
  * 实拍预览大卡（设计稿②）：占满宽的圆角卡，底色就是当前方案的渐变，
  * 居中三行歌词 —— 普通 / 高亮 / 普通，字号即真实字号（13sp / 15sp）。
+ *
+ * @param highlightArgb 高亮行色：自定义优先，否则是方案自带的 highlightColor。
  */
 @Composable
-private fun LyricPreviewCard(colors: LyricPaletteColors) {
+private fun LyricPreviewCard(
+    colors: LyricPaletteColors,
+    highlightArgb: Int,
+    modifier: Modifier = Modifier,
+) {
     val shape = RoundedCornerShape(14.dp)
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .border(width = 1.dp, color = PaperHairline, shape = shape)
+            .border(width = 1.dp, color = foxHairline(), shape = shape)
             .background(
                 Brush.verticalGradient(
                     listOf(Color(colors.bgTop), Color(colors.bgBottom)),
@@ -412,7 +440,7 @@ private fun LyricPreviewCard(colors: LyricPaletteColors) {
         )
         PreviewLine(
             text = "为什么还要帮你撑伞",
-            color = Color(colors.highlight),
+            color = Color(highlightArgb),
             fontSize = 15.sp,
             bold = true,
         )
@@ -424,6 +452,27 @@ private fun LyricPreviewCard(colors: LyricPaletteColors) {
         )
     }
 }
+
+// ── 深色感知的语义色（v10 验收返工） ─────────────────────────────────────
+/** 发丝线：深色下取设计稿的 #3A322A，浅色取 PaperHairline #E4DDD1。 */
+@Composable
+private fun foxHairline(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF3A322A) else PaperHairline
+
+/**
+ * 次级文字（眼标 / A−A+ / 元信息）色。
+ *
+ * 深色下上修到 #A99F92：设计稿深色 ink4 = #7E7568 在 #17140F 上只有 4.05:1，
+ * 不过 WCAG AA；#A99F92 是 7.0:1。**这是对设计稿做的可访问性上修**，不是风格改动。
+ */
+@Composable
+private fun foxInkMuted(): Color =
+    if (isSystemInDarkTheme()) Color(0xFFA99F92) else InkTertiary
+
+/** 占位级文字（› 指示）：深色下 #8A8175（≈5.3:1）。 */
+@Composable
+private fun foxInkFaint(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF8A8175) else InkQuaternary
 
 @Composable
 private fun PreviewLine(

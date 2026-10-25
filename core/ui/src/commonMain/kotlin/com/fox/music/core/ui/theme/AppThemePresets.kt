@@ -5,7 +5,24 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 import com.fox.music.core.model.user.AppThemeIds
+import com.fox.music.core.model.user.AppThemeIntensity
 import com.fox.music.core.model.user.AppThemePreset
+
+/** 自定义配色的一支种子色：色值 + 中文名（设计稿①要求色圆点下方带色名）。 */
+data class SeedSwatch(
+    val argb: Long,
+    val name: String,
+)
+
+// ── 深色纸感底（v10 设计稿令牌表） ─────────────────────────────────────────
+/** 深色 bg #17140F：旧值 VinylInk #0E0C0A 过黑，大面积铺开会糊成一团。 */
+private val DarkBackgroundPaper = Color(0xFF17140F)
+/** 深色 surface #1E1A15（浮层：Sheet / 卡片）。 */
+private val DarkSurfacePaper = Color(0xFF1E1A15)
+/** 深色 variant #2A241D（次级填充 / 未选中轨道）。 */
+private val DarkPaperVariant = Color(0xFF2A241D)
+/** 亮强调色上的字色：用最深底，保证对比度。 */
+private val DarkInkBase = Color(0xFF17140F)
 
 object AppThemePresets {
 
@@ -54,11 +71,35 @@ object AppThemePresets {
         ),
     )
 
-    val customHueOptions: List<Long> = listOf(
-        0xFFE53935, 0xFFFF6F00, 0xFFFFB300, 0xFF43A047,
-        0xFF00897B, 0xFF1E88E5, 0xFF3949AB, 0xFF8E24AA,
-        0xFFD81B60, 0xFF6D4C41, 0xFF546E7A, 0xFF212121,
+    /**
+     * 12 支「作家色板」种子色（2026-10 v8 第二批改版）。
+     *
+     * 旧版给的是 12 个 Material 高饱和色（#E53935 / #FF6F00 …），配上 alpha 派生后
+     * 在纸底上呈现脏粉 / 脏蓝。这里全部换成低饱和、有"颜料感"的色相，
+     * 顺序按设计稿①的 4×3 网格：陶土 / 琥珀 / 苔绿 / 墨绿 / 青瓷 / 藏蓝 /
+     * 黛蓝 / 绛紫 / 葡萄 / 玫瑰 / 焦糖 / 石墨。
+     */
+    val customSeedSwatches: List<SeedSwatch> = listOf(
+        SeedSwatch(0xFFB8513A, "陶土"),
+        SeedSwatch(0xFFB07624, "琥珀"),
+        SeedSwatch(0xFF5F7A4E, "苔绿"),
+        SeedSwatch(0xFF3E6B5C, "墨绿"),
+        SeedSwatch(0xFF4E8C86, "青瓷"),
+        SeedSwatch(0xFF38598C, "藏蓝"),
+        SeedSwatch(0xFF44607E, "黛蓝"),
+        SeedSwatch(0xFF7E4E60, "绛紫"),
+        SeedSwatch(0xFF6B4E8C, "葡萄"),
+        SeedSwatch(0xFFA85466, "玫瑰"),
+        SeedSwatch(0xFF9C6B44, "焦糖"),
+        SeedSwatch(0xFF4A4A4E, "石墨"),
     )
+
+    /** 兼容旧调用方：只要色值不要名字。 */
+    val customHueOptions: List<Long> = customSeedSwatches.map { it.argb }
+
+    /** 按色值反查色名（自定义 HEX 时返回 null）。 */
+    fun seedName(argb: Long): String? =
+        customSeedSwatches.firstOrNull { it.argb == argb }?.name
 
     fun presetName(themeId: String): String =
         catalog.firstOrNull { it.id == themeId }?.name ?: "个性自定义"
@@ -70,10 +111,12 @@ object AppThemePresets {
 
     private val lightSchemes: Map<String, ColorScheme> = mapOf(
         AppThemeIds.VINYL_NIGHT to lightColorScheme(
-            primary = VinylAmberDeep,
+            // 2026-10 改版：浅底强调色从偏亮的琥珀换成陶土暖橙（单一强调色原则），
+            // 全站链接 / 选中态 / 进度都用它；琥珀只留给深色沉浸场景。
+            primary = AccentTerracotta,
             onPrimary = Color.White,
-            primaryContainer = VinylAmberSoft,
-            onPrimaryContainer = Color(0xFF3D2A08),
+            primaryContainer = Color(0xFFF3DCD5),
+            onPrimaryContainer = Color(0xFF8E3A26),
             secondary = VinylCopper,
             onSecondary = Color.White,
             secondaryContainer = Color(0xFFF5DCC8),
@@ -87,7 +130,8 @@ object AppThemePresets {
             surface = PaperSurface,
             onSurface = InkOnPaper,
             surfaceVariant = PaperVariant,
-            onSurfaceVariant = InkMuted,
+            // 次级文字用 ink-3（5.0:1）：旧值在首页艺人名上只有 4.43:1，不过 AA
+            onSurfaceVariant = InkTertiary,
             outline = Color(0xFFB8A990),
             error = ErrorRedLight,
             onError = Color.White,
@@ -246,11 +290,12 @@ object AppThemePresets {
             onTertiary = Color(0xFF2A1010),
             tertiaryContainer = Color(0xFF5C2828),
             onTertiaryContainer = Color(0xFFF5D5D5),
-            background = VinylInk,
+            // 深色底色对齐设计稿令牌表（见 DarkBackgroundPaper 注释）
+            background = DarkBackgroundPaper,
             onBackground = VinylCream,
-            surface = VinylInkElevated,
+            surface = DarkSurfacePaper,
             onSurface = VinylCream,
-            surfaceVariant = VinylInkVariant,
+            surfaceVariant = DarkPaperVariant,
             onSurfaceVariant = VinylCreamMuted,
             outline = Color(0xFF6B5E4E),
             error = ErrorRed,
@@ -392,59 +437,158 @@ internal val DarkColorScheme = darkColorScheme(
     onBackground = Gray200,
     surface = DarkSurface,
     onSurface = Gray200,
-    surfaceVariant = DarkSurfaceVariant,
+    surfaceVariant = DarkPaperVariant,
     onSurfaceVariant = Gray400,
     outline = Gray500,
     error = ErrorRed,
     onError = Gray900,
 )
 
-fun colorSchemeFromSeed(seedArgb: Long, darkTheme: Boolean): ColorScheme {
+/** 预混：把 [a] 按 [fraction] 的比例混进 [b]，返回**不透明**实色。 */
+internal fun mixColor(a: Color, b: Color, fraction: Float): Color {
+    val f = fraction.coerceIn(0f, 1f)
+    return Color(
+        red = a.red * f + b.red * (1f - f),
+        green = a.green * f + b.green * (1f - f),
+        blue = a.blue * f + b.blue * (1f - f),
+        alpha = 1f,
+    )
+}
+
+/** 变暗：[amount] = 混入黑的比例。darken(seed, 0.28) = seed*72% + 黑*28%。 */
+internal fun darken(color: Color, amount: Float): Color =
+    mixColor(color, Color.Black, 1f - amount.coerceIn(0f, 1f))
+
+/** 变亮：[amount] = 混入白的比例。 */
+internal fun lighten(color: Color, amount: Float): Color =
+    mixColor(color, Color.White, amount.coerceIn(0f, 1f))
+
+/**
+ * 深色底上的强调色：把种子色的**明度**提到可读区间，同时**保住彩度**。
+ *
+ * 为什么不能直接用 [lighten]：lighten 是「seed × amount + 白 × (1-amount)」，本质是
+ * 往里灌白，饱和度会被一起冲淡 —— 黛蓝 #44607E 经 lighten(0.22) 后是 #D3DAE6（近灰白），
+ * 陶土 #B8513A 变成 #EFD9D4（脏粉白）。两者在 #17140F 上都读不出"这是强调色"。
+ *
+ * 这里改走 HSV：色相 H 原样保留，明度 V 抬到 [minValue]，饱和度 S 兜底到 [minSaturation]。
+ * 陶土 → #DB6145（设计稿深色强调色 #E2563C 的同族解法，深底上 ≈5.1:1）；
+ * 黛蓝 → #5395DB（≈5.9:1），都过 WCAG AA。
+ */
+private fun boostForDark(
+    seed: Color,
+    minValue: Float = 0.86f,
+    minSaturation: Float = 0.62f,
+): Color {
+    val r = seed.red
+    val g = seed.green
+    val b = seed.blue
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val delta = max - min
+    val hue = when {
+        delta == 0f -> 0f
+        max == r -> ((((g - b) / delta) % 6f) + 6f) % 6f * 60f
+        max == g -> (((b - r) / delta) + 2f) * 60f
+        else -> (((r - g) / delta) + 4f) * 60f
+    }
+    val value = maxOf(max, minValue)
+    val saturation = if (max == 0f) minSaturation else maxOf(delta / max, minSaturation)
+    return hsvToColor(hue, saturation, value)
+}
+
+/** HSV → RGB（不透明实色）。 */
+private fun hsvToColor(hue: Float, saturation: Float, value: Float): Color {
+    val chroma = value * saturation
+    val sector = (((hue % 360f) + 360f) % 360f) / 60f
+    val x = chroma * (1f - kotlin.math.abs((sector % 2f) - 1f))
+    val m = value - chroma
+    val (r, g, b) = when (sector.toInt()) {
+        0 -> Triple(chroma, x, 0f)
+        1 -> Triple(x, chroma, 0f)
+        2 -> Triple(0f, chroma, x)
+        3 -> Triple(0f, x, chroma)
+        4 -> Triple(x, 0f, chroma)
+        else -> Triple(chroma, 0f, x)
+    }
+    return Color(red = r + m, green = g + m, blue = b + m)
+}
+
+/**
+ * 由一支种子色派生整套强调色系统。
+ *
+ * 2026-10 v8 第二批改版：**禁用 alpha 透明叠加**，全部改成预混实色。
+ * 旧实现是 `seed.copy(alpha = 0.18f)` —— 容器色是半透明的，合成到纸底 #F7F5F0
+ * 之后得到的是脏粉 / 脏蓝（同一份 alpha 在不同底色上呈现不同颜色，完全不可控）。
+ * 现在容器色 = seed 与纸面 #FFFDF9 的实色预混，所见即所得，且深色模式下也一致。
+ *
+ * 底色（background / surface / surfaceVariant / outline）永远是纸感中性值，
+ * 色板只影响强调系统 —— 换主色不会让整屏发花。
+ *
+ * @param intensity 氛围强度：柔和 0.08 / 均衡 0.12 / 浓郁 0.18，决定容器色里 seed 的占比。
+ */
+fun colorSchemeFromSeed(
+    seedArgb: Long,
+    darkTheme: Boolean,
+    intensity: Float = AppThemeIntensity.DEFAULT,
+): ColorScheme {
     val seed = Color(seedArgb)
+    val containerFraction = intensity.coerceIn(0.04f, 0.32f)
+    // 次级容器比主容器再淡一档（均衡档下 ≈ 8%），保持层级而不是三个同强度的色块。
+    val softContainerFraction = containerFraction * (8f / 12f)
     return if (darkTheme) {
+        // 深色强调色：提亮但**保住彩度**（见 [boostForDark]）。旧的 lighten(seed, 0.22f)
+        // 往里灌了 78% 的白，黛蓝 #44607E 会被冲成 #D3DAE6 —— 在深底上看着像灰色，
+        // 完全失去"强调色"的语义。
+        val primary = boostForDark(seed)
+        val secondary = boostForDark(seed, minValue = 0.78f)
+        val tertiary = mixColor(seed, VinylCreamMuted, 0.45f)
         darkColorScheme(
-            primary = seed,
-            onPrimary = Color(0xFF2A1C06),
-            primaryContainer = seed.copy(alpha = 0.35f),
-            onPrimaryContainer = VinylCream,
-            secondary = seed.copy(alpha = 0.85f),
-            onSecondary = Color(0xFF2A1408),
-            secondaryContainer = seed.copy(alpha = 0.25f),
-            onSecondaryContainer = VinylCream,
-            tertiary = seed.copy(alpha = 0.7f),
-            onTertiary = Color(0xFF2A1010),
-            tertiaryContainer = seed.copy(alpha = 0.2f),
-            onTertiaryContainer = VinylCream,
-            background = VinylInk,
+            primary = primary,
+            onPrimary = DarkInkBase,
+            primaryContainer = mixColor(seed, DarkPaperVariant, containerFraction + 0.16f),
+            onPrimaryContainer = lighten(seed, 0.62f),
+            secondary = secondary,
+            onSecondary = DarkInkBase,
+            secondaryContainer = mixColor(seed, DarkPaperVariant, softContainerFraction + 0.12f),
+            onSecondaryContainer = lighten(seed, 0.72f),
+            tertiary = tertiary,
+            onTertiary = DarkInkBase,
+            tertiaryContainer = mixColor(tertiary, DarkPaperVariant, softContainerFraction + 0.12f),
+            onTertiaryContainer = lighten(tertiary, 0.66f),
+            // 深色底色对齐设计稿令牌（bg #17140F / surface #1E1A15 / variant #2A241D），
+            // 旧值 #0E0C0A 过黑，页面上所有"卡片"都糊成一团黑。
+            background = DarkBackgroundPaper,
             onBackground = VinylCream,
-            surface = VinylInkElevated,
+            surface = DarkSurfacePaper,
             onSurface = VinylCream,
-            surfaceVariant = VinylInkVariant,
+            surfaceVariant = DarkPaperVariant,
             onSurfaceVariant = VinylCreamMuted,
             outline = Color(0xFF6B5E4E),
             error = ErrorRed,
             onError = Gray900,
         )
     } else {
+        val secondary = mixColor(seed, Color(0xFF807A70), 0.82f)
+        val tertiary = mixColor(seed, Color(0xFF8C6B8C), 0.55f)
         lightColorScheme(
             primary = seed,
             onPrimary = Color.White,
-            primaryContainer = seed.copy(alpha = 0.18f),
-            onPrimaryContainer = seed,
-            secondary = seed.copy(alpha = 0.75f),
+            primaryContainer = mixColor(seed, PaperSurface, containerFraction),
+            onPrimaryContainer = darken(seed, 0.28f),
+            secondary = secondary,
             onSecondary = Color.White,
-            secondaryContainer = seed.copy(alpha = 0.12f),
-            onSecondaryContainer = seed,
-            tertiary = seed.copy(alpha = 0.55f),
+            secondaryContainer = mixColor(seed, PaperSurface, softContainerFraction),
+            onSecondaryContainer = darken(secondary, 0.28f),
+            tertiary = tertiary,
             onTertiary = Color.White,
-            tertiaryContainer = seed.copy(alpha = 0.1f),
-            onTertiaryContainer = seed,
+            tertiaryContainer = mixColor(tertiary, PaperSurface, softContainerFraction),
+            onTertiaryContainer = darken(tertiary, 0.28f),
             background = PaperBg,
             onBackground = InkOnPaper,
             surface = PaperSurface,
             onSurface = InkOnPaper,
             surfaceVariant = PaperVariant,
-            onSurfaceVariant = InkMuted,
+            onSurfaceVariant = InkTertiary,
             outline = Color(0xFFB8A990),
             error = ErrorRedLight,
             onError = Color.White,
