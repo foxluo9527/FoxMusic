@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fox.music.core.ui.theme.FoxEditorial
 import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.theme.foxEditorialAccent
 
 /**
  * 编辑杂志风 · 分区标签（v10）：`01 ── 热搜榜 ─────────────`。
@@ -44,7 +45,7 @@ fun FoxEditorialSectionLabel(
         Text(
             text = number,
             style = FoxEditorial.sectionNumber.copy(fontSize = 12.5.sp),
-            color = MaterialTheme.colorScheme.primary,
+            color = foxEditorialAccent,
         )
         Text(
             text = title,

@@ -87,6 +87,7 @@ import com.fox.music.core.ui.theme.InkMuted
 import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.theme.foxEditorialAccent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -249,17 +250,31 @@ fun PostDetailContent(
                 // 外层 Box 负责把 surface 铺满「底栏 + 预留区」，否则预留出来的那条
                 // 会露出页面渐变，与底栏之间出现一道色带断层。
                 Box(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                    PostDetailBottomBar(
-                        commentInput = state.commentInput,
-                        replyHint = state.replyHint,
-                        isSending = state.isCommentSending,
-                        modifier = Modifier
-                            .navigationBarsPadding()
-                            .imePadding()
-                            .padding(bottom = bottomBarBottomInset),
-                        onCommentChange = { onIntent(PostDetailIntent.UpdateCommentInput(it)) },
-                        onSend = { onIntent(PostDetailIntent.SendComment) },
-                    )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // 迷你播放条纳入底栏栈、排在输入条上方：它原本是画在 content 里的浮层，
+                        // 一旦页面底部还有系统导航栏/宿主浮层，就会压住评论输入条。
+                        // 放进底栏后输入条永远在最底部，完整可见。
+                        if (miniPlayer != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                            ) {
+                                miniPlayer()
+                            }
+                        }
+                        PostDetailBottomBar(
+                            commentInput = state.commentInput,
+                            replyHint = state.replyHint,
+                            isSending = state.isCommentSending,
+                            modifier = Modifier
+                                .navigationBarsPadding()
+                                .imePadding()
+                                .padding(bottom = bottomBarBottomInset),
+                            onCommentChange = { onIntent(PostDetailIntent.UpdateCommentInput(it)) },
+                            onSend = { onIntent(PostDetailIntent.SendComment) },
+                        )
+                    }
                 }
             }
         },
@@ -372,6 +387,7 @@ fun PostDetailContent(
                                                 text = post.commentCount.toString(),
                                                 style = MaterialTheme.typography.bodySmall.copy(
                                                     fontSize = 11.sp,
+                                                    lineHeight = 15.sp,
                                                 ),
                                                 color = InkQuaternary,
                                             )
@@ -521,16 +537,6 @@ fun PostDetailContent(
                             }
                         }
                     }
-                    if (miniPlayer != null) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 10.dp)
-                                .fillMaxWidth(),
-                        ) {
-                            miniPlayer()
-                        }
-                    }
                 }
             }
         }
@@ -581,6 +587,7 @@ private fun PostDetailTopBar(
                         text = post.authorName ?: "用户",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontSize = 13.sp,
+                            lineHeight = 17.sp,
                             fontWeight = FontWeight.Bold,
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
@@ -589,7 +596,10 @@ private fun PostDetailTopBar(
                     )
                     Text(
                         text = formatPostDetailTime(post.createdAt).substringBefore(" "),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.5.sp),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 9.5.sp,
+                            lineHeight = 13.sp,
+                        ),
                         color = InkQuaternary,
                         maxLines = 1,
                     )
@@ -646,8 +656,12 @@ private fun PostDetailBody(
                 post.tags.forEach { tag ->
                     Text(
                         text = "#${tag.name}",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                        color = MaterialTheme.colorScheme.primary,
+                        // 设计稿：话题标签取 --accent（陶土 #B8513A），不随用户主题预设漂移
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp,
+                        ),
+                        color = foxEditorialAccent,
                         modifier = Modifier.clickable { onTagClick(tag.name) },
                     )
                 }
@@ -656,7 +670,10 @@ private fun PostDetailBody(
         Spacer(Modifier.height(10.dp))
         Text(
             text = formatPostDetailTime(post.createdAt),
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+            ),
             color = InkTertiary,
         )
         Spacer(Modifier.height(12.dp))
@@ -680,7 +697,7 @@ private fun PostDetailInteractionRow(
     onLike: () -> Unit,
     onShare: () -> Unit,
 ) {
-    val accent = MaterialTheme.colorScheme.primary
+    val accent = foxEditorialAccent
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -734,7 +751,10 @@ private fun PostDetailInteractionItem(
         Spacer(Modifier.width(5.dp))
         Text(
             text = text,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+            ),
             color = tint,
         )
     }
@@ -766,9 +786,10 @@ private fun PostDetailBottomBar(
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 fontSize = 12.5.sp,
+                lineHeight = 17.sp,
                 color = MaterialTheme.colorScheme.onSurface,
             ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            cursorBrush = SolidColor(foxEditorialAccent),
             decorationBox = { innerTextField ->
                 Row(
                     modifier = Modifier
@@ -780,7 +801,10 @@ private fun PostDetailBottomBar(
                     if (commentInput.isEmpty()) {
                         Text(
                             text = replyHint ?: "说点什么…",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 12.5.sp,
+                                lineHeight = 17.sp,
+                            ),
                             color = InkQuaternary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -802,9 +826,11 @@ private fun PostDetailBottomBar(
                 text = if (isSending) "发送中" else "发送",
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontSize = 13.5.sp,
+                    lineHeight = 18.sp,
                     fontWeight = FontWeight.Bold,
                 ),
-                color = MaterialTheme.colorScheme.primary,
+                // 设计稿：CTA 取 --accent（陶土 #B8513A）
+                color = foxEditorialAccent,
             )
         }
     }
@@ -856,7 +882,10 @@ private fun PostDetailCommentItem(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = comment.displayAuthorName,
-                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.5.sp,
+                lineHeight = 16.sp,
+            ),
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -869,7 +898,10 @@ private fun PostDetailCommentItem(
                         if (date.isNotBlank()) {
                             Text(
                                 text = "· $date",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    lineHeight = 13.sp,
+                                ),
                                 color = InkQuaternary,
                                 maxLines = 1,
                                 modifier = Modifier.padding(start = 4.dp),
@@ -1072,28 +1104,33 @@ private fun PostDetailFeedTabItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val accent = MaterialTheme.colorScheme.primary
+    val accent = foxEditorialAccent
     Box(
         modifier = Modifier
             .height(44.dp)
+            // 同搜索 tab：宽度取 IntrinsicSize.Min，否则下划线 fillMaxWidth 会把
+            // 父 Box 撑满整行，把相邻的「点赞」挤成竖排单字
+            .width(IntrinsicSize.Min)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.BottomCenter,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 13.5.sp,
+                    lineHeight = 18.sp,
+                ),
                 color = if (selected) accent else InkTertiary,
             )
             Spacer(modifier = Modifier.height(9.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(if (selected) accent else Color.Transparent),
+            )
         }
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(if (selected) accent else Color.Transparent),
-        )
     }
 }
 

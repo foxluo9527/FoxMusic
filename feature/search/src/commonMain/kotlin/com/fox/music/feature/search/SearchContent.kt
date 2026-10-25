@@ -22,8 +22,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -77,6 +80,7 @@ import com.fox.music.core.ui.theme.InkMuted
 import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.theme.foxEditorialAccent
 
 private val searchTabs = listOf(
     SearchResultTab.MUSIC to "单曲",
@@ -362,20 +366,25 @@ private fun FoxEditorialTabRow(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accent = MaterialTheme.colorScheme.primary
+    val accent = foxEditorialAccent
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             tabs.forEachIndexed { index, label ->
                 val selected = index == selectedIndex
+                // 关键：宽度必须 IntrinsicSize.Min。Box 默认 wrap_content，但内部下划线
+                // 若用 fillMaxWidth，会把父 Box 反向撑满整行 → 第 1 个 tab 吃掉全部宽度，
+                // 后续 tab 被压到 0 宽、文字逐字换行。
                 Box(
                     modifier = Modifier
                         .height(44.dp)
+                        .width(IntrinsicSize.Min)
                         .clickable { onTabSelected(index) },
                     contentAlignment = Alignment.BottomCenter,
                 ) {
@@ -386,14 +395,14 @@ private fun FoxEditorialTabRow(
                             color = if (selected) accent else InkTertiary,
                         )
                         Spacer(modifier = Modifier.height(9.dp))
+                        // 下划线宽度 = 文字宽度（父 Box 已是 IntrinsicSize.Min）
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(if (selected) accent else Color.Transparent),
+                        )
                     }
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(2.dp)
-                            .background(if (selected) accent else Color.Transparent),
-                    )
                 }
             }
         }

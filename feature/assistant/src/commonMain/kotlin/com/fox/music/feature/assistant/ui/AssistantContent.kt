@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -233,6 +234,9 @@ private fun AssistantTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
+            // 自定义 Row 不会自动补状态栏（只有内置 TopAppBar 会），不补的话
+            // 眼标与标题会画到状态栏底下、右上角圆钮被裁出可见区
+            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -830,8 +834,9 @@ private fun AssistantInputBar(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(
+                            // CTA 取设计稿固定强调色（陶土），不随用户主题预设漂移
                             if (canSend) {
-                                MaterialTheme.colorScheme.primary
+                                AccentTerracotta
                             } else {
                                 MaterialTheme.colorScheme.surfaceVariant
                             },
