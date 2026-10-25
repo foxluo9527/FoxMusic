@@ -22,10 +22,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,9 +41,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -146,9 +148,12 @@ fun SearchContent(
             modifier = modifier.fillMaxSize(),
         ) {
             // ── 顶部：返回圆钮 + 去胶囊搜索框 ──
+            // 搜索页是 root 目的地（composableStack），没有 tab 外壳帮补 inset，
+            // 不补状态栏的话返回钮与输入框会顶进状态栏、与系统时钟/电量重叠
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -357,8 +362,12 @@ private fun FoxEditorialSearchField(
 
 /**
  * v10 结果 tab 行：选中 = 13.5sp 强调色 + 底部 2dp 强调色下划线，
- * 未选中 = ink3；整行底部一条 1px 发丝线。命中区 44dp。
+ * 未选中 = ink3；整行底部一条 1px 发丝线。命中区 48dp（Tab 默认）。
+ *
+ * 走 M3 [ScrollableTabRow]：自带横向滚动与正确的测量。之前自绘 Row + IntrinsicSize.Min
+ * 的写法在真机上仍会把首个 tab 撑满整行、后续 tab 被压成逐字竖排，不再自造轮子。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FoxEditorialTabRow(
     tabs: List<String>,
@@ -367,47 +376,37 @@ private fun FoxEditorialTabRow(
     modifier: Modifier = Modifier,
 ) {
     val accent = foxEditorialAccent
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
+    ScrollableTabRow(
+        selectedTabIndex = selectedIndex.coerceIn(0, tabs.lastIndex),
+        modifier = modifier.fillMaxWidth(),
+        edgePadding = 20.dp,
+        containerColor = Color.Transparent,
+        // contentColor 会被默认指示器（SecondaryIndicator）取用：2dp 高、宽度 = tab 宽度
+        contentColor = accent,
+        divider = { HorizontalDivider(thickness = 1.dp, color = PaperHairline) },
+        tabs = {
             tabs.forEachIndexed { index, label ->
-                val selected = index == selectedIndex
-                // 关键：宽度必须 IntrinsicSize.Min。Box 默认 wrap_content，但内部下划线
-                // 若用 fillMaxWidth，会把父 Box 反向撑满整行 → 第 1 个 tab 吃掉全部宽度，
-                // 后续 tab 被压到 0 宽、文字逐字换行。
-                Box(
-                    modifier = Modifier
-                        .height(44.dp)
-                        .width(IntrinsicSize.Min)
-                        .clickable { onTabSelected(index) },
-                    contentAlignment = Alignment.BottomCenter,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Tab(
+                    selected = index == selectedIndex,
+                    onClick = { onTabSelected(index) },
+                    selectedContentColor = accent,
+                    unselectedContentColor = InkTertiary,
+                    text = {
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
-                            color = if (selected) accent else InkTertiary,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = 13.5.sp,
+                                lineHeight = 18.sp,
+                            ),
+                            // 绝不允许折行：折行就是「竖排单字」的根因
+                            maxLines = 1,
+                            softWrap = false,
                         )
-                        Spacer(modifier = Modifier.height(9.dp))
-                        // 下划线宽度 = 文字宽度（父 Box 已是 IntrinsicSize.Min）
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .background(if (selected) accent else Color.Transparent),
-                        )
-                    }
-                }
+                    },
+                )
             }
-        }
-        HorizontalDivider(thickness = 1.dp, color = PaperHairline)
-    }
+        },
+    )
 }
 
 @Composable
