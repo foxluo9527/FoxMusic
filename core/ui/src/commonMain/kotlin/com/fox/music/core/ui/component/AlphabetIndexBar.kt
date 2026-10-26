@@ -1,7 +1,6 @@
 package com.fox.music.core.ui.component
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -34,20 +33,22 @@ fun AlphabetIndexBar(
             .fillMaxHeight()
             .widthIn(min = 24.dp)
             .padding(vertical = 8.dp, horizontal = 2.dp)
+            // tap 与 drag 必须拆成两个 pointerInput：
+            // 同一个块里 detectTapGestures 内部是 awaitEachGesture 死循环、永不返回，
+            // 写在它后面的 detectVerticalDragGestures 永远不会被挂载 —— 拖字母索引完全没反应。
             .pointerInput(letters) {
-                fun resolveLetter(y: Float): Char? {
-                    val itemHeight = size.height.toFloat() / letters.size
-                    if (itemHeight <= 0f) return null
-                    val index = (y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
-                    return letters.getOrNull(index)
-                }
-
                 detectTapGestures { offset ->
-                    resolveLetter(offset.y)?.let(onLetterSelected)
+                    resolveLetterAt(letters, size.height, offset.y)?.let(onLetterSelected)
                 }
-                detectVerticalDragGestures { change, _ ->
+            }
+            .pointerInput(letters) {
+                detectVerticalDragGestures(
+                    onDragStart = { offset ->
+                        resolveLetterAt(letters, size.height, offset.y)?.let(onLetterSelected)
+                    },
+                ) { change, _ ->
                     change.consume()
-                    resolveLetter(change.position.y)?.let(onLetterSelected)
+                    resolveLetterAt(letters, size.height, change.position.y)?.let(onLetterSelected)
                 }
             },
         contentAlignment = Alignment.Center,
@@ -76,4 +77,12 @@ fun AlphabetIndexBar(
             }
         }
     }
+}
+
+/** 按触点纵坐标换算命中的字母；[heightPx] 是索引条的实测高度 */
+private fun resolveLetterAt(letters: List<Char>, heightPx: Int, y: Float): Char? {
+    val itemHeight = heightPx.toFloat() / letters.size
+    if (itemHeight <= 0f) return null
+    val index = (y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
+    return letters.getOrNull(index)
 }

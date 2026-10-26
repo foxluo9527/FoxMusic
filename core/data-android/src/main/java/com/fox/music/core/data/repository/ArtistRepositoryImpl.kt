@@ -12,6 +12,8 @@ import com.fox.music.core.model.music.ArtistDetail
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.network.api.ArtistApiService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,12 +27,15 @@ class ArtistRepositoryImpl @Inject constructor(
         limit: Int,
         keyword: String?,
         tagId: Long?,
-        sort: String?
+        sort: String?,
+        slim: Boolean,
     ): Result<PagedData<Artist>> = suspendRunCatching {
-        val response = artistApi.getArtistList(page, limit, keyword, tagId, sort)
+        val response = artistApi.getArtistList(page, limit, keyword, tagId, sort, slim)
         val data = response.data
         if (response.isSuccess && data != null) {
-            data.toPagedData { it.toArtist() }
+            // 单页 500 条 DTO→Domain 映射；suspendRunCatching 不切线程，
+            // Retrofit suspend 也是恢复到调用方上下文（= 主线程），所以这里显式挪到 Default。
+            withContext(Dispatchers.Default) { data.toPagedData { it.toArtist() } }
         } else throw Exception(response.message)
     }
 
