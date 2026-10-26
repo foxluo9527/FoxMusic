@@ -189,6 +189,10 @@ fun MainScreen(
     LaunchedEffect(desktopLyricSettingsPending) {
         if (!desktopLyricSettingsPending) return@LaunchedEffect
         navController.currentBackStackEntryFlow.first()
+        // 已经在播放页时不能再 navigate：launchSingleTop 会 pop 掉当前 entry 再新建，
+        // PlayerScreen 整个被重建，刚由信号设上的「展开歌词设置」状态会随之丢失。
+        // 此时直接交给已有的 PlayerScreen 实例响应信号即可。
+        if (navController.currentDestination?.route == PLAYER_ROUTE) return@LaunchedEffect
         navController.navigate(PLAYER_ROUTE) {
             launchSingleTop = true
         }
