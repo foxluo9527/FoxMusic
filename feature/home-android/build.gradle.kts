@@ -5,6 +5,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
@@ -40,6 +41,9 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
 
     implementation(libs.paging)
+
+    // Tab 页快照落盘（kotlinx.serialization）
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.bundles.coroutines)
 

@@ -49,13 +49,13 @@ enum RepeatMode: Int, CaseIterable {
 /// 播放来源（队列是从哪个歌单/榜单/歌手点进来的），对应 Android `PlaybackPlaylistSource`。
 struct PlaybackSource: Equatable {
     /// 来源类别，对齐 Android `PlaybackSourceKind`。
-    /// 仅 playlist / album / rank / post 四类可展示并可跳转（见 `isDisplayable`）。
+    /// 可展示并可跳转的类别见 `isDisplayable`。
     enum Kind: String, Equatable {
-        case playlist, album, rank, post, other
+        case playlist, album, rank, post, recommend, newMusic, other
     }
 
     var kind: Kind
-    /// 来源实体 id（歌单/专辑/榜单/帖子 id）；其它来源或无效 id 时为 nil。
+    /// 来源实体 id（歌单/专辑/榜单/帖子 id；推荐/新歌用虚拟 id）；其它来源或无效 id 时为 nil。
     var id: Int64?
     var title: String
     var coverUrl: String?
@@ -64,10 +64,10 @@ struct PlaybackSource: Equatable {
 
     /// 是否可在播放列表里展示为可点击的来源卡片。
     /// 口径同 Android `PlaybackPlaylistSource.isDisplayable`：
-    /// 四类来源且 id > 0、标题非空才展示；推荐/新歌/收藏等虚拟来源不展示。
+    /// 真实来源与推荐/新歌虚拟来源，id > 0、标题非空才展示；收藏/搜索等其它来源不展示。
     var isDisplayable: Bool {
         switch kind {
-        case .playlist, .album, .rank, .post:
+        case .playlist, .album, .rank, .post, .recommend, .newMusic:
             return (id ?? 0) > 0 &&
                 !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .other:
@@ -96,6 +96,9 @@ struct PlaybackSource: Equatable {
         case .album: kind = .album
         case .rank: kind = .rank
         case .post: kind = .post
+        case .recommend: kind = .recommend
+        // Kotlin 的 NEW_MUSIC 导出为 theNewMusic（new 前缀被框架保留）
+        case .theNewMusic: kind = .newMusic
         default: kind = .other
         }
         id = source.id?.int64Value
@@ -258,6 +261,21 @@ final class PlayerModel: ObservableObject {
     func playQueueItem(at index: Int) {
         guard queue.indices.contains(index) else { return }
         playAt(index: index)
+    }
+
+    /// 「为你精选 / 新歌速递」详情页整份列表拉回后，把正在播放的同一来源队列
+    /// 同步成最新列表（对齐 Android `MusicController.syncPlaylistForSource`）。
+    /// 只在来源 kind 匹配时生效；保持当前歌曲与进度、不打断播放，
+    /// 当前曲目不在新列表里时保持原队列。
+    func syncTopListQueue(kind: PlaybackSource.Kind, songs: [PlayableSong]) {
+        guard !songs.isEmpty, source?.kind == kind else { return }
+        guard let current,
+              let newIndex = songs.firstIndex(where: { $0.id == current.id }) else { return }
+        // 列表没变化就不动，避免每次进详情页都重写队列/落盘
+        guard queue.map({ $0.id }) != songs.map({ $0.id }) else { return }
+        queue = songs
+        currentIndex = newIndex
+        persistPlaybackState(force: true)
     }
 
     // MARK: - 队列内切换

@@ -1,5 +1,8 @@
 package com.fox.music.core.model.music
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class ListeningStats(
     val days: Int = 7,
     val totalDurationSec: Long = 0,

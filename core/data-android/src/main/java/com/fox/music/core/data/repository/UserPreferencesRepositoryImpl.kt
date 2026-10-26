@@ -39,6 +39,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
             .combine(dataStore.desktopLyricEnabled) { list, v -> list + v }
             .combine(dataStore.lockScreenLyricEnabled) { list, v -> list + v }
             .combine(dataStore.carBluetoothLyricEnabled) { list, v -> list + v }
+            .combine(dataStore.themeIntensity) { list, v -> list + v }
             .map { list ->
                 @Suppress("UNCHECKED_CAST")
                 val isLoggedIn = list[0] as Boolean
@@ -59,6 +60,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                 val desktopLyricEnabled = list[15] as Boolean
                 val lockScreenLyricEnabled = list[16] as Boolean
                 val carBluetoothLyricEnabled = list[17] as Boolean
+                val themeIntensity = list[18] as Float
                 UserPreferences(
                     isLoggedIn = isLoggedIn,
                     token = token,
@@ -84,6 +86,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
                     showLyrics = showLyrics,
                     appThemeId = appThemeId,
                     customThemeSeedArgb = customThemeSeedArgb,
+                    themeIntensity = themeIntensity,
                     desktopLyricEnabled = desktopLyricEnabled,
                     lockScreenLyricEnabled = lockScreenLyricEnabled,
                     carBluetoothLyricEnabled = carBluetoothLyricEnabled,
@@ -168,6 +171,11 @@ class UserPreferencesRepositoryImpl @Inject constructor(
         } else {
             dataStore.updateThemePresetId(themeId)
         }
+        Unit
+    }
+
+    override suspend fun updateThemeIntensity(intensity: Float): Result<Unit> = suspendRunCatching {
+        dataStore.updateThemeIntensity(intensity)
         Unit
     }
 

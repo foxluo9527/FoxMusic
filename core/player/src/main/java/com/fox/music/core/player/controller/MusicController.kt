@@ -2,6 +2,7 @@ package com.fox.music.core.player.controller
 
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
+import com.fox.music.core.model.music.PlaybackSourceKind
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.RepeatMode
 import com.fox.music.core.model.music.ClipRange
@@ -31,6 +32,12 @@ interface MusicController {
      * 无感切换歌单列表
      */
     fun updatePlaylist(musics: List<Music>, key: String)
+
+    /**
+     * 详情页加载完整列表后，同步「同一板块来源」正在播放的队列。
+     * 仅当当前播放队列的来源 kind 与 [kind] 一致时生效；找不到当前曲目时保持原队列。
+     */
+    fun syncPlaylistForSource(kind: PlaybackSourceKind, musics: List<Music>)
 
     fun setPlaylist(
         musics: List<Music>,
@@ -63,6 +70,12 @@ interface MusicController {
     fun seekToQueueItem(index: Int)
 
     /**
+     * 队列内拖动排序：把 [from] 位置的曲目移到 [to]，播放顺序随之改变。
+     * 当前播放项会跟随移动（拖动它自己时它仍保持播放态）。
+     */
+    fun moveQueueItem(from: Int, to: Int)
+
+    /**
      * 音流模式：以「高潮片段」为单位启动刷歌队列。
      * @param musics 服务端的音流队列（已是按偏好/风格排好的歌单）
      * @param clipsByMusic 每首歌的高潮片段（毫秒窗口）；缺省时引擎按曲长兜底 clip
@@ -77,6 +90,23 @@ interface MusicController {
         key: String,
         source: PlaybackPlaylistSource? = null,
     )
+
+    /**
+     * 音流模式：把新一批歌曲追加到当前音流队列**尾部**（「上滑加载更多」）。
+     *
+     * 与 [startStreamQueue] 的区别：不重建队列、不动 ExoPlayer（音流一次只加载一轨），
+     * 因此不会打断正在播放的片段、也不会跳回队首。仅音流会话（由 [startStreamQueue] 建立）
+     * 生效——普通歌单队列返回 false，调用方需自行回退到 [addAllToQueue]。
+     *
+     * 已存在的 id 会被忽略：服务端 exclude 只是「优先排除」，客户端必须自己兜底去重，
+     * 否则同一首歌会出现两张卡片、队列里也会撞车。
+     *
+     * @return 是否真正追加了歌曲（false = 非音流队列或全部重复）
+     */
+    fun appendStreamQueue(
+        musics: List<Music>,
+        clipsByMusic: Map<Long, List<ClipRange>>,
+    ): Boolean
 
     /**
      * 音流模式：推进到下一个高潮片段；当前歌还有剩余片段则切片段，否则切下一首。

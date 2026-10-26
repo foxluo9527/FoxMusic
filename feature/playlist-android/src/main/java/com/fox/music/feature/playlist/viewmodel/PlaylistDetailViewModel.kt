@@ -12,10 +12,12 @@ import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
+import com.fox.music.core.domain.paging.ArtistMusicPagingSource
 import com.fox.music.core.domain.paging.CollectionDetailPagingSource
 import com.fox.music.core.domain.paging.FavoriteMusicPagingSource
 import com.fox.music.core.domain.paging.PlayHistoryPagingSource
 import com.fox.music.core.domain.repository.AlbumRepository
+import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.FavoriteRepository
 import com.fox.music.core.domain.repository.MusicRepository
 import com.fox.music.core.domain.repository.PlaylistImportProgress
@@ -23,6 +25,7 @@ import com.fox.music.core.domain.repository.PlaylistImportProgressRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.UserPreferencesRepository
+import com.fox.music.core.domain.toplist.TopListMusicStore
 import com.fox.music.core.domain.usecase.GetAlbumDetailUseCase
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
 import com.fox.music.core.domain.usecase.DeletePlaylistUseCase
@@ -63,6 +66,7 @@ class PlaylistDetailViewModel @Inject constructor(
     private val getMusicListUseCase: GetMusicListUseCase,
     private val deletePlaylistUseCase: DeletePlaylistUseCase,
     private val removeTracksFromPlaylistUseCase: RemoveTracksFromPlaylistUseCase,
+    private val artistRepository: ArtistRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val recommendedMusicCacheManager: RecommendedMusicCacheManager,
     private val playlistImportProgressRepository: PlaylistImportProgressRepository,
@@ -128,13 +132,26 @@ class PlaylistDetailViewModel @Inject constructor(
     val tracks: Flow<PagingData<Music>> by lazy {
         when (detailType) {
             DetailType.NEW_MUSIC, DetailType.RECOMMEND -> {
+                // 固定 100 条：pageSize 与 initialLoadSize 同值（= limit），
+                // 进页首屏一次拉满 100，不需要靠滚动再触发下一页
+                val topListMaxItems = 100
                 getMusicListUseCase.getPagingSource(
+                    limit = topListMaxItems,
                     sort = if (detailType == DetailType.NEW_MUSIC) "latest" else "recommend",
-                    maxTotalItems = 100,
+                    maxTotalItems = topListMaxItems,
                     onRecommendSeedLoaded = if (detailType == DetailType.RECOMMEND) {
                         ::onRecommendSeedLoaded
                     } else {
                         null
+                    },
+                    // 整份列表拉取成功后通知外部：回写首页/发现页底层数据并同步正在播放的队列
+                    onFirstPageLoaded = { items ->
+                        val sort = if (detailType == DetailType.NEW_MUSIC) {
+                            TopListMusicStore.SORT_LATEST
+                        } else {
+                            TopListMusicStore.SORT_RECOMMEND
+                        }
+                        sendEffect(PlaylistDetailEffect.TopListLoaded(sort, items))
                     },
                 ).flow.cachedIn(viewModelScope)
             }
@@ -167,6 +184,25 @@ class PlaylistDetailViewModel @Inject constructor(
                             pagingSourceFactory = {
                                 PlayHistoryPagingSource(
                                     musicRepository = musicRepository,
+                                    knownTotalProvider = { knownTrackCount.get() },
+                                )
+                            },
+                        ).flow
+                    }
+                    .cachedIn(viewModelScope)
+            }
+
+            DetailType.ARTIST -> {
+                _knownTrackCountFlow
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .flatMapLatest { total ->
+                        Pager(
+                            config = pagingConfigForKnownTotal(total),
+                            pagingSourceFactory = {
+                                ArtistMusicPagingSource(
+                                    artistRepository = artistRepository,
+                                    artistId = detailId,
                                     knownTotalProvider = { knownTrackCount.get() },
                                 )
                             },
@@ -415,6 +451,20 @@ class PlaylistDetailViewModel @Inject constructor(
                 )
             }
             when(detailType) {
+                DetailType.ARTIST -> {
+                    artistRepository.getArtistDetail(detailId).onSuccess { detail ->
+                        updateKnownTrackCount(detail.artist.musicCount)
+                        updateState {
+                            copy(
+                                headerInfo = HeaderInfo.fromArtist(detail),
+                                isLoading = false,
+                            )
+                        }
+                    }.onError { _, msg ->
+                        updateKnownTrackCount(0)
+                        updateState { copy(isLoading = false, error = msg ?: "加载失败") }
+                    }
+                }
                 DetailType.PLAYLIST -> {
                     getPlaylistDetailUseCase(detailId, 1, 1).onSuccess {detail ->
                         val headerInfo =

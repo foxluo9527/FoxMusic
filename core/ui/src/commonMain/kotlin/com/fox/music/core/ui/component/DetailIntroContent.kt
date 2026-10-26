@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +89,8 @@ fun DetailIntroContent(
 
     Scaffold(
         modifier = modifier,
+        // 与歌单详情一致：底色交给外层主题渐变，不透明白底会盖掉主题色。
+        containerColor = Color.Transparent,
         topBar = {
             FoxTopBar(
                 title = "${data.typeLabel}介绍",

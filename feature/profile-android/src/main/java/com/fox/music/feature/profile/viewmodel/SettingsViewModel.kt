@@ -16,7 +16,6 @@ import com.fox.music.core.model.app.AppUpdateInfo
 import com.fox.music.core.model.music.RepeatMode
 import com.fox.music.core.model.music.SleepTimerState
 import com.fox.music.core.model.user.DarkMode
-import com.fox.music.core.model.user.PlayQuality
 import com.fox.music.core.model.user.User
 import com.fox.music.core.model.user.UserPreferences
 import com.fox.music.core.model.user.isAdmin
@@ -39,9 +38,7 @@ data class SettingsState(
     val repeatMode: RepeatMode = RepeatMode.ALL,
     val cacheUsedBytes: Long = 0L,
     val isLoading: Boolean = false,
-    val isClearingCache: Boolean = false,
     val showLogoutDialog: Boolean = false,
-    val showClearCacheDialog: Boolean = false,
     val sleepTimer: SleepTimerState = SleepTimerState(),
     val choiceDialog: ChoiceDialog? = null,
     val versionName: String = "",
@@ -62,40 +59,32 @@ data class ChoiceDialog(
     val selectedIndex: Int,
 )
 
+/**
+ * 主页只剩「即时操作类」的单选弹窗。
+ *
+ * 原来还有 DARK_MODE / CACHE_LIMIT / DOWNLOAD_QUALITY 三项：外观、存储、下载都已下沉为
+ * 二级页，弹窗跟着搬去了 ThemeSettingsScreen / PreferencesSettingsViewModel。
+ */
 enum class ChoiceType {
     REPEAT_MODE,
-    DARK_MODE,
-    CACHE_LIMIT,
     SLEEP_TIMER,
-    DOWNLOAD_QUALITY,
 }
 
 sealed interface SettingsIntent : UiIntent {
     data class Load(val fetchProfile: Boolean = true) : SettingsIntent
+    /** 只重算缓存占用量（从存储页返回时用），不重打 profile 接口。 */
+    data object RefreshCacheUsage : SettingsIntent
     data object OnEditProfileClick : SettingsIntent
     data object OnManageLibraryClick : SettingsIntent
     data object OnLogoutClick : SettingsIntent
     data object ConfirmLogout : SettingsIntent
     data object DismissLogoutDialog : SettingsIntent
-    data object OnClearCacheClick : SettingsIntent
-    data object ConfirmClearCache : SettingsIntent
-    data object DismissClearCacheDialog : SettingsIntent
-    data class UpdateAutoPlay(val enabled: Boolean) : SettingsIntent
-    data class UpdateShowLyrics(val enabled: Boolean) : SettingsIntent
-    data class UpdateDownloadOnWifiOnly(val enabled: Boolean) : SettingsIntent
     data object ShowRepeatModePicker : SettingsIntent
-    data object ShowDarkModePicker : SettingsIntent
-    data object ShowCacheLimitPicker : SettingsIntent
     data object ShowSleepTimerPicker : SettingsIntent
-    data object ShowDownloadQualityPicker : SettingsIntent
-    data object OnDownloadManagerClick : SettingsIntent
-    data object OnReportHistoryClick : SettingsIntent
-    data object OnFeedbackHistoryClick : SettingsIntent
     data object OnCheckUpdateClick : SettingsIntent
     data object DismissUpdateDialog : SettingsIntent
     data object ConfirmUpdate : SettingsIntent
     data object RetryUpdateDownload : SettingsIntent
-    data object CancelSleepTimer : SettingsIntent
     data class OnChoiceSelected(val type: ChoiceType, val index: Int) : SettingsIntent
     data object DismissChoiceDialog : SettingsIntent
 }
@@ -103,9 +92,6 @@ sealed interface SettingsIntent : UiIntent {
 sealed interface SettingsEffect : UiEffect {
     data object NavigateToEditProfile : SettingsEffect
     data object NavigateToManageLibrary : SettingsEffect
-    data object NavigateToDownloadManager : SettingsEffect
-    data object NavigateToReportHistory : SettingsEffect
-    data object NavigateToFeedbackHistory : SettingsEffect
     data object NavigateToLogin : SettingsEffect
     data class ShowMessage(val message: String) : SettingsEffect
     data class LaunchInstall(val file: File) : SettingsEffect
@@ -124,14 +110,6 @@ class SettingsViewModel @Inject constructor(
     private val musicController: MusicController,
     private val sleepTimerManager: SleepTimerManager,
 ) : MviViewModel<SettingsState, SettingsIntent, SettingsEffect>(SettingsState()) {
-
-    private val cacheLimitOptions = listOf(
-        256L * 1024 * 1024,
-        512L * 1024 * 1024,
-        1024L * 1024 * 1024,
-        2L * 1024 * 1024 * 1024,
-        4L * 1024 * 1024 * 1024,
-    )
 
     private val sleepTimerOptionsMinutes = listOf(0L, 15L, 30L, 45L, 60L, 90L, 120L)
 
@@ -167,6 +145,7 @@ class SettingsViewModel @Inject constructor(
     override fun handleIntent(intent: SettingsIntent) {
         when (intent) {
             is SettingsIntent.Load -> load(intent.fetchProfile)
+            SettingsIntent.RefreshCacheUsage -> refreshCacheUsage()
             SettingsIntent.OnEditProfileClick -> sendEffect(SettingsEffect.NavigateToEditProfile)
             SettingsIntent.OnManageLibraryClick -> {
                 if (currentState.user?.isAdmin == true) {
@@ -176,20 +155,8 @@ class SettingsViewModel @Inject constructor(
             SettingsIntent.OnLogoutClick -> updateState { copy(showLogoutDialog = true) }
             SettingsIntent.DismissLogoutDialog -> updateState { copy(showLogoutDialog = false) }
             SettingsIntent.ConfirmLogout -> logout()
-            SettingsIntent.OnClearCacheClick -> updateState { copy(showClearCacheDialog = true) }
-            SettingsIntent.DismissClearCacheDialog -> updateState { copy(showClearCacheDialog = false) }
-            SettingsIntent.ConfirmClearCache -> clearCache()
-            is SettingsIntent.UpdateAutoPlay -> updateAutoPlay(intent.enabled)
-            is SettingsIntent.UpdateShowLyrics -> updateShowLyrics(intent.enabled)
-            is SettingsIntent.UpdateDownloadOnWifiOnly -> updateWifiOnly(intent.enabled)
             SettingsIntent.ShowRepeatModePicker -> showRepeatModePicker()
-            SettingsIntent.ShowDarkModePicker -> showDarkModePicker()
-            SettingsIntent.ShowCacheLimitPicker -> showCacheLimitPicker()
             SettingsIntent.ShowSleepTimerPicker -> showSleepTimerPicker()
-            SettingsIntent.ShowDownloadQualityPicker -> showDownloadQualityPicker()
-            SettingsIntent.OnDownloadManagerClick -> sendEffect(SettingsEffect.NavigateToDownloadManager)
-            SettingsIntent.OnReportHistoryClick -> sendEffect(SettingsEffect.NavigateToReportHistory)
-            SettingsIntent.OnFeedbackHistoryClick -> sendEffect(SettingsEffect.NavigateToFeedbackHistory)
             SettingsIntent.OnCheckUpdateClick -> checkForUpdate()
             SettingsIntent.DismissUpdateDialog -> {
                 if (!currentState.forceUpdate) {
@@ -198,7 +165,6 @@ class SettingsViewModel @Inject constructor(
             }
             SettingsIntent.ConfirmUpdate -> confirmUpdate()
             SettingsIntent.RetryUpdateDownload -> confirmUpdate()
-            SettingsIntent.CancelSleepTimer -> cancelSleepTimer()
             is SettingsIntent.OnChoiceSelected -> onChoiceSelected(intent.type, intent.index)
             SettingsIntent.DismissChoiceDialog -> updateState { copy(choiceDialog = null) }
         }
@@ -328,7 +294,7 @@ class SettingsViewModel @Inject constructor(
     private fun load(fetchProfile: Boolean) {
         viewModelScope.launch {
             updateState { copy(isLoading = true) }
-            refreshCacheSize()
+            refreshCacheUsageBlocking()
             if (!fetchProfile) {
                 updateState { copy(isLoading = false) }
                 return@launch
@@ -342,25 +308,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun refreshCacheSize() {
-        val used = playbackCacheRepository.getCacheUsedBytes()
-        updateState { copy(cacheUsedBytes = used) }
+    /** 主页「存储空间」这行摘要的用量刷新（公开给 intent，从存储页返回时用）。 */
+    private fun refreshCacheUsage() {
+        viewModelScope.launch { refreshCacheUsageBlocking() }
     }
 
-    private fun clearCache() {
-        viewModelScope.launch {
-            updateState { copy(showClearCacheDialog = false, isClearingCache = true) }
-            playbackCacheRepository.clearCache()
-                .onSuccess {
-                    refreshCacheSize()
-                    updateState { copy(isClearingCache = false) }
-                    sendEffect(SettingsEffect.ShowMessage("缓存已清理"))
-                }
-                .onError { _, msg ->
-                    updateState { copy(isClearingCache = false) }
-                    sendEffect(SettingsEffect.ShowMessage(msg ?: "清理失败"))
-                }
-        }
+    private suspend fun refreshCacheUsageBlocking() {
+        val used = playbackCacheRepository.getCacheUsedBytes()
+        updateState { copy(cacheUsedBytes = used) }
     }
 
     private fun logout() {
@@ -378,27 +333,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun updateAutoPlay(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.updateAutoPlay(enabled)
-                .onError { _, msg -> sendEffect(SettingsEffect.ShowMessage(msg ?: "保存失败")) }
-        }
-    }
-
-    private fun updateShowLyrics(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.updateShowLyrics(enabled)
-                .onError { _, msg -> sendEffect(SettingsEffect.ShowMessage(msg ?: "保存失败")) }
-        }
-    }
-
-    private fun updateWifiOnly(enabled: Boolean) {
-        viewModelScope.launch {
-            userPreferencesRepository.updateDownloadOnWifiOnly(enabled)
-                .onError { _, msg -> sendEffect(SettingsEffect.ShowMessage(msg ?: "保存失败")) }
-        }
-    }
-
     private fun showRepeatModePicker() {
         val modes = listOf(RepeatMode.SEQUENTIAL, RepeatMode.ALL, RepeatMode.ONE, RepeatMode.RANDOM)
         val labels = listOf("顺序播放", "列表循环", "单曲循环", "随机播放")
@@ -408,48 +342,6 @@ class SettingsViewModel @Inject constructor(
                     type = ChoiceType.REPEAT_MODE,
                     options = labels,
                     selectedIndex = modes.indexOf(repeatMode).coerceAtLeast(0),
-                ),
-            )
-        }
-    }
-
-    private fun showDarkModePicker() {
-        val modes = listOf(DarkMode.FOLLOW_SYSTEM, DarkMode.LIGHT, DarkMode.DARK)
-        updateState {
-            copy(
-                choiceDialog = ChoiceDialog(
-                    type = ChoiceType.DARK_MODE,
-                    options = listOf("跟随系统", "浅色", "深色"),
-                    selectedIndex = modes.indexOf(preferences.darkMode).coerceAtLeast(0),
-                ),
-            )
-        }
-    }
-
-    private fun showCacheLimitPicker() {
-        val labels = cacheLimitOptions.map { formatBytes(it) }
-        val currentIndex = cacheLimitOptions.indexOf(currentState.preferences.cacheMaxBytes).let {
-            if (it >= 0) it else cacheLimitOptions.indexOf(2L * 1024 * 1024 * 1024)
-        }
-        updateState {
-            copy(
-                choiceDialog = ChoiceDialog(
-                    type = ChoiceType.CACHE_LIMIT,
-                    options = labels,
-                    selectedIndex = currentIndex.coerceAtLeast(0),
-                ),
-            )
-        }
-    }
-
-    private fun showDownloadQualityPicker() {
-        val qualities = listOf(PlayQuality.STANDARD, PlayQuality.HIGH, PlayQuality.LOSSLESS)
-        updateState {
-            copy(
-                choiceDialog = ChoiceDialog(
-                    type = ChoiceType.DOWNLOAD_QUALITY,
-                    options = listOf("标准", "高品质", "无损"),
-                    selectedIndex = qualities.indexOf(preferences.downloadQuality).coerceAtLeast(0),
                 ),
             )
         }
@@ -496,21 +388,6 @@ class SettingsViewModel @Inject constructor(
                     val modes = listOf(RepeatMode.SEQUENTIAL, RepeatMode.ALL, RepeatMode.ONE, RepeatMode.RANDOM)
                     musicController.setRepeatMode(modes.getOrElse(index) { RepeatMode.ALL })
                 }
-                ChoiceType.DARK_MODE -> {
-                    val modes = listOf(DarkMode.FOLLOW_SYSTEM, DarkMode.LIGHT, DarkMode.DARK)
-                    userPreferencesRepository.updateDarkMode(modes[index])
-                        .onError { _, msg -> sendEffect(SettingsEffect.ShowMessage(msg ?: "保存失败")) }
-                }
-                ChoiceType.CACHE_LIMIT -> {
-                    val maxBytes = cacheLimitOptions.getOrElse(index) { cacheLimitOptions[3] }
-                    playbackCacheRepository.updateCacheMaxBytes(maxBytes)
-                        .onSuccess {
-                            sendEffect(SettingsEffect.ShowMessage("缓存上限已更新，重启应用后完全生效"))
-                        }
-                        .onError { _, msg ->
-                            sendEffect(SettingsEffect.ShowMessage(msg ?: "保存失败"))
-                        }
-                }
                 ChoiceType.SLEEP_TIMER -> {
                     val minutes = sleepTimerOptionsMinutes.getOrElse(index) { 0L }
                     if (minutes == 0L) {
@@ -520,11 +397,6 @@ class SettingsViewModel @Inject constructor(
                     } else {
                         startSleepTimer(minutes)
                     }
-                }
-                ChoiceType.DOWNLOAD_QUALITY -> {
-                    val qualities = listOf(PlayQuality.STANDARD, PlayQuality.HIGH, PlayQuality.LOSSLESS)
-                    userPreferencesRepository.updateDownloadQuality(qualities[index])
-                        .onError { _, msg -> sendEffect(SettingsEffect.ShowMessage(msg ?: "保存失败")) }
                 }
             }
             updateState { copy(choiceDialog = null) }
@@ -542,12 +414,6 @@ class SettingsViewModel @Inject constructor(
         DarkMode.FOLLOW_SYSTEM -> "跟随系统"
         DarkMode.LIGHT -> "浅色"
         DarkMode.DARK -> "深色"
-    }
-
-    fun downloadQualityLabel(quality: PlayQuality): String = when (quality) {
-        PlayQuality.STANDARD -> "标准"
-        PlayQuality.HIGH -> "高品质"
-        PlayQuality.LOSSLESS -> "无损"
     }
 
     fun cacheLimitLabel(maxBytes: Long): String = formatBytes(maxBytes)

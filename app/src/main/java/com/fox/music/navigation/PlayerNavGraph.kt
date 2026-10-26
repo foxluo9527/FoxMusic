@@ -10,10 +10,12 @@ import com.fox.music.feature.player.ui.screen.MUSIC_COMMENT_DETAIL_ROUTE
 import com.fox.music.feature.player.ui.screen.MusicCommentDetailScreen
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.PlayerScreen
-import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.core.model.music.PlaybackSourceKind
+import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
+import com.fox.music.feature.search.searchRoute
 import com.fox.music.feature.social.postDetailRoute
+import com.fox.music.feature.stream.StreamRoutes
 
 fun NavGraphBuilder.playerNavGraph(
     context: NavGraphContext,
@@ -49,6 +51,17 @@ fun NavGraphBuilder.playerNavGraph(
                         PlaybackSourceKind.POST -> {
                             val id = source.id ?: return@PlayerScreen
                             navController.navigateFromPlayerToDetail(postDetailRoute(id))
+                        }
+                        PlaybackSourceKind.SEARCH -> {
+                            // 搜索来源没有实体 id，用来源标题（即搜索关键词）重建搜索页并自动执行
+                            val query = source.title ?: return@PlayerScreen
+                            navController.navigate(searchRoute(query = query))
+                        }
+                        PlaybackSourceKind.DOWNLOAD -> {
+                            navController.navigate(DOWNLOAD_MANAGER_ROUTE)
+                        }
+                        PlaybackSourceKind.STREAM -> {
+                            navController.navigate(StreamRoutes.STREAM)
                         }
                         else -> {
                             val detailType = source.toDetailType() ?: return@PlayerScreen

@@ -33,9 +33,15 @@ import com.fox.music.feature.player.viewmodel.collectTrackRoute
 import com.fox.music.feature.profile.ui.screen.DESKTOP_LYRIC_SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.DESKTOP_WIDGET_ROUTE
 import com.fox.music.feature.profile.ui.screen.DOWNLOAD_MANAGER_ROUTE
+import com.fox.music.feature.profile.ui.screen.DOWNLOAD_SETTINGS_ROUTE
 import com.fox.music.feature.profile.ui.screen.DesktopLyricSettingsScreen
 import com.fox.music.feature.profile.ui.screen.DesktopWidgetSettingsScreen
 import com.fox.music.feature.profile.ui.screen.DownloadScreen
+import com.fox.music.feature.profile.ui.screen.DownloadSettingsScreen
+import com.fox.music.feature.profile.ui.screen.FEEDBACK_CENTER_ROUTE
+import com.fox.music.feature.profile.ui.screen.FeedbackCenterScreen
+import com.fox.music.feature.profile.ui.screen.STORAGE_SETTINGS_ROUTE
+import com.fox.music.feature.profile.ui.screen.StorageSettingsScreen
 import com.fox.music.feature.profile.ui.screen.WidgetPinOption
 import com.fox.music.feature.profile.ui.screen.EDIT_PROFILE_ROUTE
 import com.fox.music.feature.profile.ui.screen.EditProfileScreen
@@ -43,6 +49,7 @@ import com.fox.music.feature.profile.ui.screen.LOCK_SCREEN_LYRIC_ROUTE
 import com.fox.music.feature.profile.ui.screen.LockScreenLyricSettingsScreen
 import com.fox.music.feature.profile.ui.screen.REPORT_HISTORY_ROUTE
 import com.fox.music.feature.profile.ui.screen.ReportHistoryScreen
+import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.profile.ui.screen.FEEDBACK_HISTORY_ROUTE
 import com.fox.music.feature.profile.ui.screen.FeedbackHistoryScreen
 import com.fox.music.feature.profile.ui.screen.SETTINGS_ROUTE
@@ -75,19 +82,27 @@ fun NavGraphBuilder.profileNavGraph(
         SettingsScreen(
             modifier = Modifier.fillMaxSize(),
             isLogin = context.authState.isLoggedIn,
-            onDesktopLyricSettings = {
-                navController.navigate(DESKTOP_LYRIC_SETTINGS_ROUTE)
-            },
+            // 外观 / 下载 / 存储 / 反馈 都已下沉二级页（渐进式披露重构）：
+            // 主页每个一级条目只负责"去哪"，不再把开关和选择器直接摊在主页上。
             onThemeSettings = {
                 navController.navigate(THEME_SETTINGS_ROUTE)
+            },
+            onDownloadSettings = {
+                navController.navigate(DOWNLOAD_SETTINGS_ROUTE)
+            },
+            onStorageSettings = {
+                navController.navigate(STORAGE_SETTINGS_ROUTE)
+            },
+            onFeedbackCenter = {
+                navController.navigate(FEEDBACK_CENTER_ROUTE)
+            },
+            onDesktopLyricSettings = {
+                navController.navigate(DESKTOP_LYRIC_SETTINGS_ROUTE)
             },
             onBack = { navController.popBackStack() },
             onLogin = { navController.navigate(LOGIN_ROUTE) },
             onEditProfile = { navController.navigate(EDIT_PROFILE_ROUTE) },
             onManageLibrary = { navController.navigate(MANAGE_ROUTER) },
-            onDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
-            onReportHistory = { navController.navigate(REPORT_HISTORY_ROUTE) },
-            onFeedbackHistory = { navController.navigate(FEEDBACK_HISTORY_ROUTE) },
             onPrivacySettings = { navController.navigate(PRIVACY_SETTINGS_ROUTE) },
             // 通知设置页（feature:chat 的 NotificationSettingsScreen）原本只挂在
             // MessagesContent 的 showBackButton=true 分支上，而两端都传 false →
@@ -99,6 +114,30 @@ fun NavGraphBuilder.profileNavGraph(
                     popUpTo(HOME_ROUTE) { inclusive = false }
                 }
             },
+        )
+    }
+
+    composableStack(DOWNLOAD_SETTINGS_ROUTE) {
+        DownloadSettingsScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+            onOpenDownloadManager = { navController.navigate(DOWNLOAD_MANAGER_ROUTE) },
+        )
+    }
+
+    composableStack(STORAGE_SETTINGS_ROUTE) {
+        StorageSettingsScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composableStack(FEEDBACK_CENTER_ROUTE) {
+        FeedbackCenterScreen(
+            modifier = Modifier.fillMaxSize(),
+            onBack = { navController.popBackStack() },
+            onReportHistory = { navController.navigate(REPORT_HISTORY_ROUTE) },
+            onFeedbackHistory = { navController.navigate(FEEDBACK_HISTORY_ROUTE) },
         )
     }
 
@@ -271,8 +310,16 @@ fun NavGraphBuilder.profileNavGraph(
 
     composableStack(
         route = MANAGE_SEARCH_ROUTE,
-        arguments = listOf(navArgument("query") { type = NavType.StringType }),
+        arguments = listOf(
+            navArgument("query") { type = NavType.StringType },
+            // true = 从搜索页「去收录」进来：收录完成后要回到搜索页
+            navArgument("fromSearch") {
+                type = NavType.BoolType
+                defaultValue = false
+            },
+        ),
     ) { backStackEntry ->
+        val fromSearch = backStackEntry.arguments?.getBoolean("fromSearch") == true
         ManageSearchScreen(
             modifier = Modifier.fillMaxSize(),
             initialQuery = backStackEntry.arguments?.getString("query").orEmpty(),
@@ -290,6 +337,8 @@ fun NavGraphBuilder.profileNavGraph(
                             durationMs = music.duration,
                             album = music.album?.title ?: "",
                             mode = "add_single",
+                            // 透传到收录页：收录成功后直接返回搜索页
+                            fromSearch = fromSearch,
                         )
                     )
                 )
@@ -308,12 +357,26 @@ fun NavGraphBuilder.profileNavGraph(
             navArgument("durationMs") { type = NavType.StringType },
             navArgument("album") { type = NavType.StringType },
             navArgument("mode") { type = NavType.StringType },
+            navArgument("fromSearch") {
+                type = NavType.BoolType
+                defaultValue = false
+            },
         ),
     ) { backStackEntry ->
+        val args = collectTrackArgsFrom(backStackEntry.savedStateHandle)
         CollectTrackScreen(
-            args = collectTrackArgsFrom(backStackEntry.savedStateHandle),
+            args = args,
             modifier = Modifier.fillMaxSize(),
             onBack = { navController.popBackStack() },
+            // 从搜索页「去收录」发起的收录：成功后一路弹回搜索页（连同音源搜索页一起弹掉），
+            // 搜索页重新进入组合会触发一次重搜，正好看到刚收录的歌。
+            onCollectSucceeded = {
+                if (args?.fromSearch == true) {
+                    val popped = navController.popBackStack(SEARCH_ROUTE, inclusive = false)
+                    // 万一搜索页不在栈上（异常入口），退化为普通返回，不至于卡在原页
+                    if (!popped) navController.popBackStack()
+                }
+            },
         )
     }
 

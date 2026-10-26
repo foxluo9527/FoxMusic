@@ -7,6 +7,8 @@ import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.download.DownloadTask
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlaybackPlaylistSource
+import com.fox.music.core.model.music.PlaybackSourceKind
 import com.fox.music.core.player.controller.MusicController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -114,7 +116,12 @@ class DownloadViewModel @Inject constructor(
             return
         }
         val startIndex = playlist.indexOfFirst { it.id == music.id }.coerceAtLeast(0)
-        musicController.setPlaylist(playlist, startIndex, PLAYLIST_KEY)
+        musicController.setPlaylist(
+            playlist,
+            startIndex,
+            PLAYLIST_KEY,
+            source = PlaybackPlaylistSource(PlaybackSourceKind.DOWNLOAD, title = "下载管理"),
+        )
         viewModelScope.launch {
             _effect.emit(DownloadEffect.NavigateToPlayer)
         }
@@ -128,7 +135,12 @@ class DownloadViewModel @Inject constructor(
             }
             return
         }
-        musicController.setPlaylist(playlist, 0, PLAYLIST_KEY)
+        musicController.setPlaylist(
+            playlist,
+            0,
+            PLAYLIST_KEY,
+            source = PlaybackPlaylistSource(PlaybackSourceKind.DOWNLOAD, title = "下载管理"),
+        )
         viewModelScope.launch {
             _effect.emit(DownloadEffect.NavigateToPlayer)
         }

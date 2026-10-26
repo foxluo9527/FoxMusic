@@ -6,6 +6,7 @@ import com.fox.music.core.data.player.PlaybackStateStoreImpl
 import com.fox.music.core.data.repository.AdminMusicRepositoryImpl
 import com.fox.music.core.data.repository.AppUpdateRepositoryImpl
 import com.fox.music.core.data.repository.AlbumRepositoryImpl
+import com.fox.music.core.data.cache.AllArtistsCacheStore
 import com.fox.music.core.data.repository.ArtistRepositoryImpl
 import com.fox.music.core.data.repository.AuthRepositoryImpl
 import com.fox.music.core.data.repository.ChatRepositoryImpl
@@ -27,6 +28,7 @@ import com.fox.music.core.common.player.PlaybackStateStore
 import com.fox.music.core.domain.repository.AdminMusicRepository
 import com.fox.music.core.domain.repository.AppUpdateRepository
 import com.fox.music.core.domain.repository.AlbumRepository
+import com.fox.music.core.domain.repository.AllArtistsCache
 import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.AuthRepository
 import com.fox.music.core.domain.repository.ChatRepository
@@ -89,6 +91,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindArtistRepository(impl: ArtistRepositoryImpl): ArtistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAllArtistsCache(impl: AllArtistsCacheStore): AllArtistsCache
 
     @Binds
     @Singleton

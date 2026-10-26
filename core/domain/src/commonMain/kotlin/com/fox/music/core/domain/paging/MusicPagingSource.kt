@@ -14,6 +14,8 @@ class MusicPagingSource(
     private val sort: String? = "",
     private val maxTotalItems: Int? = null,
     private val onRecommendSeedLoaded: ((String) -> Unit)? = null,
+    /** 第一页加载成功后回调（详情页据此把整份列表回写首页/发现页并同步播放队列）。 */
+    private val onFirstPageLoaded: ((List<Music>) -> Unit)? = null,
     private val recommendedMusicCacheManager: RecommendedMusicCacheManager? = null,
 ) : PagingSource<Int, Music>() {
     private val mapPageDataList = mutableMapOf<Int, List<Music>>()
@@ -90,6 +92,9 @@ class MusicPagingSource(
                         nextKey
                     }
                 mapPageDataList[page] = cappedList
+                if (page == 1 && cappedList.isNotEmpty()) {
+                    onFirstPageLoaded?.invoke(cappedList)
+                }
                 LoadResult.Page(
                     data = cappedList,
                     prevKey = prevKey,
@@ -135,6 +140,9 @@ class MusicPagingSource(
         val prevKey = if (page > 1) page - 1 else null
         val nextKey = if (endIndex < effectiveItems.size) page + 1 else null
         mapPageDataList[page] = pageData
+        if (page == 1 && pageData.isNotEmpty()) {
+            onFirstPageLoaded?.invoke(pageData)
+        }
         return LoadResult.Page(
             data = pageData,
             prevKey = prevKey,

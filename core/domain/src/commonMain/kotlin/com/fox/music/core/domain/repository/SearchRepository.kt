@@ -10,6 +10,7 @@ import com.fox.music.core.model.music.ProviderCandidateGroup
 import com.fox.music.core.model.music.ProviderSearchResults
 import com.fox.music.core.model.music.ResolveThirdPartyDto
 import com.fox.music.core.model.music.ResolveThirdPartyRequest
+import com.fox.music.core.model.music.ScrapedLyric
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
@@ -70,4 +71,15 @@ interface SearchRepository {
         artist: String,
         durationMs: Long? = null,
     ): Result<String?>
+
+    /**
+     * 同 fetchScrapedLyrics，但保留「命中了哪首歌」的元信息。
+     * 歌词纠错用它做「最佳匹配」推荐项（清楚告知用户匹配到的版本）；
+     * 失败返回 success(null)，不阻塞上层。
+     */
+    suspend fun fetchScrapedLyric(
+        title: String,
+        artist: String,
+        durationMs: Long? = null,
+    ): Result<ScrapedLyric?>
 }

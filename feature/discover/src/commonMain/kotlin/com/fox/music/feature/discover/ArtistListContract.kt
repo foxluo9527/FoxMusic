@@ -14,7 +14,11 @@ data class ArtistListState(
 ) : UiState
 
 sealed interface ArtistListIntent : UiIntent {
+    /** 进入页面：有缓存就先渲染，再按需回源 */
     data object Load : ArtistListIntent
+
+    /** 手动刷新（重试 / 下拉）：强制回源，忽略节流 */
+    data object Refresh : ArtistListIntent
 }
 
 sealed interface ArtistListEffect : UiEffect {

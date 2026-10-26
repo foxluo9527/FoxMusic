@@ -1,12 +1,14 @@
 package com.fox.music.navigation
 
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.fox.music.core.ui.theme.foxTabPageBackground
 import com.fox.music.feature.discover.ALL_ARTIST_LIST_ROUTE
 import com.fox.music.feature.discover.ARTIST_DETAIL_ROUTE
 import com.fox.music.feature.discover.ArtistDetailScreen
@@ -28,6 +30,8 @@ import com.fox.music.feature.search.SEARCH_ROUTE
 import com.fox.music.feature.search.SearchScreen
 import com.fox.music.feature.player.ui.screen.manageSearchRoute
 import com.fox.music.core.model.music.DetailType
+import com.fox.music.core.model.music.PlaybackSourceKind
+import com.fox.music.core.domain.toplist.TopListMusicStore
 import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.playlist.ui.component.playlistDetailRoute
 import com.fox.music.feature.social.postDetailRoute
@@ -86,9 +90,10 @@ fun NavGraphBuilder.musicNavGraph(
                     },
                     onMusicMoreClick = context.onMusicMoreClick,
                     onBack = { navController.popBackStack() },
-                    // 「去收录」：跳转第三方平台搜索（添加单曲）页，带入当前关键词
+                    // 「去收录」：跳转第三方平台搜索（添加单曲）页，带入当前关键词。
+                    // fromSearch=true 表示本次收录完成后要一路返回到搜索页（见 CollectTrackScreen）
                     onCollectClick = { keyword ->
-                        navController.navigate(manageSearchRoute(keyword))
+                        navController.navigate(manageSearchRoute(keyword, fromSearch = true))
                     },
                 )
             }
@@ -97,47 +102,71 @@ fun NavGraphBuilder.musicNavGraph(
 
     composableStack(PLAYLIST_LIST_ROUTE) {
         val animatedScope = this
-        with(sharedTransitionScope) {
-            PlaylistListScreen(
-                modifier = Modifier.fillMaxSize(),
-                sharedTransitionScope = this@with,
-                animatedContentScope = animatedScope,
-                onPlaylistClick = context.onPlaylistClick,
-                onBackClick = { navController.popBackStack() }
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .foxTabPageBackground(),
+        ) {
+            with(sharedTransitionScope) {
+                PlaylistListScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    sharedTransitionScope = this@with,
+                    animatedContentScope = animatedScope,
+                    onPlaylistClick = context.onPlaylistClick,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
         }
     }
 
     composableStack(ALBUM_LIST_ROUTE) {
         val animatedScope = this
-        with(sharedTransitionScope) {
-            AlbumListScreen(
-                modifier = Modifier.fillMaxSize(),
-                sharedTransitionScope = this@with,
-                animatedContentScope = animatedScope,
-                onAlbumClick = context.onAlbumClick,
-                onBackClick = { navController.popBackStack() }
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .foxTabPageBackground(),
+        ) {
+            with(sharedTransitionScope) {
+                AlbumListScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    sharedTransitionScope = this@with,
+                    animatedContentScope = animatedScope,
+                    onAlbumClick = context.onAlbumClick,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
         }
     }
 
     composableStack(HOT_ARTIST_LIST_ROUTE) {
-        HotArtistListScreen(
-            modifier = Modifier.fillMaxSize(),
-            onArtistClick = context.onArtistClick,
-            onAllArtistsClick = {
-                navController.navigate(ALL_ARTIST_LIST_ROUTE)
-            },
-            onBackClick = { navController.popBackStack() },
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .foxTabPageBackground(),
+        ) {
+            HotArtistListScreen(
+                modifier = Modifier.fillMaxSize(),
+                onArtistClick = context.onArtistClick,
+                onAllArtistsClick = {
+                    navController.navigate(ALL_ARTIST_LIST_ROUTE)
+                },
+                onBackClick = { navController.popBackStack() },
+            )
+        }
     }
 
     composableStack(ALL_ARTIST_LIST_ROUTE) {
-        ArtistListScreen(
-            modifier = Modifier.fillMaxSize(),
-            onArtistClick = context.onArtistClick,
-            onBackClick = { navController.popBackStack() },
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .foxTabPageBackground(),
+        ) {
+            ArtistListScreen(
+                modifier = Modifier.fillMaxSize(),
+                onArtistClick = context.onArtistClick,
+                onBackClick = { navController.popBackStack() },
+            )
+        }
     }
 
     composableStack(
@@ -165,6 +194,11 @@ fun NavGraphBuilder.musicNavGraph(
                     onBack = { navController.popBackStack() },
                     onMusicMoreClick = context.onMusicMoreClick,
                     onArtistClick = context.onArtistClick,
+                    onViewAllArtistSongs = { artistId ->
+                        navController.navigate(
+                            playlistDetailRoute(artistId, DetailType.ARTIST)
+                        )
+                    },
                 )
             }
         }
@@ -214,6 +248,19 @@ fun NavGraphBuilder.musicNavGraph(
                         context.musicActionsViewModel.downloadMusics(musics)
                     },
                     onSelectionModeChanged = context.onHideMiniPlayerInSelectionChange,
+                    onTopListLoaded = { sort, list ->
+                        // 详情页整份列表加载成功：回写首页/发现页的底层列表（展示条数不变），
+                        // 若正在播放同一板块的队列则同步成最新整份列表
+                        TopListMusicStore.publish(sort, list)
+                        musicController.syncPlaylistForSource(
+                            kind = if (sort == TopListMusicStore.SORT_RECOMMEND) {
+                                PlaybackSourceKind.RECOMMEND
+                            } else {
+                                PlaybackSourceKind.NEW_MUSIC
+                            },
+                            musics = list,
+                        )
+                    },
                     onOpenImportDetail = {
                         if (detailPlaylistId > 0L) {
                             navController.navigate(playlistImportDetailRoute(detailPlaylistId))

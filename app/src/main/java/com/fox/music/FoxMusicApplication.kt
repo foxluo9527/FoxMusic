@@ -87,6 +87,8 @@ class FoxMusicApplication : Application(), Configuration.Provider, ImageLoaderFa
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        // 主 Tab 页快照缓存落盘：五个 Tab 进页面先铺上一次的数据（无网络也能看）
+        com.fox.music.core.common.cache.TabPageCache.init(this)
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }

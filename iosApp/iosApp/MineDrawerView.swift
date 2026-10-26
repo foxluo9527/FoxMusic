@@ -162,11 +162,14 @@ struct MineDrawerView: View {
                 Text(title).font(.system(size: 16))
                 Spacer(minLength: 0)
                 if badge > 0 {
-                    Text(badge > 99 ? "99+" : "\(badge)")
+                    let label = badge > 99 ? "99+" : "\(badge)"
+                    Text(label)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        // 高度固定 18，单数字宽度也固定 18 => 标准圆形；
+                        // 多位数放开宽度、横向补 5pt => 胶囊形。
+                        .frame(width: label.count > 1 ? nil : 18, height: 18)
+                        .padding(.horizontal, label.count > 1 ? 5 : 0)
                         .background(Capsule().fill(.red))
                 }
             }

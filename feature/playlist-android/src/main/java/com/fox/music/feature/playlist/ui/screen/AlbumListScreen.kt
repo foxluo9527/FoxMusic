@@ -26,8 +26,9 @@ fun AlbumListScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
+    // 只收集 effect，不再发 Load：首次加载在 ViewModel init 里做且幂等，
+    // 否则每次从详情页返回都会重建 PagingData → 列表重载 + 回到顶部。
     LaunchedEffect(Unit) {
-        viewModel.sendIntent(AlbumListIntent.Load)
         viewModel.effect.collect { effect ->
             when (effect) {
                 is AlbumListEffect.NavigateToAlbum -> onAlbumClick(effect.album)
@@ -44,5 +45,8 @@ fun AlbumListScreen(
         modifier = modifier,
         onAlbumClick = viewModel::onAlbumClick,
         onBackClick = { viewModel.onBackClick() },
+        initialFirstVisibleItemIndex = viewModel.scrollState.firstVisibleItemIndex(),
+        initialFirstVisibleItemScrollOffset = viewModel.scrollState.firstVisibleItemScrollOffset(),
+        onScrollPositionChange = viewModel.scrollState::save,
     )
 }

@@ -9,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
@@ -28,7 +27,6 @@ import com.fox.music.feature.auth.ui.screen.LOGIN_ROUTE
 import com.fox.music.notification.FoxNotificationManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -52,24 +50,18 @@ class LockScreenLyricActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
-            setTurnScreenOn(true)
         } else {
             @Suppress("DEPRECATION")
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
-            )
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
         }
+        // 展示期间保持屏幕常亮，但按电源键锁屏时系统仍会正常熄屏
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             val playerState by musicController.playerState.collectAsState(PlayerState())
             val position by musicController.currentPosition.collectAsState(0L)
             val preferences by userPreferencesRepository.userPreferences
                 .collectAsState(initial = UserPreferences())
             val darkTheme = preferences.resolveDarkTheme(isSystemInDarkTheme())
-            LaunchedEffect(Unit) {
-                delay(AUTO_DISMISS_MS)
-                finish()
-            }
             FoxMusicTheme(
                 darkTheme = darkTheme,
                 appThemeId = preferences.appThemeId,
@@ -117,7 +109,6 @@ class LockScreenLyricActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_MUSIC_ID = "extra_music_id"
-        private const val AUTO_DISMISS_MS = 30_000L
 
         fun intent(context: Context): Intent =
             Intent(context, LockScreenLyricActivity::class.java).apply {

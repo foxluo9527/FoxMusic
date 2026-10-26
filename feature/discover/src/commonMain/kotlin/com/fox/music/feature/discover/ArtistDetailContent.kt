@@ -56,6 +56,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -226,6 +227,8 @@ fun ArtistDetailContent(
                 },
             )
         },
+        // 底色由外层主题渐变提供，透明才能看到顶光。
+        containerColor = Color.Transparent,
     ) { innerPadding ->
         when {
             state.isLoading && artist == null -> {

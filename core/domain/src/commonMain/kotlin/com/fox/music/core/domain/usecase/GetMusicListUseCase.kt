@@ -28,6 +28,8 @@ class GetMusicListUseCase constructor(
         sort: String? = null,
         maxTotalItems: Int? = null,
         onRecommendSeedLoaded: ((String) -> Unit)? = null,
+        /** 第一页加载成功后回调，参数为该页数据（详情页 100 条场景即整份列表）。 */
+        onFirstPageLoaded: ((List<Music>) -> Unit)? = null,
     ) = Pager(
         config = PagingConfig(
             pageSize = limit,
@@ -42,6 +44,7 @@ class GetMusicListUseCase constructor(
                 sort,
                 maxTotalItems = maxTotalItems,
                 onRecommendSeedLoaded = onRecommendSeedLoaded,
+                onFirstPageLoaded = onFirstPageLoaded,
                 recommendedMusicCacheManager = sort?.takeIf { it == "recommend" }
                     ?.let { recommendedMusicCacheManager },
             )

@@ -48,6 +48,9 @@ kotlin {
             api(compose.material3)
             api(compose.ui)
             api(compose.materialIconsExtended)
+
+            // 历史会话相对时间（今天/昨天/N天前）需要跨端日期计算
+            implementation(libs.kotlinx.datetime)
         }
     }
 }

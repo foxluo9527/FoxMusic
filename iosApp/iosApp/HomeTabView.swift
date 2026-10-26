@@ -35,7 +35,7 @@ struct HomeTabView: View {
     /// search_in_app 动作待消费：dismiss 助手后跳搜索。
     @State private var pendingAssistantSearch: String? = nil
 
-    /// 消费播放列表「来源」卡片跳转：首页可承接歌单/专辑/榜单。
+    /// 消费播放列表「来源」卡片跳转：首页可承接歌单/专辑/榜单/推荐。
     private func consumePlayerSourceLink() {
         router.consumePlayerSource(in: .home) { link in
             switch link {
@@ -45,7 +45,9 @@ struct HomeTabView: View {
                 path.append(.playlistDetail(id: id, title: title, isRank: true))
             case .album(let id):
                 path.append(.albumDetail(id: id))
-            case .post:
+            case .recommend:
+                path.append(.recommendList)
+            case .post, .newMusic:
                 break
             }
         }
@@ -56,7 +58,17 @@ struct HomeTabView: View {
             HomeComposeView(
                 onMusicClickFromList: { songs, index in
                     // 整列表入队并定位到点中的那首 —— 这样上一首/下一首才有东西可切
-                    PlayerModel.shared.play(queue: songs, startIndex: Int(index.int32Value))
+                    // 「为你精选」虚拟列表：id 与 Android DetailType.RECOMMEND_ID 对齐
+                    PlayerModel.shared.play(
+                        queue: songs,
+                        startIndex: Int(index.int32Value),
+                        source: PlaybackSource(
+                            kind: .recommend,
+                            id: Int64.max,
+                            title: "为你精选",
+                            typeLabel: "推荐"
+                        )
+                    )
                 },
                 onPlaylistClick: { id, title, isRank in
                     path.append(.playlistDetail(id: id.int64Value, title: title, isRank: isRank.boolValue))

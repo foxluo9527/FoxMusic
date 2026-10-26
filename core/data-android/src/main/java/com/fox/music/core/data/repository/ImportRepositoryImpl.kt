@@ -3,6 +3,7 @@ package com.fox.music.core.data.repository
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
 import com.fox.music.core.domain.repository.ImportChartsResult
+import com.fox.music.core.domain.repository.ImportAudioCandidate
 import com.fox.music.core.domain.repository.ImportMusicResponse
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.ImportedLyrics
@@ -25,6 +26,7 @@ import com.fox.music.core.network.model.ImportMusicRequest
 import com.fox.music.core.network.model.ImportSessionRequest
 import com.fox.music.core.network.model.ParsePlaylistRequest
 import com.fox.music.core.network.model.ResolveAudioRequest
+import com.fox.music.core.network.model.SearchImportSourcesRequest
 import com.fox.music.core.network.model.UpsertSourceLinkRequest
 import javax.inject.Inject
 
@@ -93,11 +95,19 @@ class ImportRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun resolveAudio(title: String, artist: String): Result<ResolvedAudio> =
+    override suspend fun resolveAudio(
+        title: String,
+        artist: String,
+        durationMs: Long?,
+    ): Result<ResolvedAudio> =
         suspendRunCatching {
             val response = try {
                 importApiService.resolveAudio(
-                    ResolveAudioRequest(title = title, artist = artist),
+                    ResolveAudioRequest(
+                        title = title,
+                        artist = artist,
+                        durationMs = durationMs?.takeIf { it > 0 },
+                    ),
                 )
             } catch (e: retrofit2.HttpException) {
                 val msg = e.response()?.errorBody()?.string().orEmpty()
@@ -119,8 +129,53 @@ class ImportRepositoryImpl @Inject constructor(
                 referer = data.referer,
                 score = data.score,
                 exact = data.exact,
+                durationMs = data.durationMs,
             )
         }
+
+    override suspend fun searchAudioCandidates(
+        title: String,
+        artist: String,
+        durationMs: Long?,
+        limit: Int,
+    ): Result<List<ImportAudioCandidate>> = suspendRunCatching {
+        val response = try {
+            importApiService.searchImportSources(
+                SearchImportSourcesRequest(
+                    title = title,
+                    artist = artist,
+                    durationMs = durationMs?.takeIf { it > 0 },
+                    limit = limit,
+                ),
+            )
+        } catch (e: retrofit2.HttpException) {
+            val msg = e.response()?.errorBody()?.string().orEmpty()
+            throw IllegalStateException(
+                when {
+                    e.code() == 404 -> "服务端未部署 search-sources（HTTP 404）"
+                    msg.isNotBlank() -> msg.take(200)
+                    else -> "查询音源候选失败 HTTP ${e.code()}"
+                },
+            )
+        }
+        if (!response.isSuccess) throw IllegalStateException(response.message)
+        response.data?.candidates.orEmpty()
+            .filter { it.url.isNotBlank() }
+            .map { c ->
+                ImportAudioCandidate(
+                    url = c.url,
+                    source = c.source,
+                    referer = c.referer,
+                    score = c.score,
+                    exact = c.exact,
+                    durationMs = c.durationMs,
+                    durationMatch = c.durationMatch,
+                    title = c.title,
+                    artist = c.artist,
+                    detailUrl = c.detailUrl,
+                )
+            }
+    }
 
     override suspend fun lookupSourceLink(
         title: String,

@@ -197,6 +197,10 @@ fun PlaylistDetailContent(
 
     Scaffold(
         modifier = modifier,
+        // 页面底色由外层（Android MainScreenWithBottomBar / iOS Compose 宿主的
+        // foxTabPageBackground）统一提供，这里必须透明，否则实心 background
+        // 会盖掉主题色顶光，详情页看起来是死板的纸色。
+        containerColor = Color.Transparent,
         topBar = {
             if (state.isSelectionMode) {
                 FoxTopBar(
@@ -729,7 +733,8 @@ private fun CollectionDetailHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            // 不铺 surface：歌单详情的页面底色是 background（纸色），
+            // 头部再垫一层 surface 会在封面块上下切出两条白边，像拼贴上去的。
             .then(
                 if (onClick != null) {
                     Modifier.clickable(onClick = onClick)

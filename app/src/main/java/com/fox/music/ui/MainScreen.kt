@@ -52,6 +52,9 @@ import com.fox.music.core.model.music.SleepTimerState
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
 import com.fox.music.core.ui.component.FoxChoiceDialog
 import com.fox.music.core.ui.component.FoxInputDialog
+import com.fox.music.core.ui.component.JumpHighlightController
+import com.fox.music.core.ui.component.LocalJumpHighlight
+import com.fox.music.core.ui.component.LocalNowPlayingMusicId
 import com.fox.music.core.ui.component.LocalTransientMediaAudioCoordinator
 import com.fox.music.BuildConfig
 import com.fox.music.core.ui.component.MineDrawerContent
@@ -64,6 +67,7 @@ import com.fox.music.feature.chat.MESSAGES_ROUTE
 import com.fox.music.feature.chat.selectFriendRoute
 import com.fox.music.feature.discover.artistDetailRoute
 import com.fox.music.feature.home.HOME_ROUTE
+import com.fox.music.feature.player.ui.screen.DesktopLyricSettingsRequest
 import com.fox.music.feature.player.ui.screen.MANAGE_ROUTER
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.fox.music.feature.player.ui.screen.sourceCorrectRoute
@@ -101,6 +105,8 @@ fun MainScreen(
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val playerState by musicController.playerState.collectAsStateWithLifecycle(PlayerState())
+    // 「跳转高亮」的全局信号载体：列表点「跳到正在播放」后，让目标行闪一下
+    val jumpHighlight = remember { JumpHighlightController() }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val showBottomBar = remember(playerState.currentMusic) {
@@ -174,6 +180,17 @@ fun MainScreen(
             } else {
                 launchSingleTop = true
             }
+        }
+    }
+
+    // 桌面歌词悬浮窗的「设置」：无论冷启动还是回到已在前台的 App，
+    // 都由这个信号把用户送进播放页，再由 PlayerScreen 展开歌词设置。
+    val desktopLyricSettingsPending by DesktopLyricSettingsRequest.pending.collectAsState()
+    LaunchedEffect(desktopLyricSettingsPending) {
+        if (!desktopLyricSettingsPending) return@LaunchedEffect
+        navController.currentBackStackEntryFlow.first()
+        navController.navigate(PLAYER_ROUTE) {
+            launchSingleTop = true
         }
     }
 
@@ -458,12 +475,19 @@ fun MainScreen(
         contentWindowInsets = WindowInsets(0.dp)
     ) { innerPadding ->
         SharedTransitionLayout(modifier = Modifier.padding(innerPadding)) {
-            NavHost(
-                navController = navController,
-                startDestination = HOME_ROUTE,
-                modifier = Modifier.fillMaxSize()
+            // 「正在播放」的全局只读信号：各列表页（搜索/下载/歌单详情/歌手详情）据此做
+            // 高亮与「跳到正在播放」。在这里统一 provide，避免把 musicController 逐层下传。
+            CompositionLocalProvider(
+                LocalNowPlayingMusicId provides playerState.currentMusic?.id,
+                LocalJumpHighlight provides jumpHighlight,
             ) {
-                appNavGraph(navGraphContext, this@SharedTransitionLayout)
+                NavHost(
+                    navController = navController,
+                    startDestination = HOME_ROUTE,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    appNavGraph(navGraphContext, this@SharedTransitionLayout)
+                }
             }
         }
     }

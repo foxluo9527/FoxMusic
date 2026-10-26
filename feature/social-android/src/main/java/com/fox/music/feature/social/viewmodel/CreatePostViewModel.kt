@@ -301,12 +301,24 @@ class CreatePostViewModel @Inject constructor(
                     val motion = MotionPhotoExtractor.extract(appContext, uri)
                     if (motion != null) {
                         val still = postDraftRepository.persistCompressedImage(motion.stillUri)
-                        val video = postDraftRepository.persistCompressedVideo(motion.videoUri)
-                        CreatePostMediaItem(
-                            type = PostMediaType.LIVE,
-                            uri = still,
-                            videoUri = video,
-                        )
+                        // 动态照片的视频轨压缩走 FFmpegKit：它的 native 初始化失败抛的是
+                        // java.lang.Error（不是 Exception），绝不能让它冒到主线程把 App 打死。
+                        // 压不出来就降级成静态图，动态照片退化为普通照片，不中断发布。
+                        val video = runCatching {
+                            postDraftRepository.persistCompressedVideo(motion.videoUri)
+                        }.getOrNull()
+                        if (video != null) {
+                            CreatePostMediaItem(
+                                type = PostMediaType.LIVE,
+                                uri = still,
+                                videoUri = video,
+                            )
+                        } else {
+                            CreatePostMediaItem(
+                                type = PostMediaType.IMAGE,
+                                uri = still,
+                            )
+                        }
                     } else {
                         val persisted = postDraftRepository.persistCompressedImage(uri)
                         CreatePostMediaItem(
@@ -319,10 +331,13 @@ class CreatePostViewModel @Inject constructor(
                     copy(mediaItems = mediaItems + newItem)
                 }
                 if (!currentState.isEditMode) scheduleSaveDraft()
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                // 视频压缩等原生库链路可能抛 java.lang.Error（UnsatisfiedLinkError 包装），
+                // 用 Throwable 兜住，避免「选个图就把 App 打死」；协程取消照旧往外抛。
+                if (t is kotlinx.coroutines.CancellationException) throw t
                 sendEffect(
                     CreatePostEffect.ShowToast(
-                        e.message?.takeIf { it.isNotBlank() } ?: "媒体处理失败",
+                        t.message?.takeIf { it.isNotBlank() } ?: "媒体处理失败",
                     ),
                 )
             } finally {

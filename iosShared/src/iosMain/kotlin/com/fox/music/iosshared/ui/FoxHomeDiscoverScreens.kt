@@ -98,6 +98,16 @@ object FoxHomeScreen {
      */
     private var recommendQueuePool: List<Music> = emptyList()
 
+    /**
+     * 详情页「为你精选」首屏拉满（最多 100 条）后回写：
+     * 首页展示仍只取前 5 条，但点歌入队的池子换成整份列表，
+     * 与 Android `TopListMusicStore` 的同步口径一致。
+     */
+    fun applyTopList(items: List<Music>) {
+        if (items.isEmpty()) return
+        recommendQueuePool = items
+    }
+
     fun makeHomeViewController(
         onMusicClickFromList: (List<PlayableSong>, Int) -> Unit,
         onPlaylistClick: (Long, String, Boolean) -> Unit,
@@ -245,6 +255,16 @@ object FoxDiscoverScreen {
      * （30 条「latest」，多加载但不展示完，与首页 recommend 池同一套路）。
      */
     private var newMusicQueuePool: List<Music> = emptyList()
+
+    /**
+     * 详情页「新歌速递」首屏拉满（最多 100 条）后回写：
+     * 发现页展示仍只取前 5 条，点歌入队池子与底层列表都换成整份数据。
+     */
+    fun applyTopList(items: List<Music>) {
+        if (items.isEmpty()) return
+        newMusicQueuePool = items
+        state = state.copy(newMusic = items)
+    }
 
     private data class DiscoverUiState(
         val hotKeywords: List<HotKeyword> = emptyList(),
@@ -429,6 +449,11 @@ object FoxPlaylistDetailScreen {
         onEditPlaylist: (Long) -> Unit = {},
         /** 管理菜单「删除歌单」确认后 → Swift 调删除接口。 */
         onDeletePlaylist: () -> Unit = {},
+        /**
+         * 为你精选/新歌速递首屏整份列表拉回后回调（sort, 歌曲列表），
+         * Swift 据来源同步正在播放的队列（不打断播放）。
+         */
+        onTopListLoaded: ((String, List<PlayableSong>) -> Unit)? = null,
     ): UIViewController = foxComposeViewController(pageOwnsTopBar = true) {
         val type = when (detailType) {
             "rank" -> DetailType.RANK
@@ -478,6 +503,25 @@ object FoxPlaylistDetailScreen {
             }.flow.cachedIn(pagingScope)
         }
         val pagingItems = tracksFlow.collectAsLazyPagingItems()
+
+        // 为你精选/新歌速递整份列表到手后：回写首页/发现页底层列表（展示仍限 5 条），
+        // 并通知 Swift 把正在播放的同一来源队列同步成最新列表。
+        LaunchedEffect(isTopList, pagingItems.itemSnapshotList.items) {
+            if (!isTopList) return@LaunchedEffect
+            val items = pagingItems.itemSnapshotList.items
+            if (items.isEmpty()) return@LaunchedEffect
+            val sort = if (type == DetailType.NEW_MUSIC) {
+                FoxMusicTopListCache.SORT_LATEST
+            } else {
+                FoxMusicTopListCache.SORT_RECOMMEND
+            }
+            if (type == DetailType.RECOMMEND) {
+                FoxHomeScreen.applyTopList(items)
+            } else {
+                FoxDiscoverScreen.applyTopList(items)
+            }
+            onTopListLoaded?.invoke(sort, items.mapNotNull { FoxIosBridge.playableSong(it) })
+        }
 
         LaunchedEffect(playlistId, type, revision) {
             try {

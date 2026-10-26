@@ -41,8 +41,14 @@ sealed interface ThemeSettingsIntent : UiIntent {
     data class SelectPreset(val themeId: String) : ThemeSettingsIntent
     data class SelectCustomHue(val seedArgb: Long) : ThemeSettingsIntent
     data class SelectIntensity(val intensity: Float) : ThemeSettingsIntent
-    /** [enabled] = true 写 DARK，false 写 LIGHT（开关语义，不再保留"跟随系统"）。 */
-    data class SetDarkMode(val enabled: Boolean) : ThemeSettingsIntent
+    /**
+     * 深色模式三档（跟随系统 / 浅色 / 深色）。
+     *
+     * 为什么从二态开关改成三态：设置主页的「深色模式」入口已并入本页
+     * （渐进式披露重构，全站只保留这一个外观入口）。若这里仍只有 DARK / LIGHT，
+     * 用户一旦进来就会永久失去「跟随系统」这个默认档 —— 那是能力回退，不是简化。
+     */
+    data class SetDarkModeOption(val mode: DarkMode) : ThemeSettingsIntent
 }
 
 /**
@@ -83,7 +89,7 @@ class ThemeSettingsViewModel @Inject constructor(
             is ThemeSettingsIntent.SelectPreset -> selectPreset(intent.themeId)
             is ThemeSettingsIntent.SelectCustomHue -> selectCustomHue(intent.seedArgb)
             is ThemeSettingsIntent.SelectIntensity -> selectIntensity(intent.intensity)
-            is ThemeSettingsIntent.SetDarkMode -> setDarkMode(intent.enabled)
+            is ThemeSettingsIntent.SetDarkModeOption -> setDarkMode(intent.mode)
         }
     }
 
@@ -110,16 +116,13 @@ class ThemeSettingsViewModel @Inject constructor(
     }
 
     /**
-     * 深色模式开关（设计稿①03）。
+     * 深色模式三档落盘。
      *
-     * 只写 DARK / LIGHT 两档：开关是二态控件，写回"跟随系统"会让下一次点击无反馈。
      * 主 Activity 的 darkTheme 直接来自 preferences 流，偏好一落盘就重组，无需 recreate。
      */
-    private fun setDarkMode(enabled: Boolean) {
+    private fun setDarkMode(mode: DarkMode) {
         viewModelScope.launch {
-            userPreferencesRepository.updateDarkMode(
-                if (enabled) DarkMode.DARK else DarkMode.LIGHT,
-            )
+            userPreferencesRepository.updateDarkMode(mode)
         }
     }
 }

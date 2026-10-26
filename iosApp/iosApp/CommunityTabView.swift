@@ -41,7 +41,7 @@ struct CommunityTabView: View {
                 path.append(.albumDetail(id: id))
             case .playlist(let id, let title):
                 path.append(.playlistDetail(id: id, title: title))
-            case .rank:
+            case .rank, .recommend, .newMusic:
                 break
             }
         }

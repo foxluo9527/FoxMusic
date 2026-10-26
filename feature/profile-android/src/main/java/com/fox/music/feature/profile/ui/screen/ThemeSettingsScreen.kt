@@ -64,8 +64,6 @@ import com.fox.music.core.model.user.AppThemeIntensity
 import com.fox.music.core.model.user.DarkMode
 import com.fox.music.core.ui.component.FoxColorCard
 import com.fox.music.core.ui.component.FoxColorPicker
-import com.fox.music.core.ui.component.FoxEditorialRow
-import com.fox.music.core.ui.component.FoxSwitch
 import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.core.ui.theme.AppThemePresets
 import com.fox.music.core.ui.theme.FoxEditorial
@@ -118,6 +116,8 @@ private data class ThemeDraft(
     val seedArgb: Long,
     val intensity: Float,
     val darkTheme: Boolean,
+    /** 用户选的档位（三态）。[darkTheme] 是它按系统解析后的渲染结果。 */
+    val darkMode: DarkMode,
     val custom: Boolean,
 )
 
@@ -156,9 +156,9 @@ fun ThemeSettingsScreen(
         val seedChanged = draft.seedArgb != applied.seedArgb
         val intensityChanged = AppThemeIntensity.normalize(draft.intensity) !=
             AppThemeIntensity.normalize(applied.intensity)
-        val darkChanged = draft.darkTheme != applied.darkTheme
+        val darkChanged = draft.darkMode != applied.darkMode
 
-        // 已转到自定义分支（动过配色或浓度）才写主题；只拨深色开关不该顺手改配色。
+        // 已转到自定义分支（动过配色或浓度）才写主题；只拨深色不该顺手改配色。
         if (draft.custom && (!applied.custom || seedChanged || intensityChanged)) {
             viewModel.sendIntent(ThemeSettingsIntent.SelectCustomHue(draft.seedArgb))
         }
@@ -166,7 +166,7 @@ fun ThemeSettingsScreen(
             viewModel.sendIntent(ThemeSettingsIntent.SelectIntensity(draft.intensity))
         }
         if (darkChanged) {
-            viewModel.sendIntent(ThemeSettingsIntent.SetDarkMode(draft.darkTheme))
+            viewModel.sendIntent(ThemeSettingsIntent.SetDarkModeOption(draft.darkMode))
         }
         draft = applied
         onBack()
@@ -289,25 +289,25 @@ fun ThemeSettingsScreen(
                 )
             }
             item {
-                Box(
-                    modifier = pagePadding
-                        .padding(top = 18.dp)
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(foxHairline()),
+                ThemeSectionKicker(
+                    title = "深色",
+                    modifier = pagePadding.padding(top = 20.dp),
                 )
             }
             item {
-                FoxEditorialRow(
-                    title = "深色模式",
-                    trailing = {
-                        FoxSwitch(
-                            checked = draft.darkTheme,
-                            onCheckedChange = { enabled ->
-                                draft = draft.copy(darkTheme = enabled)
+                ThemeDarkModeSeg(
+                    darkMode = draft.darkMode,
+                    onSelect = { mode ->
+                        draft = draft.copy(
+                            darkMode = mode,
+                            darkTheme = when (mode) {
+                                DarkMode.DARK -> true
+                                DarkMode.LIGHT -> false
+                                DarkMode.FOLLOW_SYSTEM -> systemDark
                             },
                         )
                     },
+                    modifier = pagePadding.padding(top = 10.dp, bottom = 8.dp),
                 )
             }
         }
@@ -333,6 +333,7 @@ private fun appliedDraftOf(state: ThemeSettingsState, systemDark: Boolean): Them
         seedArgb = seed,
         intensity = state.themeIntensity,
         darkTheme = dark,
+        darkMode = state.darkMode,
         custom = custom,
     )
 }
@@ -649,6 +650,56 @@ private fun ThemeIntensitySeg(
     modifier: Modifier = Modifier,
 ) {
     val normalized = AppThemeIntensity.normalize(intensity)
+    val selectedIndex = AmbienceOptions.indexOfFirst { it.first == normalized }.coerceAtLeast(0)
+    ThemeSegmented(
+        labels = AmbienceOptions.map { it.second },
+        selectedIndex = selectedIndex,
+        onSelect = { index -> onSelectIntensity(AmbienceOptions[index].first) },
+        modifier = modifier,
+    )
+}
+
+/** 深色三档：跟随系统 / 浅色 / 深色。 */
+private val DarkModeOptions: List<Pair<DarkMode, String>> = listOf(
+    DarkMode.FOLLOW_SYSTEM to "跟随系统",
+    DarkMode.LIGHT to "浅色",
+    DarkMode.DARK to "深色",
+)
+
+/**
+ * 「深色」分段控件。
+ *
+ * 原来这里是「深色模式」+ FoxSwitch 的二态开关（设计稿①03）。设置主页的深色入口
+ * 并入本页后，这里成了全站唯一入口，二态会吃掉「跟随系统」这档默认值，
+ * 因此改成三格分段 —— 视觉上与上面的「浓度」完全同构，用户不需要学第二套控件。
+ */
+@Composable
+private fun ThemeDarkModeSeg(
+    darkMode: DarkMode,
+    onSelect: (DarkMode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selectedIndex = DarkModeOptions.indexOfFirst { it.first == darkMode }.coerceAtLeast(0)
+    ThemeSegmented(
+        labels = DarkModeOptions.map { it.second },
+        selectedIndex = selectedIndex,
+        onSelect = { index -> onSelect(DarkModeOptions[index].first) },
+        modifier = modifier,
+    )
+}
+
+/**
+ * 通用分段控件：variant 轨（11dp 圆角 + 3dp 内距）+ 等宽格，选中格铺 surface 实底。
+ *
+ * 浓度 / 深色两处共用一份实现，避免「同一个交互长出两种皮肤」。
+ */
+@Composable
+private fun ThemeSegmented(
+    labels: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -657,8 +708,8 @@ private fun ThemeIntensitySeg(
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        AmbienceOptions.forEach { (value, label) ->
-            val selected = normalized == value
+        labels.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -667,7 +718,7 @@ private fun ThemeIntensitySeg(
                     .background(
                         if (selected) MaterialTheme.colorScheme.surface else Color.Transparent
                     )
-                    .clickable { onSelectIntensity(value) },
+                    .clickable { onSelect(index) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

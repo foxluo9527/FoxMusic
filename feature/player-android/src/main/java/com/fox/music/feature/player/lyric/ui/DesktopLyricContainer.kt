@@ -8,19 +8,14 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.ContextCompat
-import androidx.core.view.isVisible
 import com.blankj.utilcode.util.ConvertUtils
 import com.blankj.utilcode.util.ToastUtils
 import com.dirror.lyricviewx.LyricViewX
 import com.fox.music.feature.player.databinding.LayoutDesktopLyricBinding
-import com.fox.music.feature.player.databinding.LayoutLyricSettingsBinding
 import com.fox.music.feature.player.lyric.data.LyricStyle
 import com.foxluo.baselib.util.ImageExt.loadUrlWithCircle
-import com.foxluo.baselib.util.ViewExt.gone
 import com.foxluo.baselib.util.ViewExt.inVisible
 import com.foxluo.baselib.util.ViewExt.visible
-import com.fox.music.feature.player.lyric.manager.LyricStyleManager
-import com.fox.music.feature.player.lyric.ui.LyricSettingsExt.setListener
 
 @SuppressLint("ClickableViewAccessibility")
 class DesktopLyricContainer @JvmOverloads constructor(
@@ -64,7 +59,8 @@ class DesktopLyricContainer @JvmOverloads constructor(
     private var lastTouchY = 0f
     private var isDragging = false
 
-    private val styleManager by lazy { LyricStyleManager.getInstance() }
+    // 已应用的歌词样式，用于去重，避免重复重建排版导致滚动跳回顶部
+    private var lastStyle: LyricStyle? = null
 
     init {
         initView()
@@ -140,7 +136,8 @@ class DesktopLyricContainer @JvmOverloads constructor(
                 ToastUtils.make().show("请先解锁")
                 return@setOnClickListener
             }
-            binding.settings.visible(!binding.settings.isVisible)
+            // 悬浮窗不再承载设置面板：直接请宿主把 App 拉到播放页的歌词设置。
+            listener?.onSettingTap()
         }
         binding.btnFavorite.setOnClickListener {
             if (isLocked) {
@@ -149,8 +146,6 @@ class DesktopLyricContainer @JvmOverloads constructor(
             }
             toggleFavorite()
         }
-        val layoutSettings = LayoutLyricSettingsBinding.bind(binding.root)
-        layoutSettings.setListener(styleManager)
         binding.llTop.getChildAt(1).setOnClickListener {
             listener?.onAppTap()
         }
@@ -242,7 +237,6 @@ class DesktopLyricContainer @JvmOverloads constructor(
      * 更新控件可见性
      */
     private fun updateVisibility() {
-        binding.settings.gone()
         binding.llTop.inVisible(!isActive)
         binding.llBottom.inVisible(!isActive)
         binding.back.inVisible(!isActive)
@@ -257,16 +251,28 @@ class DesktopLyricContainer @JvmOverloads constructor(
 
     /**
      * 更新歌词样式
+     *
+     * 注意：[LyricViewX.setCurrentTextSize] / [LyricViewX.setNormalTextSize] 内部会重建
+     * 歌词排版（initEntryList），并把滚动位置重置回顶部，然后重新滚到当前行。
+     * 样式来源（DataStore + 主题）在播放期间会因「播放进度落盘」而反复发射，
+     * 若每次都无脑调用这两个方法，悬浮窗就会每隔几秒从第一句滚到当前句。
+     * 所以这里必须做去重：样式没变直接返回，仅字号变化时才重建排版。
      */
     fun updateStyle(style: LyricStyle) {
-        binding.lyricContentView.setCurrentTextSize(
-            ConvertUtils.sp2px(style.fontSize.toFloat()).toFloat()
-        )
-        binding.lyricContentView.setNormalTextSize(
-            ConvertUtils.sp2px(style.fontSize.toFloat()).toFloat()
-        )
-        binding.lyricContentView.setCurrentColor(style.highlightColor)
-        binding.lyricContentView.setNormalColor(style.textColor)
+        if (style == lastStyle) return
+        val previous = lastStyle
+        lastStyle = style
+        if (previous == null || previous.fontSize != style.fontSize) {
+            val textSize = ConvertUtils.sp2px(style.fontSize.toFloat()).toFloat()
+            binding.lyricContentView.setCurrentTextSize(textSize)
+            binding.lyricContentView.setNormalTextSize(textSize)
+        }
+        if (previous == null || previous.highlightColor != style.highlightColor) {
+            binding.lyricContentView.setCurrentColor(style.highlightColor)
+        }
+        if (previous == null || previous.textColor != style.textColor) {
+            binding.lyricContentView.setNormalColor(style.textColor)
+        }
     }
 
     /**

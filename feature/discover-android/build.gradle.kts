@@ -7,6 +7,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
@@ -40,6 +41,9 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
+
+    // Tab 页快照落盘（kotlinx.serialization）
+    implementation(libs.kotlinx.serialization.json)
 
     // 热门歌手页的分页（androidx.paging 暂无 KMP 变体）
     implementation(libs.paging)

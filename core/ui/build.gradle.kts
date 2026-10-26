@@ -48,6 +48,7 @@ kotlin {
             api(compose.material3)
             api(compose.ui)
             api(compose.materialIconsExtended)
+            api(compose.animation)
             // @Preview 注解：ui-tooling-preview 是 KMP 可用的；
             // 注意 ui-tooling 本身只有 Android 变体，放 commonMain 会导致
             // "KMP Dependencies Resolution Failure"，只能放 androidMain。

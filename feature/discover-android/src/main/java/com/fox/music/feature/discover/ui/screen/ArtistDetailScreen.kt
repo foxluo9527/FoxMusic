@@ -13,6 +13,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
+import com.fox.music.core.model.music.PlaybackSourceKind
 
 /**
  * 歌手详情页 Android 外壳。
@@ -32,6 +33,7 @@ fun ArtistDetailScreen(
     onBack: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
+    onViewAllArtistSongs: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -42,7 +44,16 @@ fun ArtistDetailScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 is ArtistDetailEffect.NavigateToMusic -> {
-                    onMusicClick(effect.music, effect.musicList, playlistKey, null)
+                    onMusicClick(
+                        effect.music,
+                        effect.musicList,
+                        playlistKey,
+                        PlaybackPlaylistSource(
+                            PlaybackSourceKind.ARTIST,
+                            id = artist?.id ?: 0,
+                            title = artist?.name,
+                        ),
+                    )
                 }
 
                 is ArtistDetailEffect.NavigateToAlbum -> onAlbumClick(effect.album)
@@ -64,5 +75,6 @@ fun ArtistDetailScreen(
         onBack = onBack,
         onMusicMoreClick = onMusicMoreClick,
         updateMusicList = updateMusicList,
+        onViewAllArtistSongs = onViewAllArtistSongs,
     )
 }

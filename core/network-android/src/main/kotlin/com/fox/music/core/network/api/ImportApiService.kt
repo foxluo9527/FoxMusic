@@ -11,6 +11,8 @@ import com.fox.music.core.network.model.ParsedPlaylistDto
 import com.fox.music.core.network.model.ResolveAudioDto
 import com.fox.music.core.network.model.ResolveAudioRequest
 import com.fox.music.core.network.model.ScrapeConfigDto
+import com.fox.music.core.network.model.SearchImportSourcesDto
+import com.fox.music.core.network.model.SearchImportSourcesRequest
 import kotlinx.serialization.json.JsonElement
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -31,6 +33,15 @@ interface ImportApiService {
     suspend fun resolveAudio(
         @Body body: ResolveAudioRequest,
     ): ApiResponse<ResolveAudioDto>
+
+    /**
+     * 服务端 API 多源音源候选（音源纠错同款链路：网易云/酷我/Hifini解析/插件源）。
+     * 导入场景逐条试下载用，比单结果兜底更抗单源失效。
+     */
+    @POST("/api/import/search-sources")
+    suspend fun searchImportSources(
+        @Body body: SearchImportSourcesRequest,
+    ): ApiResponse<SearchImportSourcesDto>
 
     @GET("/api/import/lyrics")
     suspend fun fetchLyrics(

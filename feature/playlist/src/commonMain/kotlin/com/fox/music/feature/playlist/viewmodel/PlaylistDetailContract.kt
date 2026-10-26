@@ -5,6 +5,7 @@ import com.fox.music.core.common.mvi.UiIntent
 import com.fox.music.core.common.mvi.UiState
 import com.fox.music.core.domain.repository.PlaylistImportProgress
 import com.fox.music.core.model.music.Album
+import com.fox.music.core.model.music.ArtistDetail
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
@@ -51,6 +52,11 @@ sealed interface PlaylistDetailEffect : UiEffect {
     data class AddSelectedToPlaylist(val musics: List<Music>) : PlaylistDetailEffect
     data class DownloadSelected(val musics: List<Music>) : PlaylistDetailEffect
     data object RefreshTracks : PlaylistDetailEffect
+    /**
+     * 为你精选/新歌速递详情页整份列表加载成功。
+     * 用于回写首页/发现页的底层列表（展示条数不变）并同步正在播放的队列。
+     */
+    data class TopListLoaded(val sort: String, val list: List<Music>) : PlaylistDetailEffect
 }
 
 /**
@@ -70,6 +76,10 @@ data class HeaderInfo(
     // 专辑特有
     val artists: String? = null,
     val releaseDate: String? = null,
+    val publisher: String? = null,
+    val language: String? = null,
+    // 歌单/榜单标签（介绍详情页展示）
+    val tags: List<String> = emptyList(),
 ) {
     companion object {
         fun fromPlaylist(playlist: Playlist, type: DetailType): HeaderInfo {
@@ -83,7 +93,8 @@ data class HeaderInfo(
                 creatorId = playlist.creatorId ?: playlist.creator?.id,
                 createdAt = playlist.createdAt,
                 isFavorite = playlist.isFavorite,
-                detailType = type
+                detailType = type,
+                tags = playlist.tags.map { it.name },
             )
         }
 
@@ -99,7 +110,25 @@ data class HeaderInfo(
                 isFavorite = album.isFavorite,
                 detailType = DetailType.ALBUM,
                 artists = album.artists.joinToString(", ") { it.name },
-                releaseDate = album.releaseDate
+                releaseDate = album.releaseDate,
+                publisher = album.publisher,
+                language = album.language,
+            )
+        }
+
+        fun fromArtist(detail: ArtistDetail): HeaderInfo {
+            val artist = detail.artist
+            return HeaderInfo(
+                id = artist.id,
+                title = artist.name,
+                coverImage = artist.coverImage ?: artist.avatar,
+                description = artist.description,
+                trackCount = artist.musicCount,
+                creatorName = null,
+                creatorId = null,
+                createdAt = artist.createdAt,
+                isFavorite = artist.isFavorite,
+                detailType = DetailType.ARTIST,
             )
         }
     }

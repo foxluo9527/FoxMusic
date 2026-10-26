@@ -28,6 +28,7 @@ fun HomeScreen(
     onPlaylistCategoryClick: () -> Unit = {},
     onAlbumCategoryClick: () -> Unit = {},
     onRecommendClick: () -> Unit = {},
+    onRecentMoreClick: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
     onOpenDrawer: () -> Unit = {},
 ) {
@@ -40,7 +41,7 @@ fun HomeScreen(
                     effect.music,
                     effect.musicList,
                     HOME_ROUTE,
-                    null,
+                    effect.source,
                 )
                 is HomeEffect.NavigateToPlaylist -> onPlaylistClick(effect.playlistId)
                 is HomeEffect.NavigateToAlbum -> onAlbumClick(effect.albumId)
@@ -58,11 +59,13 @@ fun HomeScreen(
         animatedContentScope = animatedContentScope,
         modifier = modifier,
         onMusicClick = viewModel::onMusicClick,
+        onRecentMusicClick = viewModel::onRecentMusicClick,
         onSearchClick = viewModel::onSearchClick,
         onAssistantClick = onAssistantClick,
         onPlaylistMoreClick = viewModel::onPlaylistMoreClick,
         onAlbumMoreClick = viewModel::onAlbumMoreClick,
         onRecommendClick = onRecommendClick,
+        onRecentMoreClick = onRecentMoreClick,
         onMusicMoreClick = onMusicMoreClick,
         updateMusicList = updateMusicList,
         onRecommendedMusicChanged = viewModel::updateCurrentMusicList,

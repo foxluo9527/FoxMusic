@@ -66,6 +66,24 @@ class SearchViewModel @Inject constructor(
     private var hotKeywordPage: Int = 0
     private var suggestJob: Job? = null
 
+    /**
+     * 标记「即将进入收录流程」。点击「去收录」时置 true，
+     * 返回搜索页时（SearchScreen 重新进入组合）据此强制重搜一次。
+     * 仅在搜索页 NavBackStackEntry 存活期间有效（收录子流程不会销毁该 entry）。
+     */
+    private var pendingCollectRefresh: Boolean = false
+
+    fun markCollectRefreshPending() {
+        pendingCollectRefresh = true
+    }
+
+    /** 读取并消费一次标记，保证重搜只触发一次 */
+    fun consumeCollectRefreshPending(): Boolean {
+        val pending = pendingCollectRefresh
+        pendingCollectRefresh = false
+        return pending
+    }
+
     /** 当前搜索关键词下，按平台缓存的单曲 Paging（切换平台时复用，避免重复打接口） */
     private var cachedMusicKeyword: String? = null
     private val musicPagingByPlatform =
@@ -164,6 +182,7 @@ class SearchViewModel @Inject constructor(
                 updateState { copy(postTag = null) }
                 performSearch()
             }
+            SearchIntent.RefreshSearch -> performSearch(forceRefresh = true)
             is SearchIntent.FilterPostTag -> {
                 updateState {
                     copy(
@@ -300,8 +319,13 @@ class SearchViewModel @Inject constructor(
 
     private fun performSearch(
         keyword: String? = null,
-        platform: SearchMusicPlatform? = null
+        platform: SearchMusicPlatform? = null,
+        forceRefresh: Boolean = false,
     ) {
+        if (forceRefresh) {
+            // 丢弃已缓存的分页流，真正重新请求而非复用旧 PagingData
+            cachedMusicKeyword = null
+        }
         val q = keyword?.trim() ?: currentState.query.trim()
         val tag = currentState.postTag
         val sort = currentState.postSort

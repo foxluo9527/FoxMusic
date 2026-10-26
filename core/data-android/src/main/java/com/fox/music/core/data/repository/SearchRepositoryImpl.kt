@@ -2,7 +2,6 @@ package com.fox.music.core.data.repository
 
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatching
-import com.fox.music.core.data.cache.SearchMusicResultCache
 import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.database.dao.SearchHistoryDao
@@ -26,6 +25,7 @@ import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.music.ResolveThirdPartyDto
 import com.fox.music.core.model.music.ResolveThirdPartyRequest
 import com.fox.music.core.model.music.ScrapedLyricsDto
+import com.fox.music.core.model.music.ScrapedLyric
 import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.network.api.MusicApiService
@@ -44,7 +44,6 @@ class SearchRepositoryImpl @Inject constructor(
     private val musicApi: MusicApiService,
     private val searchApi: SearchApiService,
     private val searchHistoryDao: SearchHistoryDao,
-    private val searchMusicResultCache: SearchMusicResultCache,
 ) : SearchRepository {
 
     override suspend fun searchMusic(
@@ -54,10 +53,8 @@ class SearchRepositoryImpl @Inject constructor(
         platform: String?
     ): Result<PagedData<Music>> = suspendRunCatching {
         val trimmed = keyword.trim()
-        searchMusicResultCache.get(trimmed, platform, page, limit)?.let { cached ->
-            return@suspendRunCatching cached
-        }
-
+        // 注意：客户端不再缓存搜索结果。网易云/QQ 的第三方搜索由服务端 Redis 缓存
+        // （SEARCH_CACHE_TTL，默认 12h）兜底，客户端始终直连服务端拿最新数据。
         val response = if (platform.isNullOrBlank()) {
             musicApi.getMusicList(page, limit, trimmed, null, null)
         } else {
@@ -70,9 +67,7 @@ class SearchRepositoryImpl @Inject constructor(
         }
         val data = response.data
         if (response.isSuccess && data != null) {
-            val paged = data.toPagedData { it.toMusic() }
-            searchMusicResultCache.put(trimmed, platform, page, limit, paged)
-            paged
+            data.toPagedData { it.toMusic() }
         } else throw Exception(response.message)
     }
 
@@ -242,6 +237,33 @@ class SearchRepositoryImpl @Inject constructor(
         // 歌词刮削是尽力而为：HTTP 层失败（超时/限流）静默返回 null，不阻塞收录
         val dto = response.data as? ScrapedLyricsDto ?: return@suspendRunCatching null
         (dto.synced ?: dto.lyric ?: dto.plain)?.takeIf { it.isNotBlank() }
+    }
+
+    override suspend fun fetchScrapedLyric(
+        title: String,
+        artist: String,
+        durationMs: Long?,
+    ): Result<ScrapedLyric?> = suspendRunCatching {
+        val response = musicApi.fetchScrapedLyrics(
+            title = title,
+            artist = artist,
+            durationMs = durationMs?.takeIf { it > 0 },
+        )
+        // 尽力而为：HTTP 层失败（超时/限流）静默返回 null，不阻塞上层
+        val dto = response.data as? ScrapedLyricsDto ?: return@suspendRunCatching null
+        val text = (dto.synced ?: dto.lyric ?: dto.plain)?.takeIf { it.isNotBlank() }
+            ?: return@suspendRunCatching null
+        ScrapedLyric(
+            lyrics = text,
+            lyricsTrans = dto.trans?.takeIf { it.isNotBlank() },
+            matchedTitle = dto.matchedTitle,
+            matchedArtist = dto.matchedArtist,
+            album = dto.album,
+            durationMs = dto.durationMs,
+            source = dto.source,
+            sourceId = dto.sourceId,
+            instrumental = dto.instrumental,
+        )
     }
 }
 

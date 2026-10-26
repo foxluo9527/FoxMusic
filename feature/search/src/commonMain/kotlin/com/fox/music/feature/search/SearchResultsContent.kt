@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MoreVert
@@ -24,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,9 +41,14 @@ import com.fox.music.core.model.social.Post
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.FoxEditorialRow
+import com.fox.music.core.ui.component.JumpToPlayingFabForList
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.LocalJumpHighlight
+import com.fox.music.core.ui.component.LocalNowPlayingMusicId
+import com.fox.music.core.ui.component.jumpHighlight
 import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.util.formatTrackDuration
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun MusicSearchResults(
@@ -66,68 +74,107 @@ internal fun MusicSearchResults(
         }
     }
 
-    // 本页没有全局播放态：把「刚点过、正送去播放」的那一行标为正在播放，
-    // 与 FoxEditorialRow 的左侧 2.5dp 强调竖条对应。
+    // 全局播放态（app 层 provide）；没有时退化为「刚点过的那一行」，
+    // 保证从搜索结果起播后本页也能立刻显示正在播放。
+    val nowPlayingId = LocalNowPlayingMusicId.current
+    val jumpHighlight = LocalJumpHighlight.current
     var playingMusicId by remember { mutableStateOf<Long?>(null) }
+    val effectivePlayingId = nowPlayingId ?: playingMusicId
 
-    PagingResultList(
-        pagingItems = pagingItems,
-        emptyMessage = "未找到相关单曲",
-        emptyAction = { SearchCollectFooterButton(onCollectClick) },
-        footer = {
-            Box(
-                Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) { SearchCollectFooterButton(onCollectClick) }
-        },
-        itemContent = { index ->
-            val music = pagingItems[index]
-            if (music != null) {
-                FoxEditorialRow(
-                    title = music.title,
-                    number = (index + 1).toString(),
-                    leading = {
-                        CachedImage(
-                            imageUrl = music.coverImage,
-                            contentDescription = music.title,
-                            modifier = Modifier.size(52.dp),
-                            shape = RoundedCornerShape(9.dp),
-                        )
-                    },
-                    subtitle = music.artists.joinToString { it.name }
-                        .takeIf { it.isNotBlank() },
-                    isPlaying = playingMusicId == music.id,
-                    trailing = {
-                        Text(
-                            text = formatTrackDuration(music.duration),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = 11.sp,
-                                fontFeatureSettings = "tnum",
-                            ),
-                            color = InkQuaternary,
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clickable { onMusicMoreClick(music) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.MoreVert,
-                                contentDescription = "更多",
-                                modifier = Modifier.size(18.dp),
-                                tint = InkQuaternary,
-                            )
-                        }
-                    },
-                    onClick = {
-                        playingMusicId = music.id
-                        onMusicClick(music)
-                    },
-                )
+    val listState = rememberLazyListState()
+    val jumpScope = rememberCoroutineScope()
+    val targetPagingIndex = remember(nowPlayingId, pagingItems.itemCount) {
+        if (nowPlayingId == null) {
+            -1
+        } else {
+            var idx = -1
+            for (i in 0 until pagingItems.itemCount) {
+                if (pagingItems.peek(i)?.id == nowPlayingId) {
+                    idx = i
+                    break
+                }
             }
-        },
-    )
+            idx
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        PagingResultList(
+            pagingItems = pagingItems,
+            emptyMessage = "未找到相关单曲",
+            listState = listState,
+            emptyAction = { SearchCollectFooterButton(onCollectClick) },
+            footer = {
+                Box(
+                    Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) { SearchCollectFooterButton(onCollectClick) }
+            },
+            itemContent = { index ->
+                val music = pagingItems[index]
+                if (music != null) {
+                    FoxEditorialRow(
+                        title = music.title,
+                        number = (index + 1).toString(),
+                        modifier = Modifier.jumpHighlight(music.id),
+                        leading = {
+                            CachedImage(
+                                imageUrl = music.coverImage,
+                                contentDescription = music.title,
+                                modifier = Modifier.size(52.dp),
+                                shape = RoundedCornerShape(9.dp),
+                            )
+                        },
+                        subtitle = music.artists.joinToString { it.name }
+                            .takeIf { it.isNotBlank() },
+                        isPlaying = effectivePlayingId == music.id,
+                        trailing = {
+                            Text(
+                                text = formatTrackDuration(music.duration),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 11.sp,
+                                    fontFeatureSettings = "tnum",
+                                ),
+                                color = InkQuaternary,
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clickable { onMusicMoreClick(music) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MoreVert,
+                                    contentDescription = "更多",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = InkQuaternary,
+                                )
+                            }
+                        },
+                        onClick = {
+                            playingMusicId = music.id
+                            onMusicClick(music)
+                        },
+                    )
+                }
+            },
+        )
+
+        JumpToPlayingFabForList(
+            listState = listState,
+            targetIndex = targetPagingIndex,
+            onClick = {
+                jumpScope.launch {
+                    listState.animateScrollToItem(targetPagingIndex)
+                    // 到位后再闪一下，强调「就是这一行」
+                    jumpHighlight.flash(nowPlayingId)
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 16.dp),
+        )
+    }
 }
 
 /** 列表底部/空态下的「去收录」入口（第三方平台搜索→收录到平台） */
@@ -235,7 +282,10 @@ internal fun <T : Any> PagingResultList(
     itemContent: @Composable (index: Int) -> Unit,
     emptyAction: (@Composable () -> Unit)? = null,
     footer: (@Composable () -> Unit)? = null,
+    listState: LazyListState? = null,
 ) {
+    val fallbackListState = rememberLazyListState()
+    val resolvedListState = listState ?: fallbackListState
     when {
         pagingItems.loadState.refresh is LoadState.Loading -> {
             LoadingIndicator(useLottie = false)
@@ -269,6 +319,7 @@ internal fun <T : Any> PagingResultList(
 
         else -> {
             LazyColumn(
+                state = resolvedListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
             ) {

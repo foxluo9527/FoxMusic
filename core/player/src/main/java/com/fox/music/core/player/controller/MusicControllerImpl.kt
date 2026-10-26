@@ -17,6 +17,7 @@ import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
+import com.fox.music.core.model.music.PlaybackSourceKind
 import com.fox.music.core.model.music.PlaybackSnapshot
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.RepeatMode
@@ -560,6 +561,11 @@ class MusicControllerImpl @Inject constructor(
             playbackSpeed = player.playbackParameters.speed,
             isFavorite = currentMusic?.isFavorite ?: false,
             playlistSource = playlistSource,
+            // 必须带上当前片段：这里是**整体重建** PlayerState（不是 copy），
+            // 漏一个字段就等于把它抹成默认值。此前漏了 clip，导致 ExoPlayer 每次回调
+            // （isPlaying / buffering / mediaItemTransition …）都把高潮片段抹成 null，
+            // 直到 500ms 位置轮询再补回来 —— 表现就是「高潮进度节点消失一下又回来」。
+            clip = activeClip,
         )
     }
 
@@ -962,6 +968,15 @@ class MusicControllerImpl @Inject constructor(
         persistPlaybackState()
     }
 
+    override fun syncPlaylistForSource(kind: PlaybackSourceKind, musics: List<Music>) {
+        if (musics.isEmpty()) return
+        // 只同步与当前播放队列同板块的列表，避免把别的来源的队列换掉
+        if (playlistSource?.kind != kind) return
+        val key = playingKey ?: return
+        // 复用分页合并逻辑：按当前曲目锚定，只更新内存歌单，不打断正在播放的音频
+        updatePlaylist(musics, key)
+    }
+
     private fun syncPlaylistForActiveUser(musics: List<Music>) {
         val anchorId = userAnchorMusicId ?: _playerState.value.currentMusic?.id ?: return
         val newIndex = musics.indexOfFirst { it.id == anchorId }
@@ -1084,6 +1099,34 @@ class MusicControllerImpl @Inject constructor(
         applyRepeatModeToPlayer(currentRepeatMode)
         applyTrackToPlayer(safeIndex, 0L, autoPlay = true)
         persistPlaybackState()
+    }
+
+    /**
+     * 「上滑加载更多」：把下一批歌挂到音流队列尾部。
+     *
+     * 刻意不走 [applyTrackToPlayer]：音流一次只向 ExoPlayer 加载当前一轨，队列只是内存列表，
+     * 因此追加只改内存 + 广播 playlist，当前片段的播放位置与片段态完全不受影响。
+     */
+    override fun appendStreamQueue(
+        musics: List<Music>,
+        clipsByMusic: Map<Long, List<ClipRange>>,
+    ): Boolean {
+        // 非音流会话（普通歌单）不接管：调用方应回退到 addAllToQueue
+        if (streamClips.isEmpty()) return false
+        val existing = currentPlaylist.mapTo(HashSet()) { it.id }
+        // 同批内也可能重复（服务端补齐逻辑），故按顺序去重
+        val seen = HashSet<Long>()
+        val fresh = musics.filter { m -> m.id !in existing && seen.add(m.id) }
+        if (fresh.isEmpty()) return false
+        // 与 startStreamQueue 同口径：一首歌只播第一个片段
+        for (m in fresh) {
+            clipsByMusic[m.id]?.take(1)?.let { streamClips[m.id] = it }
+        }
+        currentPlaylist = currentPlaylist + fresh
+        // 只广播队列变化：不动 currentMusic/currentIndex/position，避免打断播放与 UI 抖动
+        _playerState.value = _playerState.value.copy(playlist = currentPlaylist)
+        persistPlaybackState()
+        return true
     }
 
     /**
@@ -1422,6 +1465,43 @@ class MusicControllerImpl @Inject constructor(
             navigateToPlaylistIndex(index, autoPlay = true)
             persistPlaybackState()
         }
+    }
+
+    /**
+     * 队列内拖动排序（播放列表页长按拖拽）。
+     *
+     * - 内存歌单重排后，当前播放项按三种情况换算新下标：拖自己 → 新位；
+     *   被跨越区间整体平移一格；其余不动。
+     * - anchor 仍按 mediaId 定位（resolveUiIndex 优先 indexOfFirst(anchorId)），
+     *   所以 updatePlayerState 自然解析到新下标；
+     * - Exo 对齐队列（非用户点播模式）同步 moveMediaItem，保证「下一曲」按新顺序走。
+     */
+    override fun moveQueueItem(from: Int, to: Int) {
+        if (from == to) return
+        if (from < 0 || from >= currentPlaylist.size) return
+        if (to < 0 || to >= currentPlaylist.size) return
+
+        val oldIndex = _playerState.value.currentIndex
+        val list = currentPlaylist.toMutableList()
+        val moved = list.removeAt(from)
+        list.add(to, moved)
+        currentPlaylist = list
+
+        val newCurrentIndex = when {
+            oldIndex == from -> to
+            from < to && oldIndex in (from + 1)..to -> oldIndex - 1
+            from > to && oldIndex in to until from -> oldIndex + 1
+            else -> oldIndex
+        }.coerceIn(0, currentPlaylist.lastIndex)
+
+        _playerState.value.currentMusic?.id?.let { userAnchorMusicId = it }
+        expectedMediaItemIndex = newCurrentIndex
+        val player = controller
+        if (player != null && !userPlaylistActive && isExoQueueAligned(player)) {
+            player.moveMediaItem(from, to)
+        }
+        updatePlayerState()
+        persistPlaybackState()
     }
 
     private fun Music.resolvePlayUrl(): String =

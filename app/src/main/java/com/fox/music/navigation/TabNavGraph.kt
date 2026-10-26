@@ -112,6 +112,14 @@ fun NavGraphBuilder.tabNavGraph(
                             )
                         )
                     },
+                    onRecentMoreClick = {
+                        navController.navigate(
+                            playlistDetailRoute(
+                                DetailType.PLAY_HISTORY_ID,
+                                DetailType.PLAY_HISTORY,
+                            )
+                        )
+                    },
                     onMusicMoreClick = context.onMusicMoreClick,
                     sharedTransitionScope = this@with,
                     animatedContentScope = animatedScope,
@@ -288,8 +296,8 @@ fun NavGraphBuilder.tabNavGraph(
                 tabRoute = PROFILE_ROUTE,
                 showMiniPlayer = showBottomBar,
                 sharedTransitionScope = this@with,
-                // 头部渐变自绘：让内容铺到状态栏，消除状态栏与页面之间的色差。
-                applyStatusBarsPadding = false,
+                // 「我的」头部已改为纸感排版（不再自绘渐变），与其它 Tab 一样由脚手架统一让出状态栏。
+                applyStatusBarsPadding = true,
             ) {
                 ProfileScreen(
                     modifier = it,
@@ -371,6 +379,40 @@ fun NavGraphBuilder.tabNavGraph(
                         navController.navigate(favoriteDetailRoute(FAVORITE_DETAIL_TYPE_ARTISTS))
                     },
                     currentUserId = context.currentUserId,
+                    onPostDetail = { postId ->
+                        navController.navigateToDetail(postDetailRoute(postId))
+                    },
+                    onSharePost = context.postActionsViewModel::sharePost,
+                    onReportPost = context.postActionsViewModel::showReportSheet,
+                    onDeletePost = context.postActionsViewModel::showDeleteDialog,
+                    onEditPost = { postId ->
+                        if (!context.authState.isLoggedIn) {
+                            navController.navigate(LOGIN_ROUTE)
+                        } else {
+                            navController.navigate(createPostRoute(postId))
+                        }
+                    },
+                    onTagClick = { tag ->
+                        navController.navigate(
+                            searchRoute(
+                                tab = SearchResultTab.POST,
+                                tag = tag,
+                                sort = "hot",
+                            ),
+                        )
+                    },
+                    onPlayPostMusic = { post ->
+                        post.music?.let { music ->
+                            context.musicController.setPlaylist(
+                                listOf(music),
+                                0,
+                                "post_${post.id}",
+                                PlaybackPlaylistSource.fromPost(post),
+                            )
+                        }
+                    },
+                    onNavigateToPlayer = { navController.navigateToPlayer() },
+                    playerState = playerState,
                 )
             }
         }

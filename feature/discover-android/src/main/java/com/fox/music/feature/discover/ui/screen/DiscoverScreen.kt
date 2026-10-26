@@ -8,8 +8,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
+import com.fox.music.core.model.music.PlaybackSourceKind
 
 /**
  * 发现页 Android 外壳：只做 hiltViewModel() + effect 消费，界面本体在 :feature:discover 的
@@ -40,7 +42,12 @@ fun DiscoverScreen(
                     effect.music,
                     state.newMusic,
                     DISCOVER_ROUTE,
-                    null,
+                    // 新歌速递入队带上来源，播放列表弹窗可展示并跳回新歌详情页
+                    PlaybackPlaylistSource(
+                        kind = PlaybackSourceKind.NEW_MUSIC,
+                        id = DetailType.NEW_MUSIC_ID,
+                        title = "新歌速递",
+                    ),
                 )
                 is DiscoverEffect.NavigateToRank -> onRankClick(effect.rankId)
                 is DiscoverEffect.NavigateToArtist -> onArtistClick(effect.artistId)

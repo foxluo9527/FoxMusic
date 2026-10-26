@@ -13,6 +13,8 @@ data class UserPreferences(
     val showLyrics: Boolean = true,
     val appThemeId: String = AppThemeIds.DEFAULT,
     val customThemeSeedArgb: Long = 0xFF6C63FF,
+    /** 主题「氛围」强度：柔和 0.08 / 均衡 0.12 / 浓郁 0.18（与 themeId 同处存储） */
+    val themeIntensity: Float = AppThemeIntensity.DEFAULT,
     val desktopLyricEnabled: Boolean = false,
     val lockScreenLyricEnabled: Boolean = false,
     val carBluetoothLyricEnabled: Boolean = false,

@@ -110,7 +110,8 @@ object FoxPlaylistImportQueue {
         }
 
         // ② 服务端解析音源并转存（第三方直链往往有防盗链，必须转成自有存储 URL）
-        val audio = api.resolveAudio(track.title, firstArtist)
+        // 传原曲时长：服务端优先走 API 源（网易云/酷我/插件源）并过滤 30s 试听/错版本
+        val audio = api.resolveAudio(track.title, firstArtist, track.duration)
         val playUrl = try {
             api.uploadAudioByUrl(url = audio.url, referer = audio.referer)
         } catch (_: Exception) {

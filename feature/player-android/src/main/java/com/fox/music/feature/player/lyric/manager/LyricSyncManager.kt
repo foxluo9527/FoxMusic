@@ -4,11 +4,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.WINDOW_SERVICE
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.asFlow
 import androidx.media3.common.util.UnstableApi
 import com.blankj.utilcode.util.ActivityUtils
@@ -18,8 +20,11 @@ import com.fox.music.core.common.EventViewModel
 import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
 import com.fox.music.core.model.music.PlayerState
-import com.fox.music.feature.player.lyric.data.LyricStyle
+import com.fox.music.core.ui.theme.resolveAppColorScheme
+import com.fox.music.core.ui.theme.resolveDarkTheme
+import com.fox.music.feature.player.lyric.data.LyricPalettes
 import com.fox.music.feature.player.lyric.ui.DesktopLyricContainer
+import com.fox.music.feature.player.ui.screen.DesktopLyricSettingsRequest
 import com.fox.music.feature.player.ui.screen.PLAYER_ROUTE
 import com.hjq.permissions.OnPermissionCallback
 import com.hjq.permissions.Permission
@@ -79,7 +84,13 @@ class LyricSyncManager private constructor() {
 
     private val toggleMusicFavoriteUseCase by lazy { entryPoint.getToggleMusicFavoriteUseCase() }
 
+    private val userPreferencesRepository by lazy { entryPoint.getUserPreferencesRepository() }
+
     private val styleManager by lazy {LyricStyleManager.getInstance()}
+
+    /** 当前主题强调色；「跟随主题」的歌词配色靠它取高亮色。 */
+    @Volatile
+    private var themeAccentArgb: Int = LyricPalettes.default.highlightColor.toInt()
 
     private var currentMusicId: String? = null
     private var currentLyrics: String? = null
@@ -100,8 +111,27 @@ class LyricSyncManager private constructor() {
     private fun observePlayerState() {
         CoroutineScope(Dispatchers.Main).launch {
             launch {
-                styleManager.styleFlow.collect {style ->
-                    updateLyricStyle(style)
+                styleManager.styleFlow.collect {
+                    applyCurrentLyricStyle()
+                }
+            }
+            // 配色方案是独立于 styleFlow 的 key，必须单独监听，否则在设置里换配色后
+            // 悬浮窗还停在旧颜色（用户反馈的「不同步」）。
+            launch {
+                styleManager.paletteTick.collect {
+                    applyCurrentLyricStyle()
+                }
+            }
+            // 「跟随主题」方案的高亮色取当前主题 primary，主题变化也要同步过来。
+            launch {
+                userPreferencesRepository.userPreferences.collect { prefs ->
+                    themeAccentArgb = resolveAppColorScheme(
+                        darkTheme = prefs.resolveDarkTheme(isSystemDark()),
+                        appThemeId = prefs.appThemeId,
+                        customThemeSeedArgb = prefs.customThemeSeedArgb,
+                        themeIntensity = prefs.themeIntensity,
+                    ).primary.toArgb()
+                    applyCurrentLyricStyle()
                 }
             }
             launch {
@@ -199,6 +229,21 @@ class LyricSyncManager private constructor() {
 //            .show()
 //    }
 
+    private fun openApp(openLyricSettings: Boolean = false) {
+        val intent =
+            context.packageManager.getLaunchIntentForPackage(context.packageName)
+                ?.apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    if (openLyricSettings) {
+                        putExtra(DesktopLyricSettingsRequest.EXTRA_OPEN_LYRIC_SETTINGS, true)
+                    } else {
+                        putExtra("start_route", PLAYER_ROUTE)
+                    }
+                }
+        context.startActivity(intent)
+    }
+
     private fun setupLyricView() {
         lyricView = DesktopLyricContainer(context).apply {
             setOnLyricActionListener(object: DesktopLyricContainer.OnLyricActionListener {
@@ -210,17 +255,12 @@ class LyricSyncManager private constructor() {
 
                 override fun onSettingTap() {
                     resetHideTimer()
+                    // 悬浮窗不再展开设置面板，跳到应用内播放页的歌词设置。
+                    openApp(openLyricSettings = true)
                 }
 
                 override fun onAppTap() {
-                    val intent =
-                        context.packageManager.getLaunchIntentForPackage(context.packageName)
-                            ?.apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-                                putExtra("start_route", PLAYER_ROUTE)
-                            }
-                    context.startActivity(intent)
+                    openApp()
                 }
 
                 override fun onLock(isLocked: Boolean) {
@@ -355,9 +395,14 @@ class LyricSyncManager private constructor() {
         mainHandler.postDelayed(hideRunnable, 10000)
     }
 
-    fun updateLyricStyle(style: LyricStyle) {
-        lyricView.updateStyle(style)
+    /** 悬浮窗与设置页共用同一套解析结果：当前配色方案 + 自定义覆盖 + 主题强调色。 */
+    private fun applyCurrentLyricStyle() {
+        lyricView.updateStyle(styleManager.resolvedLyricStyle(themeAccentArgb))
     }
+
+    private fun isSystemDark(): Boolean =
+        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
 
     fun enableDesktopLyric() {
         _isDesktopLyricEnabled.value = true
@@ -382,10 +427,6 @@ class LyricSyncManager private constructor() {
 
     fun toggleLock() {
         lyricView.toggleLock()
-    }
-
-    fun getCurrentStyle(): LyricStyle {
-        return styleManager.currentStyle
     }
 
     private fun persistDesktopLyricPreference(enabled: Boolean) {

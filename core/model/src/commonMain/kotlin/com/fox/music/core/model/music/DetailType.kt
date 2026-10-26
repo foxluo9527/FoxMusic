@@ -8,9 +8,12 @@ enum class DetailType {
     NEW_MUSIC,  // 最新音乐
     FAVORITE_MUSIC, // 我的收藏
     PLAY_HISTORY,   // 历史播放
+    ARTIST,         // 歌手全部歌曲
     ;
 
     companion object {
+        const val RECOMMEND_ID = Long.MAX_VALUE
+        const val NEW_MUSIC_ID = Long.MAX_VALUE - 1L
         const val FAVORITE_MUSIC_ID = Long.MAX_VALUE - 2L
         const val PLAY_HISTORY_ID = Long.MAX_VALUE - 3L
     }

@@ -17,8 +17,9 @@ fun ArtistListScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
+    // 这里只收集 effect，不再发 Load —— 首次加载在 ViewModel init 里做。
+    // 之前 Load 放在 LaunchedEffect(Unit) 里，每次返回都会重建分页数据并清空列表。
     LaunchedEffect(Unit) {
-        viewModel.sendIntent(ArtistListIntent.Load)
         viewModel.effect.collect { effect ->
             when (effect) {
                 is ArtistListEffect.NavigateToArtist -> onArtistClick(effect.artistId)
@@ -33,5 +34,8 @@ fun ArtistListScreen(
         modifier = modifier,
         onArtistClick = onArtistClick,
         onBackClick = onBackClick,
+        initialFirstVisibleItemIndex = viewModel.scrollState.firstVisibleItemIndex(),
+        initialFirstVisibleItemScrollOffset = viewModel.scrollState.firstVisibleItemScrollOffset(),
+        onScrollPositionChange = viewModel.scrollState::save,
     )
 }

@@ -16,6 +16,8 @@ data class CreateAdminMusicRequest(
     val lyrics: String = "",
     @SerialName("lyrics_type")
     val lyricsType: String = "none",
+    @SerialName("album")
+    val album: String = "",
     val artists: List<CreateAdminArtistRequest> = emptyList(),
 )
 

@@ -37,6 +37,8 @@ enum class ManageSearchPlatform(val apiValue: String, val label: String) {
 data class PreviewPlaybackState(
     val music: Music? = null,
     val isPlaying: Boolean = false,
+    /** 正在缓冲（点击播放后 MediaPlayer 尚未 prepare 完成）：列表/面板用转圈图标表示，而非播放图标 */
+    val isBuffering: Boolean = false,
     val positionMs: Long = 0,
     val durationMs: Long = 0,
 )
@@ -419,6 +421,7 @@ class ManageSearchViewModel @Inject constructor(
                         genre = music.genre ?: "流行",
                         lyrics = lyrics,
                         lyricsType = if (lyrics.isNotBlank()) "embedded" else "none",
+                        album = music.album?.title ?: "",
                         artists = artists,
                     )
                 )

@@ -75,6 +75,10 @@ final class AppTabRouter: ObservableObject {
         case playlist(id: Int64, title: String)
         case rank(id: Int64, title: String)
         case album(id: Int64)
+        /// 「为你精选」虚拟列表（id = Int64.max）
+        case recommend(id: Int64, title: String)
+        /// 「新歌速递」虚拟列表（id = Int64.max - 1）
+        case newMusic(id: Int64, title: String)
     }
 
     @Published var selectedTab: AppTab = .home
@@ -114,6 +118,8 @@ final class AppTabRouter: ObservableObject {
         case .playlist: link = .playlist(id: id, title: title)
         case .rank: link = .rank(id: id, title: title)
         case .album: link = .album(id: id)
+        case .recommend: link = .recommend(id: id, title: title)
+        case .newMusic: link = .newMusic(id: id, title: title)
         case .other: return
         }
         if !Self.canOpen(link, in: selectedTab) {
@@ -142,14 +148,18 @@ final class AppTabRouter: ObservableObject {
             return tab == .home || tab == .discover
         case .album:
             return true
+        case .recommend:
+            return tab == .home
+        case .newMusic:
+            return tab == .discover
         }
     }
 
     static func fallbackTab(for link: PlayerSourceLink) -> AppTab {
         switch link {
         case .post: return .community
-        case .playlist, .album: return .home
-        case .rank: return .discover
+        case .playlist, .album, .recommend: return .home
+        case .rank, .newMusic: return .discover
         }
     }
 }
@@ -449,7 +459,7 @@ struct DiscoverTabView: View {
     @State private var moreSong: Music?
     @StateObject private var router = AppTabRouter.shared
 
-    /// 消费播放列表「来源」卡片跳转：发现页可承接榜单/专辑/帖子。
+    /// 消费播放列表「来源」卡片跳转：发现页可承接榜单/专辑/帖子/新歌速递。
     private func consumePlayerSourceLink() {
         router.consumePlayerSource(in: .discover) { link in
             switch link {
@@ -459,7 +469,9 @@ struct DiscoverTabView: View {
                 path.append(.albumDetail(id: id))
             case .post(let id):
                 path.append(.postDetail(id: id))
-            case .playlist:
+            case .newMusic:
+                path.append(.newMusicList)
+            case .playlist, .recommend:
                 break
             }
         }
@@ -472,7 +484,13 @@ struct DiscoverTabView: View {
                     PlayerModel.shared.play(
                         queue: songs,
                         startIndex: Int(index.int32Value),
-                        source: PlaybackSource(title: "新歌速递", coverUrl: nil, typeLabel: "发现页")
+                        // 新歌速递虚拟列表：id 与 Android DetailType.NEW_MUSIC_ID 对齐
+                        source: PlaybackSource(
+                            kind: .newMusic,
+                            id: Int64.max - 1,
+                            title: "新歌速递",
+                            typeLabel: "最新"
+                        )
                     )
                 },
                 onRankClick: { id, title in
@@ -789,19 +807,23 @@ struct PlaylistDetailView: View {
         switch detailType {
         case "rank": return "榜单"
         case "album": return "专辑"
+        case "recommend": return "推荐"
+        case "new_music": return "最新"
         case "favorite_music": return "我的收藏"
         case "play_history": return "历史播放"
         default: return "歌单"
         }
     }
 
-    /// 当前列表对应的可播放来源。仅真实歌单/专辑/榜单可跳转，
-    /// 推荐/收藏/历史等虚拟列表为 other（播放列表不展示来源卡片，对齐 Android）。
+    /// 当前列表对应的可播放来源。歌单/专辑/榜单与推荐/新歌都可跳详情，
+    /// 收藏/历史等虚拟列表为 other（播放列表不展示来源卡片，对齐 Android）。
     private var playbackSource: PlaybackSource {
         let kind: PlaybackSource.Kind
         switch detailType {
         case "album": kind = .album
         case "rank": kind = .rank
+        case "recommend": kind = .recommend
+        case "new_music": kind = .newMusic
         case "playlist":
             // 榜单详情默认 detailType 仍是 "playlist"，靠 isRank 区分（见 DiscoverRoute.rankDetail）
             kind = isRank ? .rank : .playlist
@@ -841,7 +863,11 @@ struct PlaylistDetailView: View {
                 moreSong = music
             },
             onEditPlaylist: { _ in showEdit = true },
-            onDeletePlaylist: { showDeleteConfirm = true }
+            onDeletePlaylist: { showDeleteConfirm = true },
+            onTopListLoaded: { _, songs in
+                // 为你精选/新歌速递整份列表回写：若正在播放同一来源队列则同步成最新列表
+                PlayerModel.shared.syncTopListQueue(kind: playbackSource.kind, songs: songs)
+            }
         )
             .ignoresSafeArea(edges: [.top, .bottom])
         .navigationBarHidden(true)
@@ -914,6 +940,8 @@ struct PlaylistDetailComposeView: UIViewControllerRepresentable {
     // 歌单管理（仅 type=playlist 且自己创建时，Kotlin 侧才会触发）
     var onEditPlaylist: (KotlinLong) -> Void = { _ in }
     var onDeletePlaylist: () -> Void = {}
+    // 为你精选/新歌速递整份列表拉回后回调（sort, 歌曲列表）
+    var onTopListLoaded: (String, [PlayableSong]) -> Void = { _, _ in }
 
     func makeUIViewController(context: Context) -> UIViewController {
         FoxPlaylistDetailScreen.shared.makePlaylistDetailViewController(
@@ -925,7 +953,8 @@ struct PlaylistDetailComposeView: UIViewControllerRepresentable {
             onBack: onBack,
             onMusicMoreClick: onMusicMoreClick,
             onEditPlaylist: onEditPlaylist,
-            onDeletePlaylist: onDeletePlaylist
+            onDeletePlaylist: onDeletePlaylist,
+            onTopListLoaded: onTopListLoaded
         )
     }
 

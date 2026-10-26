@@ -21,6 +21,7 @@ data class CreateAdminMusicInput(
     val genre: String = "流行",
     val lyrics: String = "",
     val lyricsType: String = "none",
+    val album: String = "",
     val artists: List<AdminArtistInput> = emptyList(),
 )
 

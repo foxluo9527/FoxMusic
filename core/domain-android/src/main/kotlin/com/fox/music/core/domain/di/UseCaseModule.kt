@@ -91,6 +91,7 @@ import com.fox.music.core.domain.usecase.GetMyMusicFeedbacksUseCase
 import com.fox.music.core.domain.usecase.ReplaceMusicSourceUseCase
 import com.fox.music.core.domain.usecase.CheckMusicExistsUseCase
 import com.fox.music.core.domain.usecase.ImportSingleTrackUseCase
+import com.fox.music.core.domain.usecase.FetchBestMatchedLyricUseCase
 import com.fox.music.core.domain.usecase.FetchScrapedLyricsUseCase
 import com.fox.music.core.domain.usecase.ToggleAlbumFavoriteUseCase
 import com.fox.music.core.domain.usecase.ToggleMusicFavoriteUseCase
@@ -389,5 +390,9 @@ object UseCaseModule {
     @Provides
     fun provideFetchScrapedLyricsUseCase(searchRepository: SearchRepository): FetchScrapedLyricsUseCase =
         FetchScrapedLyricsUseCase(searchRepository)
+
+    @Provides
+    fun provideFetchBestMatchedLyricUseCase(searchRepository: SearchRepository): FetchBestMatchedLyricUseCase =
+        FetchBestMatchedLyricUseCase(searchRepository)
 
 }

@@ -72,6 +72,8 @@ data class ScrapeStrategyDto(
 data class ResolveAudioRequest(
     val title: String,
     val artist: String,
+    /** 原曲时长（毫秒）：服务端 API 源据此交叉校验，显著降低同名错版本命中 */
+    @SerialName("durationMs") val durationMs: Long? = null,
 )
 
 @Serializable
@@ -81,6 +83,38 @@ data class ResolveAudioDto(
     val referer: String? = null,
     val score: Double? = null,
     val exact: Boolean = false,
+    @SerialName("durationMs") val durationMs: Long? = null,
+    /** true=命中服务端 API 源（网易云/酷我/Hifini解析/插件源），false=回落 hifini 站点链路 */
+    @SerialName("viaApiSources") val viaApiSources: Boolean = false,
+)
+
+@Serializable
+data class SearchImportSourcesRequest(
+    val title: String,
+    val artist: String = "",
+    @SerialName("durationMs") val durationMs: Long? = null,
+    val limit: Int = 8,
+)
+
+@Serializable
+data class ImportSourceCandidateDto(
+    val url: String = "",
+    val source: String? = null,
+    val referer: String? = null,
+    val score: Double? = null,
+    val exact: Boolean = false,
+    @SerialName("durationMs") val durationMs: Long? = null,
+    /** 服务端按歌单原曲时长做的交叉判定；false 表示时长明显不符（试听片段/串烧/其它版本） */
+    @SerialName("durationMatch") val durationMatch: Boolean = true,
+    val title: String = "",
+    val artist: String = "",
+    @SerialName("detailUrl") val detailUrl: String? = null,
+)
+
+@Serializable
+data class SearchImportSourcesDto(
+    val candidates: List<ImportSourceCandidateDto> = emptyList(),
+    val count: Int = 0,
 )
 
 @Serializable

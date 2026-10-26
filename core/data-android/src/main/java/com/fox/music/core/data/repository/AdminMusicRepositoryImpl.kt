@@ -51,6 +51,7 @@ class AdminMusicRepositoryImpl @Inject constructor(
                     genre = input.genre,
                     lyrics = input.lyrics,
                     lyricsType = input.lyricsType,
+                    album = input.album,
                     artists = input.artists.map {
                         CreateAdminArtistRequest(
                             name = it.name,

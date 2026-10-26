@@ -11,7 +11,8 @@ interface ArtistApiService {
         @Query("limit") limit: Int = 20,
         @Query("keyword") keyword: String? = null,
         @Query("tag_id") tagId: Long? = null,
-        @Query("sort") sort: String? = null
+        @Query("sort") sort: String? = null,
+        @Query("slim") slim: Boolean? = null
     ): ApiResponse<PagedResponse<ArtistDto>>
 
     @GET("api/artists/{id}")

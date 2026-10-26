@@ -3,6 +3,8 @@ package com.fox.music.feature.social.viewmodel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import com.fox.music.core.common.cache.TabPageCache
+import com.fox.music.core.common.cache.TabPageKeys
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.datastore.FoxPreferencesDataStore
@@ -39,6 +41,8 @@ class CommunityPlazaViewModel @Inject constructor(
 ) : MviViewModel<CommunityPlazaState, CommunityPlazaIntent, CommunityPlazaEffect>(CommunityPlazaState()) {
 
     init {
+        // 先注册快照的磁盘编解码器，随后的 read 才能在冷启动时解析上一进程落盘的快照
+        registerCommunityPageCacheCodec()
         sendIntent(CommunityPlazaIntent.Load)
         viewModelScope.launch {
             preferencesDataStore.plazaLayoutMode.collect { stored ->
@@ -46,6 +50,33 @@ class CommunityPlazaViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * 分页首屏到手 → 落快照：下次进社区页先渲染这批帖子（分页请求回来后替换）。
+     * 只留前 [PLAZA_SNAPSHOT_POST_COUNT] 条，够铺满一屏即可。
+     */
+    fun onPostsLoaded(posts: List<Post>) {
+        if (posts.isEmpty()) return
+        // 带 tag 的筛选结果不进快照：否则回到无筛选的广场会先看到别的 tag 下的帖子
+        if (currentState.filterTag != null) return
+        // 快照只取前若干条：首屏回来后内容不再变化。滚动触发 append 时本方法也会进来，
+        // 内容没变就直接返回，避免反复写盘。
+        val snapshotPosts = posts.take(PLAZA_SNAPSHOT_POST_COUNT)
+        val ids = snapshotPosts.map { it.id }
+        if (ids == lastSnapshotPostIds) return
+        lastSnapshotPostIds = ids
+        TabPageCache.put(
+            key = TabPageKeys.COMMUNITY,
+            value = CommunityPageSnapshot(posts = snapshotPosts),
+        )
+    }
+
+    private companion object {
+        const val PLAZA_SNAPSHOT_POST_COUNT = 20
+    }
+
+    /** 上一次落盘快照的帖子 id 序列，用于跳过重复写入 */
+    private var lastSnapshotPostIds: List<Long>? = null
 
     override fun handleIntent(intent: CommunityPlazaIntent) {
         when (intent) {
@@ -103,8 +134,15 @@ class CommunityPlazaViewModel @Inject constructor(
 
     private fun loadPosts() {
         val tag = currentState.filterTag
+        // 缓存优先：先把上一次的帖子铺上（无 tag 过滤时才有意义，带 tag 的快照不复用），
+        // 分页首屏回来后自动替换，切回社区 Tab 不会先空一屏。
+        val cached = TabPageCache.read<CommunityPageSnapshot>(TabPageKeys.COMMUNITY)
+            ?.takeIf { currentState.filterTag == null }
         updateState {
-            copy(posts = getPostsPagingUseCase(tag = tag).flow.cachedIn(viewModelScope))
+            copy(
+                cachedPosts = cached?.posts.orEmpty(),
+                posts = getPostsPagingUseCase(tag = tag).flow.cachedIn(viewModelScope),
+            )
         }
     }
 

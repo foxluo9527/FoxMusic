@@ -40,6 +40,8 @@ kotlin {
 
             api(libs.paging.common)
             api(libs.paging.compose)
+            // 首页头部「10月22日 · 周四」+ 按时段问候：java.time 在 K/N 不可用，统一走 kotlinx-datetime
+            implementation(libs.kotlinx.datetime)
 
             api(compose.runtime)
             api(compose.foundation)

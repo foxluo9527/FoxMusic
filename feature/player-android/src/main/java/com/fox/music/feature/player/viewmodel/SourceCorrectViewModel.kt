@@ -112,6 +112,16 @@ class SourceCorrectViewModel @Inject constructor(
     private var mediaPlayer: MediaPlayer? = null
     private var progressJob: Job? = null
 
+    /**
+     * 用户最后一次主动点选/试听的候选 id：异步解析回调只在它仍是最新交互时
+     * 才允许改选中项/起播，否则切 tab 后旧 tab 的解析结果会把选中项抢回去
+     * （用户 2026-10-22 反馈：其他 tab 勾选音源，最终替换的还是之前那个）。
+     */
+    private var lastInteractionCandidateId: String? = null
+
+    /** 搜索序号：换搜索词后迟到的旧请求结果不得覆盖新词结果（用户 2026-10-22 反馈） */
+    private var searchSeq = 0L
+
     override fun onCleared() {
         stopPreviewInternal()
         super.onCleared()
@@ -198,6 +208,7 @@ class SourceCorrectViewModel @Inject constructor(
         }
         val artist = currentState.artistQuery.trim().ifBlank { null }
         val durationMs = currentState.targetMusic?.duration?.takeIf { it > 0 }
+        val seq = ++searchSeq
         viewModelScope.launch {
             updateState {
                 copy(
@@ -218,6 +229,7 @@ class SourceCorrectViewModel @Inject constructor(
                 )
             ) {
                 is Result.Success -> {
+                    if (seq != searchSeq) return@launch
                     updateState {
                         copy(
                             isSearching = false,
@@ -227,6 +239,7 @@ class SourceCorrectViewModel @Inject constructor(
                     }
                 }
                 is Result.Error -> {
+                    if (seq != searchSeq) return@launch
                     updateState { copy(isSearching = false) }
                     sendEffect(
                         SourceCorrectEffect.ShowMessage(
@@ -245,6 +258,7 @@ class SourceCorrectViewModel @Inject constructor(
             sendEffect(SourceCorrectEffect.ShowMessage("该候选无法解析音源，不能选择"))
             return
         }
+        lastInteractionCandidateId = candidate.id
         val cached = currentState.resolvedUrls[candidate.id]
         if (cached != null) {
             updateState { copy(selectedCandidateId = candidate.id) }
@@ -265,9 +279,11 @@ class SourceCorrectViewModel @Inject constructor(
         // RESOLVE：勾选即触发解析
         updateState { copy(selectedCandidateId = candidate.id) }
         resolveCandidate(candidate) { url ->
-            if (url != null) {
-                updateState { copy(resolvedUrls = resolvedUrls + (candidate.id to url)) }
+            if (url == null) {
+                clearSelectionIfFailed(candidate)
+                return@resolveCandidate
             }
+            updateState { copy(resolvedUrls = resolvedUrls + (candidate.id to url)) }
         }
     }
 
@@ -277,27 +293,51 @@ class SourceCorrectViewModel @Inject constructor(
             sendEffect(SourceCorrectEffect.ShowMessage("该候选无法解析音源"))
             return
         }
-        val url = currentState.resolvedUrls[candidate.id] ?: candidate.directUrl
-        if (url.isNullOrBlank()) {
-            resolveCandidate(candidate) { resolved ->
-                if (resolved != null) {
-                    updateState {
-                        copy(
-                            resolvedUrls = resolvedUrls + (candidate.id to resolved),
-                            selectedCandidateId = candidate.id,
-                        )
-                    }
-                    startPreview(candidate, resolved)
-                }
-            }
-            return
-        }
         if (currentState.previewCandidateId == candidate.id && currentState.preview.isPlaying) {
             togglePreviewPlayPause()
             return
         }
-        updateState { copy(selectedCandidateId = candidate.id) }
+        lastInteractionCandidateId = candidate.id
+        if (currentState.resolvingIds.contains(candidate.id)) {
+            sendEffect(SourceCorrectEffect.ShowMessage("正在解析该音源，请稍候"))
+            return
+        }
+        // 直连候选自带的直链也要登记进 resolvedUrls，否则 resolvedCandidate 恒为 null，
+        // 底部一直停在「（解析中…）」且「确认替换」永远禁用
+        val url = currentState.resolvedUrls[candidate.id]
+            ?: candidate.directUrl?.takeIf { it.isNotBlank() }
+        if (url.isNullOrBlank()) {
+            resolveCandidate(candidate) { resolved ->
+                if (resolved == null) {
+                    clearSelectionIfFailed(candidate)
+                    return@resolveCandidate
+                }
+                val isLatest = lastInteractionCandidateId == candidate.id
+                updateState {
+                    copy(
+                        resolvedUrls = resolvedUrls + (candidate.id to resolved),
+                        selectedCandidateId = if (isLatest) candidate.id else selectedCandidateId,
+                    )
+                }
+                if (isLatest) startPreview(candidate, resolved)
+            }
+            return
+        }
+        updateState {
+            copy(
+                selectedCandidateId = candidate.id,
+                resolvedUrls = resolvedUrls + (candidate.id to url),
+            )
+        }
         startPreview(candidate, url)
+    }
+
+    /** 解析失败：不留「已选（解析中…）」僵尸态，清掉选中让底部回到未选提示 */
+    private fun clearSelectionIfFailed(candidate: ProviderCandidate) {
+        if (lastInteractionCandidateId != candidate.id) return
+        if (currentState.resolvedUrls.containsKey(candidate.id)) return
+        if (currentState.selectedCandidateId != candidate.id) return
+        updateState { copy(selectedCandidateId = null) }
     }
 
     /** 解析候选直链（DIRECT 直接用缓存直链；RESOLVE 走服务端逆向/代理） */
@@ -323,7 +363,11 @@ class SourceCorrectViewModel @Inject constructor(
             when (val result = resolveThirdPartyAudioUseCase(req)) {
                 is Result.Success -> {
                     updateState { copy(resolvingIds = resolvingIds - candidate.id) }
-                    onDone(result.data.url.takeIf { it.isNotBlank() })
+                    val url = result.data.url.takeIf { it.isNotBlank() }
+                    if (url == null) {
+                        sendEffect(SourceCorrectEffect.ShowMessage("该音源没有可用播放地址，换一个候选"))
+                    }
+                    onDone(url)
                 }
                 is Result.Error -> {
                     updateState { copy(resolvingIds = resolvingIds - candidate.id) }
@@ -372,6 +416,7 @@ class SourceCorrectViewModel @Inject constructor(
                             preview = PreviewPlaybackState(
                                 music = music,
                                 isPlaying = true,
+                                isBuffering = false,
                                 positionMs = 0,
                                 durationMs = mp.duration.toLong().coerceAtLeast(0),
                             ),
@@ -384,6 +429,7 @@ class SourceCorrectViewModel @Inject constructor(
                         copy(
                             preview = preview.copy(
                                 isPlaying = false,
+                                isBuffering = false,
                                 positionMs = preview.durationMs,
                             ),
                         )
@@ -401,7 +447,7 @@ class SourceCorrectViewModel @Inject constructor(
             updateState {
                 copy(
                     previewCandidateId = candidate.id,
-                    preview = PreviewPlaybackState(music = music, isPlaying = false),
+                    preview = PreviewPlaybackState(music = music, isPlaying = false, isBuffering = true),
                 )
             }
         } catch (_: Exception) {
@@ -461,6 +507,8 @@ class SourceCorrectViewModel @Inject constructor(
     }
 
     private fun stopPreviewInternal() {
+        // 停播/切 tab/切模式都视为「交互被打断」：在途解析回调不得再改选中项
+        lastInteractionCandidateId = null
         progressJob?.cancel()
         progressJob = null
         try {
@@ -487,6 +535,7 @@ class SourceCorrectViewModel @Inject constructor(
             return
         }
         val url = currentState.resolvedUrls[candidate.id]
+            ?: candidate.directUrl?.takeIf { it.isNotBlank() }
         if (url.isNullOrBlank()) {
             sendEffect(SourceCorrectEffect.ShowMessage("该歌曲没有可用音源"))
             return

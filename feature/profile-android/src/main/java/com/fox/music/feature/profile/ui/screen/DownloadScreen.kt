@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -137,6 +138,8 @@ fun DownloadScreen(
 
     Scaffold(
         modifier = modifier,
+        // 底色由 MainScreenWithBottomBar 的主题渐变提供，透明才能看到主题色顶光。
+        containerColor = Color.Transparent,
         topBar = {
             FoxTopBar(
                 title = "下载管理",

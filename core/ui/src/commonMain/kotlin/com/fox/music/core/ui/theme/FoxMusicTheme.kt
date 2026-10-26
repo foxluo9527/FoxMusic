@@ -5,18 +5,21 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import com.fox.music.core.model.user.AppThemeIds
+import com.fox.music.core.model.user.AppThemeIntensity
 
 @Composable
 fun FoxMusicTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     appThemeId: String = AppThemeIds.DEFAULT,
     customThemeSeedArgb: Long = 0xFFE8A838,
+    themeIntensity: Float = AppThemeIntensity.DEFAULT,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = resolveAppColorScheme(
         darkTheme = darkTheme,
         appThemeId = appThemeId,
         customThemeSeedArgb = customThemeSeedArgb,
+        themeIntensity = themeIntensity,
     )
 
     ApplyFoxSystemBars(colorScheme = colorScheme, darkTheme = darkTheme)
@@ -34,7 +37,8 @@ fun resolveColorScheme(
     darkTheme: Boolean,
     appThemeId: String,
     customThemeSeedArgb: Long,
-): ColorScheme = resolveAppColorScheme(darkTheme, appThemeId, customThemeSeedArgb)
+    themeIntensity: Float = AppThemeIntensity.DEFAULT,
+): ColorScheme = resolveAppColorScheme(darkTheme, appThemeId, customThemeSeedArgb, themeIntensity)
 
 /**
  * 把系统栏（状态栏/导航栏）与主题对齐。
@@ -52,5 +56,6 @@ internal expect fun ApplyFoxSystemBars(
 fun previewColorScheme(
     appThemeId: String,
     customThemeSeedArgb: Long,
+    themeIntensity: Float = AppThemeIntensity.DEFAULT,
     darkTheme: Boolean = isSystemInDarkTheme(),
-): ColorScheme = resolveColorScheme(darkTheme, appThemeId, customThemeSeedArgb)
+): ColorScheme = resolveColorScheme(darkTheme, appThemeId, customThemeSeedArgb, themeIntensity)

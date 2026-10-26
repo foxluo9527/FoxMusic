@@ -24,6 +24,7 @@ import androidx.paging.compose.itemKey
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
+import com.fox.music.core.model.music.PlaybackSourceKind
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
@@ -88,7 +89,12 @@ fun SearchScreen(
             when (effect) {
                 is SearchEffect.NavigateToMusic -> {
                     val playlist = effect.musicList.ifEmpty { listOf(effect.music) }
-                    onMusicClick(effect.music, playlist, playlistKey, null)
+                    onMusicClick(
+                        effect.music,
+                        playlist,
+                        playlistKey,
+                        PlaybackPlaylistSource(PlaybackSourceKind.SEARCH, title = state.query),
+                    )
                 }
 
                 is SearchEffect.NavigateToArtist -> onArtistClick(effect.artistId)
@@ -96,6 +102,15 @@ fun SearchScreen(
                 is SearchEffect.NavigateToPost -> onPostClick(effect.postId)
                 SearchEffect.ClearSearchFocus -> focusManager.clearFocus()
             }
+        }
+    }
+
+    // 返回搜索页时（重新进入组合）：若此前点过「去收录」，强制重搜一次。
+    // 注意：直接观察 ON_RESUME 会在返回时错过事件（entry 在 observer 重新挂载前已 RESUMED），
+    // 因此用 LaunchedEffect(Unit) —— 搜索页离开组合再回来会重新运行。
+    LaunchedEffect(Unit) {
+        if (viewModel.consumeCollectRefreshPending()) {
+            viewModel.sendIntent(SearchIntent.RefreshSearch)
         }
     }
 
@@ -125,7 +140,10 @@ fun SearchScreen(
                 onTagClick = viewModel::onPostTagClick,
             )
         },
-        onCollectClick = onCollectClick,
+        onCollectClick = { keyword ->
+            viewModel.markCollectRefreshPending()
+            onCollectClick(keyword)
+        },
     )
 }
 

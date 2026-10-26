@@ -9,7 +9,24 @@ interface ImportRepository {
     suspend fun getScrapeConfig(): Result<ScrapeConfig>
 
     /** 服务端导入链路解析播放直链（客户端无法访问音源站时兜底） */
-    suspend fun resolveAudio(title: String, artist: String): Result<ResolvedAudio>
+    suspend fun resolveAudio(
+        title: String,
+        artist: String,
+        durationMs: Long? = null,
+    ): Result<ResolvedAudio>
+
+    /**
+     * 服务端 API 多源音源候选（音源纠错同款链路：网易云/酷我/Hifini解析/插件源）。
+     *
+     * 与 [resolveAudio] 的单结果不同：一次返回多条按可信度排序的候选，
+     * 客户端逐条试下载（可带时长交叉校验），单源失效不影响其它候选。
+     */
+    suspend fun searchAudioCandidates(
+        title: String,
+        artist: String,
+        durationMs: Long? = null,
+        limit: Int = 8,
+    ): Result<List<ImportAudioCandidate>>
 
     suspend fun lookupSourceLink(title: String, artist: String, source: String = "hifinicn"): Result<SourceLink?>
 
@@ -118,6 +135,22 @@ data class ResolvedAudio(
     val referer: String?,
     val score: Double? = null,
     val exact: Boolean = false,
+    val durationMs: Long? = null,
+)
+
+/** 服务端 API 多源候选（导入场景逐条试下载用） */
+data class ImportAudioCandidate(
+    val url: String,
+    val source: String?,
+    val referer: String?,
+    val score: Double?,
+    val exact: Boolean,
+    val durationMs: Long?,
+    /** 服务端按原曲时长交叉判定：false 表示时长明显不符（试听片段/串烧/其它版本） */
+    val durationMatch: Boolean,
+    val title: String,
+    val artist: String,
+    val detailUrl: String?,
 )
 
 data class SourceLink(

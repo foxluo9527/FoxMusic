@@ -1,6 +1,7 @@
 package com.fox.music.feature.stream
 
 import com.fox.music.core.common.util.MediaUrlResolver
+import com.fox.music.core.model.music.Artist
 import com.fox.music.core.model.music.ClipRange
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.network.model.HighlightClipDto
@@ -30,9 +31,15 @@ object StreamClipPolicy {
 
     /**
      * 由服务端队列项构造音流 UI 列表（每首歌 + 其高潮片段 + 歌手名）。
+     *
+     * 注意：服务端 `/api/highlight/stream` 只返回拼接好的歌手字符串（多艺人以 `/` 相连），
+     * 而全 App 展示歌手（播放页 / 播放列表 / 锁屏 / 通知 / 桌面小组件 / 车载）统一读
+     * `Music.artists`，这里若不回填就会在音流页外的所有页面显示 "Unknown"。
+     * 音流页自身仍用 [StreamItemUi.artist] 的原始拼接串，保持与接口文本一致。
      */
     fun buildPlaylist(items: List<HighlightQueueItem>): List<StreamItemUi> {
         return items.map { item ->
+            val artistName = item.artist?.trim()?.takeIf { it.isNotBlank() }
             StreamItemUi(
                 music = Music(
                     id = item.musicId,
@@ -41,9 +48,13 @@ object StreamClipPolicy {
                     // 接口返回的是 /uploads/... 相对路径，必须过 MediaUrlResolver 才能被 Coil 加载
                     coverImage = MediaUrlResolver.resolve(item.coverUrl),
                     duration = item.duration ?: 0L,
+                    // 音流没有艺人 id，占位 0：展示只依赖 name，艺人收藏走按名检索
+                    artists = artistName
+                        ?.let { listOf(Artist(id = 0L, name = it)) }
+                        .orEmpty(),
                 ),
                 clips = item.clips.map { toClipRange(it) },
-                artist = item.artist,
+                artist = artistName,
             )
         }
     }

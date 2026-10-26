@@ -554,7 +554,8 @@ private fun PostDetailTopBar(
     FoxTopBar(
         showBackButton = true,
         onBackClick = onBack,
-        onMedia = true,
+        // 帖子详情的顶栏是「图上方的一条纸色栏」，不是压在图片上：
+        // 传 onMedia 会给返回键垫一个半透明黑圆底，在浅底上就是一个多余的灰圆圈。
         titleContent = {
             if (post != null) {
                 Row(

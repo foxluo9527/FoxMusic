@@ -1,5 +1,7 @@
 package com.fox.music.core.model.music
 
+import kotlinx.serialization.Serializable
+
 data class PlayerState(
     val currentMusic: Music? = null,
     val playlist: List<Music> = emptyList(),
@@ -25,6 +27,7 @@ data class PlayerState(
  * 音流模式的高潮片段时间窗口（毫秒，锚定解码实际时长）。
  * 播放器区间播放：setMediaItem(item, clip.startMs) 传绝对起点，轮询到 clip.endMs 即 advance。
  */
+@Serializable
 data class ClipRange(
     val startMs: Long,
     val endMs: Long,

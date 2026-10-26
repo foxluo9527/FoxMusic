@@ -82,6 +82,4 @@ class NotificationSettingsViewModel @Inject constructor(
         NotificationType.SYSTEM -> "系统通知"
         NotificationType.MUSIC -> "音乐提醒"
     }
-
-    fun typeSubtitle(): String = "前台横幅与后台系统通知"
 }

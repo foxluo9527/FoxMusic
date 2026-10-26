@@ -35,27 +35,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fox.music.core.common.R as CommonR
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlayerState
+import com.fox.music.core.ui.theme.AccentTerracottaBright
+import com.fox.music.core.ui.theme.CoverShapeMini
 import com.fox.music.core.ui.theme.FoxMusicTheme
+import com.fox.music.core.ui.theme.InkGlass
 import com.fox.music.core.ui.theme.MiniPlayerShape
-import com.fox.music.core.ui.theme.FoxSemanticColors
 
 /**
  * 与 [com.fox.music.feature.player.ui.screen.PlayerScreen] 的共享元素过渡需在 overlay 中渲染；
- * 设为 false 会断开 MiniPlayer ↔ 详情页的 hero 动画。模糊背景已不挂 sharedBounds，Tab 可预测返回仍随页面移动。
+ * 设为 false 会断开 MiniPlayer ↔ 详情页的 hero 动画。
  */
 private const val MINI_PLAYER_SHARED_IN_OVERLAY = true
 
-private val DefaultMiniPlayerContrastColor = Color(0xFFF3EDE3)
+/** 迷你条固定用浅色前景：底色是恒定的磨砂黑，不再跟随封面取色。 */
+private val MiniPlayerInk = Color(0xFFFBF8F4)
+private val MiniPlayerInkMuted = Color(0x8CFFFFFF)
 
+/**
+ * 迷你播放条（悬浮在底栏之上）。
+ *
+ * 2026-10 改版要点（原型 01 首页 .mini）：
+ * - **去掉封面取色渐变**。原来那层「黑 → 黑 → 琥珀」横向渐变 + 取色反色文字，
+ *   每换一首歌颜色都在跳，是典型的"AI 味"（用算法代替设计决策）。
+ *   现在恒定磨砂黑 `#17140F`：重量低于内容、高于背景，且不和内容抢颜色。
+ * - 高度 56dp、封面 38dp / 8dp 圆角、圆角 15dp：比原来矮一档，不再像"压在页面上的块"。
+ * - 进度线 2dp 暖橙（`#E2563C`）贴在底边，替代原来通栏的琥珀细线。
+ * - 所有 `sharedElement` key 保持不变，hero 动画不断。
+ */
 @Composable
 fun MiniPlayer(
     playerState: PlayerState,
@@ -67,11 +83,6 @@ fun MiniPlayer(
     onClick: () -> Unit = {},
 ) {
     val music = playerState.currentMusic ?: return
-    val cachedContrast = MiniPlayerPaletteCache.getContrast(music.id, music.coverImage)
-    var contrastColor by remember(music.id, music.coverImage) {
-        mutableStateOf(cachedContrast ?: DefaultMiniPlayerContrastColor)
-    }
-    val lyricColor = contrastColor.copy(alpha = 0.78f)
     val progress by remember(playerState.duration, playerState.position) {
         derivedStateOf {
             if (playerState.duration > 0) {
@@ -91,55 +102,24 @@ fun MiniPlayer(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 14.dp)
                 .clip(MiniPlayerShape)
+                .background(InkGlass)
                 .clickable(onClick = onClick),
         ) {
-            ImageWithPaletteColors(
-                modifier = Modifier.matchParentSize(),
-                url = music.coverImage,
-                emitPlaceholderColors = cachedContrast == null,
-                skipPaletteExtraction = cachedContrast != null,
-                onColorsExtracted = { dominant: Int, _: Int ->
-                    // 与播放页一致：按「可见背景」取反色；MiniPlayer 有深色遮罩，先混合再取反
-                    val color = Color(
-                        contrastColorAgainstOverlay(
-                            backgroundColor = dominant,
-                            overlayColor = android.graphics.Color.BLACK,
-                            overlayAlpha = 0.45f,
-                        ),
-                    )
-                    MiniPlayerPaletteCache.putContrast(music.id, music.coverImage, color)
-                    if (color != contrastColor) {
-                        contrastColor = color
-                    }
-                },
-            )
-            Spacer(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color.Black.copy(alpha = 0.55f),
-                                Color.Black.copy(alpha = 0.35f),
-                                FoxSemanticColors.amberGlow.copy(alpha = 0.2f),
-                            ),
-                        ),
-                    ),
-            )
             Column {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .height(56.dp)
+                        .padding(horizontal = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CachedImage(
                         imageUrl = music.coverImage,
                         contentDescription = music.title,
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(38.dp)
                             .sharedElement(
                                 sharedContentState = rememberSharedContentState(
                                     key = "music-image-${music.id}",
@@ -147,14 +127,17 @@ fun MiniPlayer(
                                 animatedVisibilityScope = animatedContentScope,
                                 renderInOverlayDuringTransition = MINI_PLAYER_SHARED_IN_OVERLAY,
                             ),
-                        shape = MaterialTheme.shapes.medium,
+                        shape = CoverShapeMini,
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(11.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = music.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = contrastColor,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                            color = MiniPlayerInk,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.sharedElement(
@@ -167,8 +150,8 @@ fun MiniPlayer(
                         )
                         Text(
                             text = currentLyric,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = lyricColor,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                            color = MiniPlayerInkMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.sharedElement(
@@ -182,18 +165,15 @@ fun MiniPlayer(
                     }
                     IconButton(
                         onClick = onPlayPauseClick,
-                        modifier = Modifier.sharedElement(
-                            sharedContentState = rememberSharedContentState(
-                                key = "music-toggle-${music.id}",
-                            ),
-                            animatedVisibilityScope = animatedContentScope,
-                            renderInOverlayDuringTransition = MINI_PLAYER_SHARED_IN_OVERLAY,
-                        ),
+                        // 不挂 sharedElement：每个 Tab 都有一份 MiniPlayer，同名 key 在
+                        // Tab 互切时会匹配并做位置/尺寸插值 → 图标向右下漂移。
+                        // hero 只保留封面/标题/歌词，这颗小按钮随各自迷你条淡入淡出即可。
+                        modifier = Modifier.size(29.dp),
                     ) {
                         if (playerState.isLoading) {
                             CircularProgressIndicator(
-                                color = contrastColor,
-                                modifier = Modifier.size(28.dp),
+                                color = MiniPlayerInk,
+                                modifier = Modifier.size(18.dp),
                                 strokeWidth = 2.dp,
                             )
                         } else {
@@ -206,26 +186,21 @@ fun MiniPlayer(
                                     },
                                 ),
                                 contentDescription = if (playerState.isPlaying) "Pause" else "Play",
-                                modifier = Modifier.size(30.dp),
-                                tint = contrastColor,
+                                modifier = Modifier.size(18.dp),
+                                tint = MiniPlayerInk,
                             )
                         }
                     }
                     IconButton(
                         onClick = onNextClick,
-                        modifier = Modifier.sharedElement(
-                            sharedContentState = rememberSharedContentState(
-                                key = "music-next-${music.id}",
-                            ),
-                            animatedVisibilityScope = animatedContentScope,
-                            renderInOverlayDuringTransition = MINI_PLAYER_SHARED_IN_OVERLAY,
-                        ),
+                        // 同上：不挂 sharedElement，避免 Tab 互切时跨页匹配漂移。
+                        modifier = Modifier.size(29.dp),
                     ) {
                         Icon(
                             painter = painterResource(CommonR.drawable.ic_next),
                             contentDescription = "Next track",
-                            modifier = Modifier.size(26.dp),
-                            tint = contrastColor,
+                            modifier = Modifier.size(18.dp),
+                            tint = MiniPlayerInk,
                         )
                     }
                 }
@@ -234,6 +209,8 @@ fun MiniPlayer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(2.dp),
+                    color = AccentTerracottaBright,
+                    trackColor = Color.White.copy(alpha = 0.14f),
                     height = 2.dp,
                 )
             }

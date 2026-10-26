@@ -1,15 +1,20 @@
 package com.fox.music.feature.discover
 
 import androidx.lifecycle.viewModelScope
+import com.fox.music.core.common.cache.TabPageCache
+import com.fox.music.core.common.cache.TabPageKeys
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.domain.repository.ArtistRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.SearchRepository
+import com.fox.music.core.domain.toplist.TopListMusicStore
 import com.fox.music.core.domain.usecase.GetMusicListUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,8 +27,34 @@ class DiscoverViewModel @Inject constructor(
 ) : MviViewModel<DiscoverState, DiscoverIntent, DiscoverEffect>(DiscoverState()) {
 
     init {
+        // 先注册快照的磁盘编解码器，随后的 read 才能在冷启动时解析上一进程落盘的快照
+        registerDiscoverPageCacheCodec()
         viewModelScope.launch {
             sendIntent(DiscoverIntent.Load)
+        }
+        // 详情页把整份「新歌速递」（最多 100 条）拉回后：探索页底层列表用整份数据，
+        // 展示仍只取前 5 条，点歌入队的歌单也随之为完整列表
+        viewModelScope.launch {
+            TopListMusicStore.lists
+                .map { it[TopListMusicStore.SORT_LATEST].orEmpty() }
+                .distinctUntilChanged()
+                .collect { items ->
+                    if (items.isEmpty()) return@collect
+                    updateState { copy(newMusic = items) }
+                    TabPageCache.update(
+                        key = TabPageKeys.DISCOVER,
+                        create = {
+                            DiscoverPageSnapshot(
+                                hotKeywords = currentState.hotKeywords,
+                                ranks = currentState.ranks,
+                                rankDetails = currentState.rankDetails,
+                                newMusic = items,
+                                hotArtists = currentState.hotArtists,
+                            )
+                        },
+                        transform = { it.copy(newMusic = items) },
+                    )
+                }
         }
     }
 
@@ -49,12 +80,30 @@ class DiscoverViewModel @Inject constructor(
 
     private fun loadContent(isRefresh: Boolean) {
         viewModelScope.launch {
-            updateState {
-                copy(
-                    isLoading = !isRefresh,
-                    isRefreshing = isRefresh,
-                    error = null,
-                )
+            // 缓存优先：命中上一次的快照就先铺旧数据（带刷新指示），新数据回来后整体替换
+            val cached = TabPageCache.readAsync<DiscoverPageSnapshot>(TabPageKeys.DISCOVER)
+            if (cached != null) {
+                updateState {
+                    copy(
+                        hotKeywords = cached.hotKeywords,
+                        ranks = cached.ranks,
+                        rankDetails = cached.rankDetails,
+                        newMusic = cached.newMusic,
+                        hotArtists = cached.hotArtists,
+                        // 已有内容 → 走「后台刷新」语义（顶部转圈），而不是整页 loading 空态
+                        isLoading = false,
+                        isRefreshing = true,
+                        error = null,
+                    )
+                }
+            } else {
+                updateState {
+                    copy(
+                        isLoading = !isRefresh,
+                        isRefreshing = isRefresh,
+                        error = null,
+                    )
+                }
             }
 
             when (val result = searchRepository.getHotKeywords(limit = 10)) {
@@ -84,7 +133,10 @@ class DiscoverViewModel @Inject constructor(
 
             when (val result = getMusicListUseCase(page = 1, limit = 25, sort = "latest")) {
                 is Result.Success -> {
-                    updateState { copy(newMusic = result.data.list) }
+                    // 详情页已同步整份「新歌速递」（最多 100 条）时，这里的首屏 25 条不能把它缩回去
+                    val synced = TopListMusicStore.snapshot(TopListMusicStore.SORT_LATEST)
+                    val latest = if (synced.size > result.data.list.size) synced else result.data.list
+                    updateState { copy(newMusic = latest) }
                 }
                 else -> {}
             }
@@ -95,6 +147,18 @@ class DiscoverViewModel @Inject constructor(
                 }
                 else -> {}
             }
+
+            // 落快照：下次进发现页先渲染这一份
+            TabPageCache.put(
+                key = TabPageKeys.DISCOVER,
+                value = DiscoverPageSnapshot(
+                    hotKeywords = currentState.hotKeywords,
+                    ranks = currentState.ranks,
+                    rankDetails = currentState.rankDetails,
+                    newMusic = currentState.newMusic,
+                    hotArtists = currentState.hotArtists,
+                ),
+            )
 
             updateState { copy(isLoading = false, isRefreshing = false) }
         }

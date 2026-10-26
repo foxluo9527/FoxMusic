@@ -33,6 +33,11 @@ fun String.toPlazaLayoutMode(): PlazaLayoutMode = when (this) {
 
 data class CommunityPlazaState(
     val posts: Flow<PagingData<Post>> = flowOf(),
+    /**
+     * 上一次加载到的帖子：分页 Flow 重建后首屏请求还没回来时先渲染它，
+     * 分页数据到达后自动让位（缓存优先）。
+     */
+    val cachedPosts: List<Post> = emptyList(),
     val layoutMode: PlazaLayoutMode = PlazaLayoutMode.STAGGERED,
     val isRefreshing: Boolean = false,
     /** 点赞乐观更新覆盖表：postId → (是否点赞, 点赞数) */

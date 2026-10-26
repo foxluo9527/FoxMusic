@@ -475,14 +475,6 @@ fun FoxChoiceDialog(
                                 )
                             }
                         }
-                        if (index != options.lastIndex) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(foxDialogHairline()),
-                            )
-                        }
                     }
                 }
             }

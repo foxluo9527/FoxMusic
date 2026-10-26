@@ -41,6 +41,7 @@ data class CollectTrackState(
     val argsExternalId: String = "",
     val argsCoverUrl: String? = null,
     val argsDurationMs: Long = 0,
+    val argsAlbum: String = "",
     val mode: String = "search",
     /** 可编辑的名称/艺人（默认带入原始元数据，宽松匹配） */
     val editTitle: String = "",
@@ -131,6 +132,23 @@ class CollectTrackViewModel @Inject constructor(
     private var progressJob: Job? = null
     private var lyricsPrefetchJob: Job? = null
 
+    /**
+     * 用户最后一次主动点选/试听的候选 id。
+     *
+     * 解析是异步的（hifini 站点逆向 5~20s），若 A tab 的解析在用户切到 B tab
+     * 并选中 B 之后才返回，旧回调会把选中项改回 A —— 表现为「其他 tab 勾选音源，
+     * 最终提交的还是之前那个」（用户 2026-10-22 反馈）。所以异步回调只在
+     * 「它仍然是最新一次交互」时才允许改选中项与起播；解析结果本身照样进缓存。
+     */
+    private var lastInteractionCandidateId: String? = null
+
+    /**
+     * 搜索序号：换搜索词时旧请求可能比新请求晚返回（服务端多渠道并发 5~20s），
+     * 若直接写回会把上一次的结果覆盖到新词上（用户 2026-10-22 反馈：换词后还显示旧结果）。
+     * 回调只在「仍是最近一次搜索」时才允许写回。
+     */
+    private var searchSeq = 0L
+
     override fun onCleared() {
         stopPreviewInternal()
         super.onCleared()
@@ -198,6 +216,7 @@ class CollectTrackViewModel @Inject constructor(
                 argsExternalId = args.externalId,
                 argsCoverUrl = args.coverUrl,
                 argsDurationMs = args.durationMs,
+                argsAlbum = args.album,
                 mode = args.mode,
                 editTitle = args.title,
                 editArtist = args.artist,
@@ -229,7 +248,17 @@ class CollectTrackViewModel @Inject constructor(
             updateState { copy(isPrefetchingLyrics = true) }
             val result = fetchScrapedLyricsUseCase(t, a, durationMs.takeIf { it > 0 })
             if (result is Result.Success) {
-                updateState { copy(prefetchedLyrics = result.data, isPrefetchingLyrics = false) }
+                updateState {
+                    copy(
+                        prefetchedLyrics = result.data,
+                        isPrefetchingLyrics = false,
+                        // 对照面板兜底：平台库歌词没命中时（未收录/标题不同），
+                        // 用刮削歌词渲染，避免「暂无歌词」；平台歌词后到会覆盖它
+                        previewLyrics = previewLyrics.ifEmpty {
+                            LyricsParser.parseLrc(result.data.orEmpty())
+                        },
+                    )
+                }
             } else {
                 updateState { copy(isPrefetchingLyrics = false) }
             }
@@ -277,6 +306,7 @@ class CollectTrackViewModel @Inject constructor(
         }
         val artist = currentState.editArtist.trim().ifBlank { null }
         val durationMs = currentState.argsDurationMs.takeIf { it > 0 }
+        val seq = ++searchSeq
         viewModelScope.launch {
             updateState {
                 copy(
@@ -297,6 +327,8 @@ class CollectTrackViewModel @Inject constructor(
                 )
             ) {
                 is Result.Success -> {
+                    // 已被更新的搜索取代：丢弃这次迟到的旧结果
+                    if (seq != searchSeq) return@launch
                     updateState {
                         copy(
                             isSearching = false,
@@ -306,6 +338,7 @@ class CollectTrackViewModel @Inject constructor(
                     }
                 }
                 is Result.Error -> {
+                    if (seq != searchSeq) return@launch
                     updateState { copy(isSearching = false) }
                     sendEffect(
                         CollectTrackEffect.ShowMessage(
@@ -324,6 +357,7 @@ class CollectTrackViewModel @Inject constructor(
             sendEffect(CollectTrackEffect.ShowMessage("该候选无法解析音源，不能选择"))
             return
         }
+        lastInteractionCandidateId = candidate.id
         val cached = currentState.resolvedUrls[candidate.id]
         if (cached != null) {
             updateState { copy(selectedCandidateId = candidate.id) }
@@ -343,9 +377,11 @@ class CollectTrackViewModel @Inject constructor(
         }
         updateState { copy(selectedCandidateId = candidate.id) }
         resolveCandidate(candidate) { url ->
-            if (url != null) {
-                updateState { copy(resolvedUrls = resolvedUrls + (candidate.id to url)) }
+            if (url == null) {
+                clearSelectionIfFailed(candidate)
+                return@resolveCandidate
             }
+            updateState { copy(resolvedUrls = resolvedUrls + (candidate.id to url)) }
         }
     }
 
@@ -355,27 +391,54 @@ class CollectTrackViewModel @Inject constructor(
             sendEffect(CollectTrackEffect.ShowMessage("该候选无法解析音源"))
             return
         }
-        val url = currentState.resolvedUrls[candidate.id] ?: candidate.directUrl
-        if (url.isNullOrBlank()) {
-            resolveCandidate(candidate) { resolved ->
-                if (resolved != null) {
-                    updateState {
-                        copy(
-                            resolvedUrls = resolvedUrls + (candidate.id to resolved),
-                            selectedCandidateId = candidate.id,
-                        )
-                    }
-                    startPreview(candidate, resolved)
-                }
-            }
-            return
-        }
         if (currentState.previewCandidateId == candidate.id && currentState.preview.isPlaying) {
             togglePreviewPlayPause()
             return
         }
-        updateState { copy(selectedCandidateId = candidate.id) }
+        lastInteractionCandidateId = candidate.id
+        if (currentState.resolvingIds.contains(candidate.id)) {
+            // 已在解析中：早退会让用户以为点了没反应，明确提示（解析完成会自动起播）
+            sendEffect(CollectTrackEffect.ShowMessage("正在解析该音源，请稍候"))
+            return
+        }
+        // 直连候选（网易云等）必须把自带直链也登记进 resolvedUrls：
+        // 原实现只调 startPreview 不写缓存 → resolvedCandidate 仍为 null，
+        // 底部一直停在「（解析中…）」且「提交收录」永远禁用（用户 2026-10-22 反馈）
+        val url = currentState.resolvedUrls[candidate.id]
+            ?: candidate.directUrl?.takeIf { it.isNotBlank() }
+        if (url.isNullOrBlank()) {
+            resolveCandidate(candidate) { resolved ->
+                if (resolved == null) {
+                    clearSelectionIfFailed(candidate)
+                    return@resolveCandidate
+                }
+                val isLatest = lastInteractionCandidateId == candidate.id
+                updateState {
+                    copy(
+                        resolvedUrls = resolvedUrls + (candidate.id to resolved),
+                        selectedCandidateId = if (isLatest) candidate.id else selectedCandidateId,
+                    )
+                }
+                // 已切走的候选不抢播放（否则切 tab 后声音突然从上一个 tab 响起）
+                if (isLatest) startPreview(candidate, resolved)
+            }
+            return
+        }
+        updateState {
+            copy(
+                selectedCandidateId = candidate.id,
+                resolvedUrls = resolvedUrls + (candidate.id to url),
+            )
+        }
         startPreview(candidate, url)
+    }
+
+    /** 解析失败：不要留下「已选（解析中…）」的僵尸态，清掉选中让底部回到未选提示 */
+    private fun clearSelectionIfFailed(candidate: ProviderCandidate) {
+        if (lastInteractionCandidateId != candidate.id) return
+        if (currentState.resolvedUrls.containsKey(candidate.id)) return
+        if (currentState.selectedCandidateId != candidate.id) return
+        updateState { copy(selectedCandidateId = null) }
     }
 
     /** 解析候选直链（DIRECT 用自带直链；RESOLVE 走服务端逆向/代理） */
@@ -401,7 +464,12 @@ class CollectTrackViewModel @Inject constructor(
             when (val result = resolveThirdPartyAudioUseCase(req)) {
                 is Result.Success -> {
                     updateState { copy(resolvingIds = resolvingIds - candidate.id) }
-                    onDone(result.data.url.takeIf { it.isNotBlank() })
+                    val url = result.data.url.takeIf { it.isNotBlank() }
+                    if (url == null) {
+                        // 解析「成功」但没直链：不能让选中态卡在「解析中…」
+                        sendEffect(CollectTrackEffect.ShowMessage("该音源没有可用播放地址，换一个候选"))
+                    }
+                    onDone(url)
                 }
                 is Result.Error -> {
                     updateState { copy(resolvingIds = resolvingIds - candidate.id) }
@@ -450,6 +518,7 @@ class CollectTrackViewModel @Inject constructor(
                             preview = PreviewPlaybackState(
                                 music = music,
                                 isPlaying = true,
+                                isBuffering = false,
                                 positionMs = 0,
                                 durationMs = mp.duration.toLong().coerceAtLeast(0),
                             ),
@@ -462,6 +531,7 @@ class CollectTrackViewModel @Inject constructor(
                         copy(
                             preview = preview.copy(
                                 isPlaying = false,
+                                isBuffering = false,
                                 positionMs = preview.durationMs,
                             ),
                         )
@@ -476,10 +546,11 @@ class CollectTrackViewModel @Inject constructor(
                 prepareAsync()
             }
             mediaPlayer = player
+            // 进入缓冲态：列表/面板展示转圈，直到 onPrepared 把 isBuffering 置回 false
             updateState {
                 copy(
                     previewCandidateId = candidate.id,
-                    preview = PreviewPlaybackState(music = music, isPlaying = false),
+                    preview = PreviewPlaybackState(music = music, isPlaying = false, isBuffering = true),
                 )
             }
         } catch (_: Exception) {
@@ -539,6 +610,8 @@ class CollectTrackViewModel @Inject constructor(
     }
 
     private fun stopPreviewInternal() {
+        // 停播/切 tab/重新搜索都视为「交互被打断」：在途解析回调不得再改选中项
+        lastInteractionCandidateId = null
         progressJob?.cancel()
         progressJob = null
         try {
@@ -583,12 +656,13 @@ class CollectTrackViewModel @Inject constructor(
             sendEffect(CollectTrackEffect.ShowMessage("请先选择并解析一个音源候选"))
             return
         }
-        val audioUrl = s.resolvedUrls[selected.id]
+        val audioUrl = s.resolvedUrls[selected.id] ?: selected.directUrl?.takeIf { it.isNotBlank() }
         val req = ImportSingleRequest(
             platform = s.argsPlatform.ifBlank { null },
             externalId = s.argsExternalId.ifBlank { null },
             title = s.editTitle.trim(),
             artist = s.editArtist.trim().ifBlank { null },
+            album = s.argsAlbum.trim().ifBlank { null },
             coverUrl = s.argsCoverUrl,
             durationMs = s.argsDurationMs.takeIf { it > 0 } ?: selected.durationMs,
             audioUrl = audioUrl,

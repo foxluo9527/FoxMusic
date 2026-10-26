@@ -32,6 +32,9 @@ interface UserPreferencesRepository {
 
     suspend fun updateAppTheme(themeId: String, customSeedArgb: Long? = null): Result<Unit>
 
+    /** 更新主题「氛围」强度（柔和 / 均衡 / 浓郁），只影响自定义配色的容器色派生。 */
+    suspend fun updateThemeIntensity(intensity: Float): Result<Unit>
+
     suspend fun updateDynamicColor(enabled: Boolean): Result<Unit>
 
     suspend fun updateDesktopLyricEnabled(enabled: Boolean): Result<Unit>

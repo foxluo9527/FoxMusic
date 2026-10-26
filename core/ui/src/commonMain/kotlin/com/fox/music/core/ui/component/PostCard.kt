@@ -75,8 +75,13 @@ fun PostCard(
         )
     }
 
+    // 整卡可点：此前只有标题/正文文字挂了 clickable，点卡片空白处（图片下方、标签与互动栏之间）
+    // 完全无响应。内层控件（用户区、图片、标签、音乐条、互动栏）各自有 clickable，
+    // 命中子节点时由子节点消费，不会误触发这条「点整卡进详情」。
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPostClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {

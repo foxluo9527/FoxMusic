@@ -2,8 +2,11 @@ package com.fox.music.feature.profile.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import com.fox.music.core.common.EventViewModel
+import com.fox.music.core.common.cache.TabPageCache
+import com.fox.music.core.common.cache.TabPageKeys
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.domain.repository.ChatRepository
+import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.domain.repository.ImportRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
@@ -37,13 +40,24 @@ class ProfileViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     private val getPlaylistDetailUseCase: GetPlaylistDetailUseCase,
     private val deletePlaylistUseCase: DeletePlaylistUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) : MviViewModel<ProfileState, ProfileIntent, ProfileEffect>(ProfileState()) {
 
     private var cachedSocialUnread = 0
     /** 听歌统计轻量刷新节流，避免切 Tab / 连续上报时重复打接口 */
     private var lastListeningSnapshotAtMs = 0L
+    /** 当前登录账号：页面快照按账号维度校验，换账号不复用上一个账号的数据 */
+    private var currentUserId: Long? = null
 
     init {
+        // 先注册快照的磁盘编解码器，随后的 read 才能在冷启动时解析上一进程落盘的快照
+        registerProfilePageCacheCodec()
+        viewModelScope.launch {
+            userPreferencesRepository.userPreferences.collect { prefs ->
+                currentUserId = prefs.userId
+            }
+        }
+
         EventViewModel.notificationsUpdated
             .onEach { refreshSocialUnreadCount() }
             .launchIn(viewModelScope)
@@ -146,7 +160,30 @@ class ProfileViewModel @Inject constructor(
 
     private fun load() {
         viewModelScope.launch {
-            updateState { copy(isLoading = true) }
+            // 缓存优先：命中上一个账号的快照就先铺旧数据（配合后台刷新指示条），
+            // 新数据回来后整体替换 —— 切回「我的」不会先整页空一下。
+            val cached = TabPageCache.readAsync<ProfilePageSnapshot>(TabPageKeys.PROFILE)
+                ?.takeIf { it.ownerUserId == currentUserId }
+            updateState {
+                if (cached == null) {
+                    copy(isLoading = true)
+                } else {
+                    copy(
+                        user = cached.user,
+                        playlists = cached.playlists,
+                        favoriteMusicTotal = cached.favoriteMusicTotal,
+                        favoritePlaylists = cached.favoritePlaylists,
+                        favoritePlaylistTotal = cached.favoritePlaylistTotal,
+                        favoriteAlbums = cached.favoriteAlbums,
+                        favoriteAlbumTotal = cached.favoriteAlbumTotal,
+                        favoriteArtists = cached.favoriteArtists,
+                        favoriteArtistTotal = cached.favoriteArtistTotal,
+                        playHistoryTotal = cached.playHistoryTotal,
+                        listeningStats = cached.listeningStats,
+                        isLoading = true,
+                    )
+                }
+            }
 
             getProfileUseCase()
                 .onSuccess { user -> updateState { copy(user = user) } }
@@ -199,6 +236,27 @@ class ProfileViewModel @Inject constructor(
                 }
 
             refreshSocialUnreadCount()
+
+            // 落快照：下次进「我的」先渲染这一份（资料为空说明请求失败，不写，避免缓存脏数据）
+            currentState.user?.let { user ->
+                TabPageCache.put(
+                    key = TabPageKeys.PROFILE,
+                    value = ProfilePageSnapshot(
+                        ownerUserId = currentUserId ?: user.id,
+                        user = user,
+                        playlists = currentState.playlists,
+                        favoriteMusicTotal = currentState.favoriteMusicTotal,
+                        favoritePlaylists = currentState.favoritePlaylists,
+                        favoritePlaylistTotal = currentState.favoritePlaylistTotal,
+                        favoriteAlbums = currentState.favoriteAlbums,
+                        favoriteAlbumTotal = currentState.favoriteAlbumTotal,
+                        favoriteArtists = currentState.favoriteArtists,
+                        favoriteArtistTotal = currentState.favoriteArtistTotal,
+                        playHistoryTotal = currentState.playHistoryTotal,
+                        listeningStats = currentState.listeningStats,
+                    ),
+                )
+            }
 
             updateState { copy(isLoading = false) }
         }

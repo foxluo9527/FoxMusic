@@ -109,6 +109,8 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 androidx-compose-animation = { group = "androidx.compose.animation", name = "animation" }
+# CMP 跨端 BackHandler（androidx.compose.ui.backhandler），compose.ui 不会传递到编译期
+compose-ui-backhandler = { group = "org.jetbrains.compose.ui", name = "ui-backhandler", version.ref = "composeMultiplatform" }
 
 # Compose Material3
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }

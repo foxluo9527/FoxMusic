@@ -49,7 +49,7 @@ struct QueueSheet: View {
                     )
                 } else {
                     List {
-                        // 仅可展示来源（歌单/专辑/榜单/帖子）才渲染卡片，点击跳对应详情页。
+                        // 仅可展示来源（歌单/专辑/榜单/帖子/推荐/新歌）才渲染卡片，点击跳对应详情页。
                         // 对齐 Android PlaylistBottomSheet 的 PlaylistSourceHeader。
                         if let source = player.source, source.isDisplayable {
                             Section {

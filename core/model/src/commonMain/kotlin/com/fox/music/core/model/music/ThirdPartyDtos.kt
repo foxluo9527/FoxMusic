@@ -41,13 +41,27 @@ data class ResolveThirdPartyDto(
     val source: String = "",
 )
 
-/** 刮削歌词（/api/music/lyrics/fetch，LRCLIB 优先 + lyrics.ovh 兜底） */
+/**
+ * 刮削歌词（/api/music/lyrics/fetch，网易云官方优先 + LRCLIB/lyrics.ovh 兜底）。
+ * 除了歌词本身，服务端还回「命中了哪首歌」——歌词纠错要靠它让用户确认版本。
+ */
 @Serializable
 data class ScrapedLyricsDto(
     val lyric: String? = null,
     val plain: String? = null,
     val synced: String? = null,
     val instrumental: Boolean = false,
+    /** 译文（网易云 tlyric，无则为 null） */
+    val trans: String? = null,
+    /** 命中的曲目名（可能与请求的 title 不同：版本/译名差异） */
+    val matchedTitle: String? = null,
+    val matchedArtist: String? = null,
+    val album: String? = null,
+    @SerialName("durationMs")
+    val durationMs: Long? = null,
+    /** 命中来源：netease / lrclib / lyricsovh */
+    val source: String? = null,
+    val sourceId: String? = null,
 )
 
 /** 平台是否已收录某首歌（/api/music/exists） */

@@ -5,7 +5,22 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.fox.music.core.ui.component.FoxSheet
+import com.fox.music.core.ui.theme.FoxSpacing
+import com.fox.music.core.ui.theme.InkGlass
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -51,7 +67,9 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.HeartBroken
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.MusicVideo
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.PlayArrow
@@ -63,6 +81,7 @@ import androidx.compose.material.icons.filled.Shower
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TempleBuddhist
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,7 +89,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -85,11 +103,11 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -143,6 +161,8 @@ fun StreamRoute(
     val followedArtists by viewModel.followedArtists.collectAsStateWithLifecycle()
     val mood by viewModel.mood.collectAsStateWithLifecycle()
     val isAdmin by viewModel.isAdmin.collectAsStateWithLifecycle()
+    // 上次听到的卡片索引：回到音流页时按它续播（记忆收听位置）
+    val anchorIndex by viewModel.anchorIndex.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // 收藏/操作结果以系统 Toast 反馈（与其它页面的 effect → Toast 惯例一致）
@@ -167,6 +187,10 @@ fun StreamRoute(
                 position = position,
                 followedArtists = followedArtists,
                 sceneTitle = streamSceneTitle(mood),
+                isLoadingMore = s.isLoadingMore,
+                canLoadMore = s.canLoadMore,
+                loadMoreError = s.loadMoreError,
+                onLoadMore = { viewModel.sendIntent(StreamUiIntent.LoadMore) },
                 onSeekTo = { viewModel.sendIntent(StreamUiIntent.SeekTo(it)) },
                 onSeekFree = { viewModel.sendIntent(StreamUiIntent.SeekFree(it)) },
                 onToggleFavorite = { id, favorite ->
@@ -178,6 +202,7 @@ fun StreamRoute(
                 onEnsureQueue = { index ->
                     viewModel.sendIntent(StreamUiIntent.EnsureQueue(index))
                 },
+                fallbackInitialPage = anchorIndex,
                 onOpenScenePanel = onOpenScenePanel,
                 onShareMusic = onShareMusic,
                 onDownload = { viewModel.downloadMusic(it) },
@@ -204,6 +229,12 @@ private fun StreamContent(
     followedArtists: Set<String>,
     /** 顶栏标题：当前听歌模式选择（不再展示歌曲名，歌名在封面下方已有展示） */
     sceneTitle: String,
+    /** 分页：正在加载下一批 / 还能继续加载 / 上一批失败的文案 */
+    isLoadingMore: Boolean = false,
+    canLoadMore: Boolean = true,
+    loadMoreError: String? = null,
+    /** 分页：上滑接近队尾时追加下一批（幂等，内部防重入） */
+    onLoadMore: () -> Unit = {},
     onSeekTo: (Int) -> Unit,
     onSeekFree: (Long) -> Unit,
     onToggleFavorite: (Long, Boolean) -> Unit,
@@ -211,6 +242,11 @@ private fun StreamContent(
     onToggleArtistFavorite: (String?) -> Unit,
     /** 当前播放队列已不是本页音流队列时，按该页码重新挂载音流队列 */
     onEnsureQueue: (Int) -> Unit,
+    /**
+     * 队列不是音流队列时的起始页码：**上次听到的卡片索引**（记忆收听位置）。
+     * 不传则回到第 0 张，用户会被拉回这批歌的开头。
+     */
+    fallbackInitialPage: Int = 0,
     onOpenScenePanel: () -> Unit,
     onShareMusic: (Music) -> Unit,
     onDownload: (Music) -> Unit = {},
@@ -232,7 +268,10 @@ private fun StreamContent(
     val pagerState = rememberPagerState(
         initialPage = if (onStreamQueue) {
             playerState.currentIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-        } else 0,
+        } else {
+            // 队列被别的页面顶掉了：从「上次听到的那一张」接上，而不是退回第 0 张重听
+            fallbackInitialPage.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+        },
     ) { items.size }
     var programmatic by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -260,6 +299,15 @@ private fun StreamContent(
         if (!programmatic && pagerState.currentPage != playerState.currentIndex) {
             onSeekTo(pagerState.currentPage)
         }
+    }
+    // 上滑接近队尾 → 预拉下一批。提前 STREAM_LOAD_MORE_PREFETCH 张触发，
+    // 等用户真的滑到最后一张时新卡片已经在队列里，不会出现「滑到底空一片」。
+    // 幂等：VM 内部有 job + 状态位双重防重入，这里只负责在正确时机喊一嗓子。
+    // 失败后不再自动重试（否则会无限打接口），只在用户点「点击重试」时再来一次
+    LaunchedEffect(pagerState.currentPage, items.size, canLoadMore, isLoadingMore, loadMoreError) {
+        if (!canLoadMore || isLoadingMore || loadMoreError != null) return@LaunchedEffect
+        if (items.isEmpty()) return@LaunchedEffect
+        if (pagerState.currentPage >= items.size - STREAM_LOAD_MORE_PREFETCH) onLoadMore()
     }
     // 预取：当前页补算主色，后两页预热封面图 + 计算主色，翻到该页时底色已就绪
     LaunchedEffect(pagerState.currentPage, items) {
@@ -320,6 +368,57 @@ private fun StreamContent(
             onOpenPanel = onOpenScenePanel,
             modifier = Modifier.align(Alignment.TopStart),
         )
+
+        // 分页状态：加载中在底部转圈；失败给一条可点重试的提示（不盖住卡片，不打断播放）
+        StreamLoadMoreHint(
+            isLoadingMore = isLoadingMore,
+            canLoadMore = canLoadMore,
+            loadMoreError = loadMoreError,
+            onRetry = onLoadMore,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                // 让开底部浮岛 Tab 栏（与卡片底部操作区保持距离）
+                .padding(bottom = 132.dp)
+                .navigationBarsPadding(),
+        )
+    }
+}
+
+/**
+ * 上滑加载更多的状态提示：
+ * - 加载中：小号转圈（汽水式的「正在找更多歌」）；
+ * - 加载失败：一行「加载失败，点击重试」，点它再拉一次；
+ * - 已经没有更多：静默（不打扰），滑到最后一张就是最后一张。
+ */
+@Composable
+private fun StreamLoadMoreHint(
+    isLoadingMore: Boolean,
+    canLoadMore: Boolean,
+    loadMoreError: String?,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!isLoadingMore && (loadMoreError == null || !canLoadMore)) return
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        if (isLoadingMore) {
+            CircularProgressIndicator(
+                color = Color.White,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(24.dp),
+            )
+        } else if (loadMoreError != null) {
+            Text(
+                text = "加载失败，点击重试",
+                color = Color.White,
+                fontSize = 13.sp,
+                style = TextStyle(shadow = LyricShadow),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0x33000000))
+                    .clickable(onClick = onRetry)
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            )
+        }
     }
 }
 
@@ -504,7 +603,9 @@ private fun StreamCard(
     }
 
     if (showMoreSheet) {
-        ModalBottomSheet(
+        // 原来是裸 ModalBottomSheet（无 shape / 无 handle），现统一 22dp 顶圆角 + drag handle。
+        // containerColor 显式保留沉浸式的 #1C1C1E —— 这个页面整屏是深色 EV 风格，不走纸面令牌。
+        FoxSheet(
             onDismissRequest = { showMoreSheet = false },
             sheetState = rememberModalBottomSheetState(),
             containerColor = Color(0xFF1C1C1E),
@@ -575,7 +676,8 @@ private fun StreamFeedbackSheet(
     var content by remember { mutableStateOf("") }
     val hintColor = Color.White.copy(alpha = 0.6f)
 
-    ModalBottomSheet(
+    // 统一 22dp 顶圆角 + drag handle；containerColor 保留本页面沉浸式的 #1C1C1E
+    FoxSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = Color(0xFF1C1C1E),
@@ -851,6 +953,12 @@ private fun StreamSongInfo(
 /**
  * 整曲进度条：整曲 0..duration 为底，高潮片段渲染为高亮带 + 两端刻度；可拖动 seek。
  * 拖到片段外由播放层放开限制，「只播高潮」转为整曲播放（见 MusicController.seekFree）。
+ *
+ * 绘制约定（两处曾经出过问题，别再改回去）：
+ * 1) 所有「胶囊」都用**显式半圆弧 + 直边拼 Path**，不用 drawRoundRect 的圆角推算：
+ *    曾出现同一帧里已播段右端是圆的、左端却是直角的（左端圆角丢失）；
+ * 2) 片段两端节点画成**白色圆点**且最后画（在已播段之上）：既要保证播放头经过起点时
+ *    节点不被白色已播段吃掉，又不能做成「等高竖条 + 描边」（那样是个带暗边的白方块）。
  */
 @Composable
 private fun ClipProgressBar(
@@ -912,53 +1020,71 @@ private fun ClipProgressBar(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val cy = size.height / 2f
             val trackH = 4.dp.toPx()
-            val radius = CornerRadius(trackH / 2f)
-            // 整曲轨道
-            drawRoundRect(
-                color = trackColor,
-                topLeft = Offset(0f, cy - trackH / 2f),
-                size = Size(size.width, trackH),
-                cornerRadius = radius,
-            )
-            // 高潮片段高亮带 + 两端刻度
-            if (clip != null && safeDuration > 0L) {
-                val startX = (clip.startMs.toFloat() / safeDuration).coerceIn(0f, 1f) * size.width
-                val endX = ((clip.startMs + clip.durationMs).toFloat() / safeDuration)
-                    .coerceIn(0f, 1f) * size.width
-                // 高潮片段高亮带 + 两端刻度：与进度条（轨道）等高，不再高出轨道
-                val band = trackH
-                drawRoundRect(
-                    color = accent.copy(alpha = 0.35f),
-                    topLeft = Offset(startX, cy - band / 2f),
-                    size = Size((endX - startX).coerceAtLeast(0f), band),
-                    cornerRadius = CornerRadius(band / 2f),
-                )
-                val tickH = trackH
-                val tickW = 2.dp.toPx()
-                drawLine(
-                    color = Color.White.copy(alpha = 0.9f),
-                    start = Offset(startX, cy - tickH / 2f),
-                    end = Offset(startX, cy + tickH / 2f),
-                    strokeWidth = tickW,
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = 0.9f),
-                    start = Offset(endX, cy - tickH / 2f),
-                    end = Offset(endX, cy + tickH / 2f),
-                    strokeWidth = tickW,
-                )
+            val capR = trackH / 2f
+            val w = size.width
+            val top = cy - capR
+            val bottom = cy + capR
+
+            /** 胶囊路径：[fromX]..[toX]，两端必为半圆（宽度不足一个圆时半径自动收敛）。 */
+            fun pillPath(fromX: Float, toX: Float): Path? {
+                val left = fromX.coerceIn(0f, w)
+                val right = toX.coerceIn(0f, w)
+                val length = right - left
+                if (length <= 0.5f) return null
+                val r = minOf(capR, length / 2f)
+                return Path().apply {
+                    moveTo(left + r, top)
+                    lineTo(right - r, top)
+                    // 右端半圆：-90° 顺时针扫 180°
+                    arcTo(Rect(right - 2 * r, top, right, bottom), -90f, 180f, false)
+                    lineTo(left + r, bottom)
+                    // 左端半圆：90° 顺时针扫 180°
+                    arcTo(Rect(left, top, left + 2 * r, bottom), 90f, 180f, false)
+                    close()
+                }
             }
-            // 播放进度：拖动中改为主色，明确「正在预览」
-            val progressX = fraction * size.width
-            drawRoundRect(
-                color = if (dragging) accent else Color.White,
-                topLeft = Offset(0f, cy - trackH / 2f),
-                size = Size(progressX, trackH),
-                cornerRadius = radius,
+
+            fun pill(fromX: Float, toX: Float, color: Color) {
+                pillPath(fromX, toX)?.let { drawPath(it, color) }
+            }
+
+            // ① 整曲轨道
+            pill(0f, w, trackColor)
+
+            val clipStartX = if (clip != null && safeDuration > 0L) {
+                (clip.startMs.toFloat() / safeDuration).coerceIn(0f, 1f) * w
+            } else {
+                null
+            }
+            val clipEndX = if (clip != null && safeDuration > 0L) {
+                ((clip.startMs + clip.durationMs).toFloat() / safeDuration).coerceIn(0f, 1f) * w
+            } else {
+                null
+            }
+            // ② 高潮片段高亮带（与轨道等高，不冒头）
+            if (clipStartX != null && clipEndX != null && clipEndX > clipStartX) {
+                pill(clipStartX, clipEndX, accent.copy(alpha = 0.35f))
+            }
+
+            // ③ 已播进度：拖动中改主色，明确「正在预览」
+            pill(0f, fraction * w, if (dragging) accent else Color.White)
+
+            // ④ 片段两端节点：**白色圆点**（略大于轨道直径，压在进度条之上）。
+            // 不要再画成「等高白色竖条 + 深色描边」——4dp 的轨道上那样会显示成一个
+            // 带两条暗竖线的白方块，用户明确否决。
+            if (clipStartX != null && clipEndX != null) {
+                // 圆点直径 = 轨道高度（dotR = capR = trackH/2），不超出进度条
+                listOf(clipStartX, clipEndX).forEach { x ->
+                    drawCircle(color = Color.White, radius = capR, center = Offset(x, cy))
+                }
+            }
+
+            // ⑤ 拖动手柄：与进度条等高，拖动中进度条转主色，白色手柄浮在其上可见
+            drawCircle(
+                color = Color.White,
+                radius = capR,
+                center = Offset(fraction * w, cy),
             )
-            // 拖动手柄（节点）：与进度条等高，不再高出轨道；拖动中进度条转为主色，白色手柄浮在其上可见
-            val knobRadius = trackH / 2f
-            drawCircle(color = Color.White, radius = knobRadius, center = Offset(progressX, cy))
         }
     }
 }
@@ -1063,12 +1189,12 @@ private fun formatStreamCount(count: Int): String? {
 }
 
 /**
- * 「听歌模式」侧边栏宿主（自绘遮罩 + 自左滑入面板）。
+ * 「听歌模式」弹层宿主（BottomSheet，按用户反馈从侧滑抽屉改回底部弹层）。
  *
- * 由外层 Tab 宿主渲染在**底部 Tab 栏之后**，因此抽屉与遮罩能盖住底栏（此前放在音流页内会被底栏压住）。
- * 关闭时不组合任何内容，避免像 [ModalNavigationDrawer] 那样在收起态吞掉页面/底栏的点击。
- * 面板取色跟随应用主题（不再硬编码深色汽水风）。
+ * 由外层 Tab 宿主渲染在**底部 Tab 栏之后**，弹层与遮罩能盖住底栏。
+ * 内容沿用原型 06「按心情听」的层级：hero 卡 → 输入行 → 分组 chips。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StreamSceneDrawerHost(
     open: Boolean,
@@ -1077,57 +1203,30 @@ fun StreamSceneDrawerHost(
     onSubmit: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 关闭动画播完再移除组合，保证滑出过程完整
-    var composed by remember { mutableStateOf(open) }
-    val progress = remember { Animatable(if (open) 1f else 0f) }
-    LaunchedEffect(open) {
-        if (open) {
-            composed = true
-            progress.animateTo(1f, animationSpec = tween(durationMillis = 220))
-        } else {
-            progress.animateTo(0f, animationSpec = tween(durationMillis = 180))
-            composed = false
-        }
-    }
-    if (!composed) return
-
-    val fraction = progress.value
-    val scheme = MaterialTheme.colorScheme
-
-    Box(modifier = modifier.fillMaxSize()) {
-        // 遮罩：点击关闭。fraction 为 0 时不组合，关闭后不拦截底栏/页面点击
-        if (fraction > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f * fraction))
-                    .pointerInput(Unit) { detectTapGestures { onClose() } },
-            )
-        }
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val panelWidth = maxWidth * PanelWidthFraction
-            val panelWidthPx = with(LocalDensity.current) { panelWidth.toPx() }
-            Surface(
-                color = scheme.surface,
-                contentColor = scheme.onSurface,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(panelWidth)
-                    .offset { IntOffset((-(1f - fraction) * panelWidthPx).roundToInt(), 0) },
-            ) {
-                StreamScenePanel(
-                    currentMood = currentMood,
-                    onSubmit = onSubmit,
-                )
-            }
-        }
+    if (!open) return
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // 统一走 FoxSheet：22dp 顶圆角 + drag handle。原本用 colorScheme.background，
+    // 这里显式沿用，避免深浅主题下与页面底色脱节。
+    FoxSheet(
+        onDismissRequest = onClose,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier,
+    ) {
+        StreamScenePanel(
+            currentMood = currentMood,
+            onSubmit = onSubmit,
+        )
     }
 }
 
 /**
- * 听歌模式侧边栏内容：标题 + 副标题、默认模式单选行、自由心情输入（限 20 字）、更多推荐 3 列网格。
- * 任一提交都会切换风格并关闭抽屉（走既有 StreamUiIntent.Load 提交路径）。
+ * 听歌模式侧边栏内容（原型 06「按心情听」）：
+ * 深色 hero 卡（当前场景 + 跳动柱 + 换一首）→ 输入行（46dp 输入 + 黑圆提交）→
+ * 按「情绪 / 场景 / 能量 / 曲风与语言」分组的 chips，选中态只有一处（实心墨底）。
+ * 旧版是「默认模式横条 + 一整面 3 列图标格子」，没有信息层级，选择成本高。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StreamScenePanel(
     currentMood: String?,
@@ -1138,177 +1237,286 @@ private fun StreamScenePanel(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            // 弹层限高：chips 全展开内容很长，超出部分弹层内滚动
+            .heightIn(max = 640.dp)
             .verticalScroll(rememberScrollState())
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = FoxSpacing.pagePadding)
             .navigationBarsPadding()
-            .padding(bottom = 24.dp),
+            .padding(bottom = 24.dp, top = 4.dp),
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "听歌模式",
+            text = "按心情听",
             color = scheme.onSurface,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
-
         Text(
-            text = "选个当下心情，为你刷更合拍的歌",
+            text = "选一个场景，为你刷更合拍的片段",
             color = scheme.onSurfaceVariant,
-            fontSize = 13.sp,
+            fontSize = 12.5.sp,
+            modifier = Modifier.padding(top = 4.dp),
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        // 默认模式：单选行，选中即提交 null（走服务端默认推荐）
-        SceneDefaultRow(
-            selected = currentMood == null,
-            onClick = { onSubmit(null) },
+        SceneHeroCard(
+            currentMood = currentMood,
+            onReshuffle = { onSubmit(currentMood) },
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
+        // ── 自由输入：46dp 输入框 + 46dp 墨色圆提交键，一条轴 ───────────────
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it.take(MoodMaxLength) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                placeholder = { Text("输入风格或心情", color = scheme.onSurfaceVariant) },
-                // 字数上限提示
-                supportingText = {
-                    Text("${text.length}/$MoodMaxLength", color = scheme.onSurfaceVariant)
-                },
-                // 取色跟随主题（不再强制深色面板白字白框）
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = scheme.onSurface,
-                    unfocusedTextColor = scheme.onSurface,
-                    focusedBorderColor = scheme.primary,
-                    unfocusedBorderColor = scheme.outline,
-                    cursorColor = scheme.primary,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                ),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = { onSubmit(text.trim().ifBlank { null }) },
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    // 白底 + 发丝描边：设计稿输入框是白底轻描边（米色 sheet 上
+                    // surfaceVariant 底分离度不足，输入感偏弱）。
+                    .background(scheme.surface)
+                    .border(1.dp, scheme.onSurface.copy(alpha = 0.10f), RoundedCornerShape(13.dp))
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("换一批")
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it.take(MoodMaxLength) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = scheme.onSurface),
+                    cursorBrush = SolidColor(scheme.primary),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { inner ->
+                        if (text.isEmpty()) {
+                            Text(
+                                text = "输入风格或心情，例如「雨天 通勤」",
+                                color = scheme.onSurface.copy(alpha = 0.4f),
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        inner()
+                    },
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(scheme.onSurface)
+                    .clickable { onSubmit(text.trim().ifBlank { null }) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowUpward,
+                    contentDescription = "提交",
+                    tint = scheme.background,
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
         Text(
-            text = "更多推荐",
-            color = scheme.onSurface,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            text = "${text.length} / $MoodMaxLength",
+            color = scheme.onSurface.copy(alpha = 0.38f),
+            fontSize = 10.5.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 5.dp),
+            textAlign = TextAlign.End,
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        StreamScenes.chunked(3).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+        // ── 分组 chips ──────────────────────────────────────────────────
+        SceneGroups.forEach { group ->
+            Text(
+                text = group.label,
+                color = scheme.onSurface.copy(alpha = 0.38f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.6.sp,
+                modifier = Modifier.padding(top = 16.dp, bottom = 9.dp),
+            )
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                row.forEach { scene ->
-                    SceneCell(
-                        scene = scene,
-                        modifier = Modifier.weight(1f),
-                        selected = scene.mood == currentMood,
+                group.scenes.forEach { scene ->
+                    val isDefault = scene.mood == null
+                    SceneChip(
+                        label = scene.label,
+                        selected = scene.mood == currentMood || (isDefault && currentMood == null),
+                        warm = scene.mood in WarmMoods,
                         onClick = { onSubmit(scene.mood) },
                     )
                 }
-                repeat(3 - row.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
 
+/** 当前场景 hero 卡：深底 + 跳动柱 + 换一首。点「换一首」按当前场景重刷一批片段。 */
 @Composable
-private fun SceneDefaultRow(
-    selected: Boolean,
-    onClick: () -> Unit,
+private fun SceneHeroCard(
+    currentMood: String?,
+    onReshuffle: () -> Unit,
 ) {
-    val scheme = MaterialTheme.colorScheme
-    Row(
+    val label = moodSceneLabel(currentMood) ?: "默认模式"
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) scheme.primary else scheme.surfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(RoundedCornerShape(16.dp))
+            .background(InkGlass)
+            .clickable(onClick = onReshuffle)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
     ) {
-        // 选中态用一个小播放 glyph，呼应「正在按默认模式播放」
-        Icon(
-            imageVector = if (selected) Icons.Filled.PlayArrow else Icons.Filled.AutoAwesome,
-            contentDescription = null,
-            tint = if (selected) scheme.onPrimary else scheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = "默认模式",
-            color = if (selected) scheme.onPrimary else scheme.onSurface,
-            fontSize = 15.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.weight(1f),
-        )
-        if (selected) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SceneEqBars()
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    color = Color(0xFFFBF8F4),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "正在按场景连播高潮片段",
+                    color = Color.White.copy(alpha = 0.55f),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             Text(
-                text = "播放中",
-                color = scheme.onPrimary.copy(alpha = 0.65f),
-                fontSize = 12.sp,
+                text = "换一首",
+                color = Color(0xFFFBF8F4),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.26f), RoundedCornerShape(999.dp))
+                    .clickable(onClick = onReshuffle)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+/** 三根错峰跳动的柱子（与 MusicListItem 的 NowPlayingBars 同款语言，尺寸放大）。 */
+@Composable
+private fun SceneEqBars() {
+    val transition = rememberInfiniteTransition(label = "eq")
+    val heights = listOf(7.dp, 14.dp, 10.dp)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+        verticalAlignment = Alignment.Bottom,
+        modifier = Modifier.height(18.dp),
+    ) {
+        heights.forEachIndexed { index, h ->
+            val phase by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 520, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse,
+                    initialStartOffset = StartOffset(index * 170),
+                ),
+                label = "eq$index",
+            )
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(h * (0.45f + 0.55f * phase))
+                    .background(Color(0xFFE2563C), RoundedCornerShape(2.dp)),
             )
         }
     }
 }
 
 @Composable
-private fun SceneCell(
-    scene: StreamScene,
-    modifier: Modifier = Modifier,
-    /** 当前生效的听歌模式（含冷启动记忆恢复的场景）→ 高亮显示 */
-    selected: Boolean = false,
+private fun SceneChip(
+    label: String,
+    selected: Boolean,
+    warm: Boolean,
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val background = if (selected) scheme.primaryContainer else scheme.surfaceVariant
-    val content = if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+    val background = when {
+        selected -> scheme.onSurface
+        warm -> Color(0xFFF1E4DC)
+        else -> scheme.surfaceVariant
+    }
+    val content = when {
+        selected -> scheme.background
+        warm -> Color(0xFF8E4130)
+        else -> scheme.onSurface.copy(alpha = 0.85f)
+    }
+    Text(
+        text = label,
+        color = content,
+        fontSize = 12.5.sp,
+        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
             .background(background)
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            imageVector = scene.icon,
-            contentDescription = null,
-            tint = content,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = scene.label,
-            color = if (selected) scheme.onPrimaryContainer else scheme.onSurface,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    )
+}
+
+/** 场景分组：mood=null 表示「回到默认推荐」。 */
+private data class SceneGroup(val label: String, val scenes: List<SceneChipItem>)
+private data class SceneChipItem(val label: String, val mood: String?)
+
+private val SceneGroups = listOf(
+    SceneGroup("情绪", listOf(
+        SceneChipItem("默认推荐", null),
+        SceneChipItem("专注模式", "专注"),
+        SceneChipItem("摸鱼", "摸鱼"),
+        SceneChipItem("深夜 EMO", "深夜EMO"),
+        SceneChipItem("快乐时光", "快乐"),
+        SceneChipItem("好运", "好运"),
+        SceneChipItem("失恋必听", "失恋"),
+        SceneChipItem("躺平", "躺平"),
+    )),
+    SceneGroup("场景", listOf(
+        SceneChipItem("助眠模式", "助眠"),
+        SceneChipItem("洗澡", "洗澡"),
+        SceneChipItem("通勤必听", "通勤"),
+        SceneChipItem("Chill 放松", "Chill"),
+        SceneChipItem("打扫", "打扫"),
+        SceneChipItem("抖音漫游", "抖音"),
+    )),
+    SceneGroup("能量", listOf(
+        SceneChipItem("动感健身", "健身"),
+        SceneChipItem("电音", "电音"),
+        SceneChipItem("打游戏", "游戏"),
+    )),
+    SceneGroup("曲风与语言", listOf(
+        SceneChipItem("华语", "华语"),
+        SceneChipItem("粤语", "粤语"),
+        SceneChipItem("日韩", "日韩"),
+        SceneChipItem("欧美", "欧美"),
+        SceneChipItem("国风", "国风"),
+    )),
+)
+
+/** 高意图场景给暖色 chip（设计稿 accentSoft），给静态列表一点温度差。 */
+private val WarmMoods = setOf("助眠")
+
+private fun moodSceneLabel(mood: String?): String? {
+    val value = mood?.takeIf { it.isNotBlank() } ?: return null
+    return SceneGroups.asSequence()
+        .flatMap { it.scenes }
+        .firstOrNull { it.mood == value }
+        ?.label
+        ?: value
 }
 
 /**
@@ -1418,38 +1626,9 @@ private suspend fun ensureCoverColor(
     colors[key] = Color(argb)
 }
 
-private data class StreamScene(
-    val label: String,
-    val mood: String,
-    val icon: ImageVector,
-)
-
-/** 更多推荐的场景项；mood 为提交给服务端的短风格串。 */
-private val StreamScenes = listOf(
-    StreamScene("专注模式", "专注", Icons.Filled.Psychology),
-    StreamScene("摸鱼", "摸鱼", Icons.Filled.BeachAccess),
-    StreamScene("深夜EMO", "深夜EMO", Icons.Filled.NightsStay),
-    StreamScene("助眠模式", "助眠", Icons.Filled.Bedtime),
-    StreamScene("动感健身", "健身", Icons.Filled.FitnessCenter),
-    StreamScene("抖音漫游", "抖音", Icons.Filled.MusicVideo),
-    StreamScene("洗澡", "洗澡", Icons.Filled.Shower),
-    StreamScene("Chill放松", "Chill", Icons.Filled.SelfImprovement),
-    StreamScene("快乐时光", "快乐", Icons.Filled.SentimentVerySatisfied),
-    StreamScene("电音", "电音", Icons.Filled.GraphicEq),
-    StreamScene("好运", "好运", Icons.Filled.Celebration),
-    StreamScene("粤语", "粤语", Icons.Filled.Language),
-    StreamScene("通勤必听", "通勤", Icons.Filled.DirectionsBus),
-    StreamScene("失恋必听", "失恋", Icons.Filled.HeartBroken),
-    StreamScene("躺平", "躺平", Icons.Filled.Hotel),
-    StreamScene("欧美", "欧美", Icons.Filled.Public),
-    StreamScene("打扫", "打扫", Icons.Filled.CleaningServices),
-    StreamScene("国风", "国风", Icons.Filled.TempleBuddhist),
-    StreamScene("打游戏", "游戏", Icons.Filled.SportsEsports),
-)
 
 /** 顶栏标题：默认「听歌模式」，选中场景后展示「听歌模式 · {场景名}」。 */
 private fun streamSceneTitle(mood: String?): String {
-    val label = mood?.takeIf { it.isNotBlank() }
-        ?.let { m -> StreamScenes.firstOrNull { it.mood == m }?.label ?: m }
+    val label = moodSceneLabel(mood)
     return if (label.isNullOrBlank()) "听歌模式" else "听歌模式 · $label"
 }

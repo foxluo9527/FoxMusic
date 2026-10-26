@@ -39,6 +39,9 @@ fun PlaylistDetailScreen(
     onDownloadSelected: (List<Music>) -> Unit = {},
     onSelectionModeChanged: (Boolean) -> Unit = {},
     onOpenImportDetail: () -> Unit = {},
+    currentMusicId: Long? = null,
+    /** 整份列表（为你精选/新歌速递）加载成功：同步首页/发现页数据与正在播放的队列 */
+    onTopListLoaded: (String, List<Music>) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.uiState.collectAsState()
     val pagingItems = viewModel.tracks.collectAsLazyPagingItems()
@@ -114,6 +117,10 @@ fun PlaylistDetailScreen(
                 PlaylistDetailEffect.RefreshTracks -> {
                     pagingItems.refresh()
                 }
+
+                is PlaylistDetailEffect.TopListLoaded -> {
+                    onTopListLoaded(effect.sort, effect.list)
+                }
             }
         }
     }
@@ -148,6 +155,7 @@ fun PlaylistDetailScreen(
         onOpenImportDetail = onOpenImportDetail,
         onEditPlaylist = onEditPlaylist,
         onDeletePlaylist = { viewModel.sendIntent(PlaylistDetailIntent.DeletePlaylist) },
+        currentMusicId = currentMusicId,
         modifier = modifier,
     )
 }

@@ -106,5 +106,6 @@ fun CommunityPlazaScreen(
         playerState = playerState,
         onTagClick = onTagClick,
         onOpenDrawer = onOpenDrawer,
+        onPostsLoaded = viewModel::onPostsLoaded,
     )
 }

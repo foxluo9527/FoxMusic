@@ -11,6 +11,22 @@ data class ProviderSearchResults(
     val totalCount: Int get() = groups.values.sumOf { it.size }
 }
 
+/**
+ * 一次「按 歌名+艺人+时长 匹配」出来的歌词结果（含命中来源曲目信息）。
+ */
+data class ScrapedLyric(
+    val lyrics: String,
+    val lyricsTrans: String? = null,
+    val matchedTitle: String? = null,
+    val matchedArtist: String? = null,
+    val album: String? = null,
+    val durationMs: Long? = null,
+    /** netease / lrclib / lyricsovh */
+    val source: String? = null,
+    val sourceId: String? = null,
+    val instrumental: Boolean = false,
+)
+
 /** 平台是否已收录某首歌 */
 data class MusicExists(
     val exists: Boolean,

@@ -13,7 +13,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.Playlist
+import com.fox.music.core.model.social.Post
 import com.fox.music.feature.profile.viewmodel.MinePostsViewModel
 import com.fox.music.feature.profile.viewmodel.ProfileEffect
 import com.fox.music.feature.profile.viewmodel.ProfileIntent
@@ -45,6 +47,16 @@ fun ProfileScreen(
     onMoreFavoriteArtists: () -> Unit = {},
     currentUserId: Long? = null,
     refreshKey: Int = 0,
+    // 「动态」tab 的交互回调：之前完全没接，导致卡片里除了正文以外全是死区。
+    onPostDetail: (Long) -> Unit = {},
+    onSharePost: (Post) -> Unit = {},
+    onReportPost: (Post) -> Unit = {},
+    onDeletePost: (Post) -> Unit = {},
+    onEditPost: (Long) -> Unit = {},
+    onTagClick: (String) -> Unit = {},
+    onPlayPostMusic: (Post) -> Unit = {},
+    onNavigateToPlayer: () -> Unit = {},
+    playerState: PlayerState = PlayerState(),
     postsViewModel: MinePostsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -122,5 +134,14 @@ fun ProfileScreen(
         onMoreFavoriteArtists = onMoreFavoriteArtists,
         postPagingItems = postPagingItems,
         currentUserId = currentUserId,
+        onPostDetail = onPostDetail,
+        onSharePost = onSharePost,
+        onReportPost = onReportPost,
+        onDeletePost = onDeletePost,
+        onEditPost = onEditPost,
+        onTagClick = onTagClick,
+        onPlayPostMusic = onPlayPostMusic,
+        onNavigateToPlayer = onNavigateToPlayer,
+        playerState = playerState,
     )
 }

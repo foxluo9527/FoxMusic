@@ -36,7 +36,11 @@ class UnlockLyricCoordinator @Inject constructor(
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_SCREEN_OFF -> showLockScreenLyric(context)
+                Intent.ACTION_SCREEN_OFF -> {
+                    mainHandler.removeCallbacks(screenOnShowRunnable)
+                    // 锁屏时只在后台准备歌词页，绝不能点亮屏幕（否则用户按电源键锁不了屏）
+                    showLockScreenLyric(context)
+                }
                 Intent.ACTION_SCREEN_ON -> {
                     mainHandler.removeCallbacks(screenOnShowRunnable)
                     mainHandler.postDelayed(screenOnShowRunnable, SCREEN_ON_SHOW_DELAY_MS)

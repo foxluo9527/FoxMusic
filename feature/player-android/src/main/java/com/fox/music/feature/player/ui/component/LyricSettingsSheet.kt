@@ -547,12 +547,6 @@ private fun LyricPreviewCard(
             bold = true,
         )
         PreviewLine(
-            text = "I gave my worries to the neon",
-            color = Color(colors.translation),
-            fontSize = 11.5.sp,
-            bold = false,
-        )
-        PreviewLine(
             text = "城市在身后慢慢安静",
             color = Color(colors.normal),
             fontSize = normalSize.sp,
@@ -742,46 +736,27 @@ private fun LyricCustomColorPage(
                 .padding(bottom = 12.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(36.dp)
-                        .height(44.dp)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        tint = foxInkMuted(),
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-                Column(modifier = Modifier.padding(start = 2.dp)) {
-                    Text(
-                        text = "CUSTOM",
-                        style = FoxEditorial.kicker.copy(
-                            fontSize = 9.5.sp,
-                            lineHeight = 12.sp,
-                            letterSpacing = 2.6.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = themeAccent,
-                    )
-                    Text(
-                        text = "自定义配色",
-                        style = FoxEditorial.mastheadTitle.copy(
-                            fontSize = 19.sp,
-                            lineHeight = 22.sp,
-                            letterSpacing = (-0.6).sp,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
-                }
+            Column(modifier = Modifier.weight(1f).padding(start = 2.dp)) {
+                Text(
+                    text = "CUSTOM",
+                    style = FoxEditorial.kicker.copy(
+                        fontSize = 9.5.sp,
+                        lineHeight = 12.sp,
+                        letterSpacing = 2.6.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = themeAccent,
+                )
+                Text(
+                    text = "自定义配色",
+                    style = FoxEditorial.mastheadTitle.copy(
+                        fontSize = 19.sp,
+                        lineHeight = 22.sp,
+                        letterSpacing = (-0.6).sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
             }
             Text(
                 text = "恢复默认",
@@ -816,12 +791,6 @@ private fun LyricCustomColorPage(
                 color = Color(colors.highlight),
                 fontSize = highlightSize.sp,
                 bold = true,
-            )
-            PreviewLine(
-                text = "I gave my worries to the neon",
-                color = Color(colors.translation),
-                fontSize = 11.5.sp,
-                bold = false,
             )
         }
 

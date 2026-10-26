@@ -24,6 +24,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import com.fox.music.core.ui.theme.resolveDarkTheme
 import com.fox.music.feature.chat.chatDetailRoute
 import com.fox.music.feature.home.HOME_ROUTE
+import com.fox.music.feature.player.ui.screen.DesktopLyricSettingsRequest
 import com.fox.music.notification.FoxNotificationManager
 import com.fox.music.ui.MainScreen
 import com.fox.music.core.ui.theme.FoxMusicTheme
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
         resolveStartRoute(intent)?.let { startRoute.value = it }
+        requestLyricSettingsIfNeeded(intent)
         enableEdgeToEdge()
         setContent {
             FoxMusicApp(startRoute)
@@ -50,9 +52,21 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onNewIntent(intent: Intent, caller: ComponentCaller) {
-        super.onNewIntent(intent, caller)
+        super.onNewIntent(intent)
         setIntent(intent)
         resolveStartRoute(intent)?.let { startRoute.value = it }
+        requestLyricSettingsIfNeeded(intent)
+    }
+
+    /** 桌面歌词悬浮窗点「设置」：交给进程内信号统一导航并展开歌词设置。 */
+    private fun requestLyricSettingsIfNeeded(intent: Intent?) {
+        if (intent?.getBooleanExtra(
+                DesktopLyricSettingsRequest.EXTRA_OPEN_LYRIC_SETTINGS,
+                false,
+            ) == true
+        ) {
+            DesktopLyricSettingsRequest.request()
+        }
     }
 
     private fun resolveStartRoute(intent: Intent?): String? {
@@ -87,6 +101,7 @@ fun FoxMusicApp(startRoute: MutableState<String>) {
         darkTheme = darkTheme,
         appThemeId = userPreferences.appThemeId,
         customThemeSeedArgb = userPreferences.customThemeSeedArgb,
+        themeIntensity = userPreferences.themeIntensity,
     ) {
         MainScreen(
             modifier = Modifier.fillMaxSize(),

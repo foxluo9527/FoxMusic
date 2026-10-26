@@ -3,6 +3,7 @@ package com.fox.music.core.ui.theme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.toArgb
 import com.fox.music.core.model.user.AppThemeIds
+import com.fox.music.core.model.user.AppThemeIntensity
 import com.fox.music.core.model.user.DarkMode
 import com.fox.music.core.model.user.UserPreferences
 
@@ -23,9 +24,10 @@ fun resolveAppColorScheme(
     darkTheme: Boolean,
     appThemeId: String,
     customThemeSeedArgb: Long,
+    themeIntensity: Float = AppThemeIntensity.DEFAULT,
 ): ColorScheme {
     if (appThemeId == AppThemeIds.CUSTOM) {
-        return colorSchemeFromSeed(customThemeSeedArgb, darkTheme)
+        return colorSchemeFromSeed(customThemeSeedArgb, darkTheme, themeIntensity)
     }
     return AppThemePresets.colorScheme(appThemeId, darkTheme)
 }

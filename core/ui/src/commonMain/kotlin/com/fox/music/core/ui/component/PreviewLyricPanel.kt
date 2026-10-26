@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +68,7 @@ fun PreviewLyricPanel(
     onSeek: (Long) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    isBuffering: Boolean = false,
     artist: String = "",
     headerText: String = "原曲歌词 · 对照试听",
     emptyLyricText: String = "暂无歌词",
@@ -156,11 +158,18 @@ fun PreviewLyricPanel(
                         )
                     }
                 }
-                IconButton(onClick = onPlayPause) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "暂停" else "播放",
-                    )
+                IconButton(onClick = onPlayPause, enabled = !isBuffering) {
+                    if (isBuffering) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (isPlaying) "暂停" else "播放",
+                        )
+                    }
                 }
                 IconButton(onClick = onClose) {
                     Icon(Icons.Filled.Close, contentDescription = "关闭试听")
@@ -256,5 +265,5 @@ fun PreviewSeekBar(
 
 fun formatPreviewTime(ms: Long): String {
     val totalSec = (ms / 1000).toInt().coerceAtLeast(0)
-    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+    return "${totalSec / 60}:${(totalSec % 60).toString().padStart(2, '0')}"
 }

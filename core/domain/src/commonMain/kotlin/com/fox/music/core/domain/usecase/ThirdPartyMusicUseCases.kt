@@ -9,6 +9,7 @@ import com.fox.music.core.model.music.ProviderCandidateGroup
 import com.fox.music.core.model.music.ProviderSearchResults
 import com.fox.music.core.model.music.ResolveThirdPartyDto
 import com.fox.music.core.model.music.ResolveThirdPartyRequest
+import com.fox.music.core.model.music.ScrapedLyric
 
 /** 按精准歌名+艺人拉取多 provider 元数据（不解析音频直链） */
 class SearchProvidersByTrackUseCase constructor(
@@ -85,6 +86,25 @@ class FetchScrapedLyricsUseCase constructor(
         artist: String,
         durationMs: Long? = null,
     ): Result<String?> = searchRepository.fetchScrapedLyrics(
+        title = title,
+        artist = artist,
+        durationMs = durationMs,
+    )
+}
+
+/**
+ * 歌词纠错「最佳匹配」：按当前播放曲的 歌名+艺人+时长 直接取最优歌词。
+ * 与搜列表 + 标题全等过滤的区别：走服务端智能匹配（网易云时长 ±5s 择近、
+ * LRCLIB 兜底），且返回命中来源（哪首歌/哪个源），用户据此确认是不是同一版本。
+ */
+class FetchBestMatchedLyricUseCase constructor(
+    private val searchRepository: SearchRepository
+) {
+    suspend operator fun invoke(
+        title: String,
+        artist: String,
+        durationMs: Long? = null,
+    ): Result<ScrapedLyric?> = searchRepository.fetchScrapedLyric(
         title = title,
         artist = artist,
         durationMs = durationMs,

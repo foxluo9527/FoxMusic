@@ -41,8 +41,10 @@ fun PostMedia.noCoverFallbackAspectOrNull(): Float? =
  * iOS 用 Ktor 下载 + Skia 解码），因此拆成 expect/actual。
  */
 object PostFeedMediaAspectRatio {
-    /** 瀑布流竖图上限（再高则裁切）：9:16 */
+    /** 瀑布流竖图上限（再高则裁切）：9:16（保留给单列大图场景） */
     const val MIN = 9f / 16f
+    /** 瀑布流双列竖图上限：3:4 —— 双列下 9:16 会把两列高度差拉得过大，收窄到 3:4 节奏更稳 */
+    const val WATERFALL_MIN = 3f / 4f
     /** 单列列表竖图上限（再高则裁切）：2:3 */
     const val LIST_MIN = 2f / 3f
     /** 横图上限（再宽则裁切）：16:9 */

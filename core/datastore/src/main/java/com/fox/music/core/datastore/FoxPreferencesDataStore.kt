@@ -5,12 +5,14 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.fox.music.core.datastore.security.TokenCipher
 import com.fox.music.core.model.user.AppThemeIds
+import com.fox.music.core.model.user.AppThemeIntensity
 import com.fox.music.core.model.user.NotificationPreferenceSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -50,6 +52,7 @@ class FoxPreferencesDataStore @Inject constructor(
         val CACHE_MAX_BYTES = longPreferencesKey("cache_max_bytes")
         val THEME_PRESET_ID = stringPreferencesKey("theme_preset_id")
         val CUSTOM_THEME_SEED = longPreferencesKey("custom_theme_seed")
+        val THEME_INTENSITY = floatPreferencesKey("theme_intensity")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
         val LOCK_SCREEN_LYRIC_ENABLED = booleanPreferencesKey("lock_screen_lyric_enabled")
@@ -121,6 +124,10 @@ class FoxPreferencesDataStore @Inject constructor(
     }
     val customThemeSeed: Flow<Long> = context.dataStore.data.map {
         it[PreferencesKeys.CUSTOM_THEME_SEED] ?: 0xFFE8A838
+    }
+    /** 主题「氛围」强度（柔和 / 均衡 / 浓郁），与 themeId 存在同一个 DataStore。 */
+    val themeIntensity: Flow<Float> = context.dataStore.data.map {
+        it[PreferencesKeys.THEME_INTENSITY] ?: AppThemeIntensity.DEFAULT
     }
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map {
         it[PreferencesKeys.DYNAMIC_COLOR] ?: false
@@ -238,6 +245,12 @@ class FoxPreferencesDataStore @Inject constructor(
             prefs[PreferencesKeys.CUSTOM_THEME_SEED] = seedArgb
             prefs[PreferencesKeys.THEME_PRESET_ID] = AppThemeIds.CUSTOM
             prefs.remove(PreferencesKeys.DYNAMIC_COLOR)
+        }
+    }
+
+    suspend fun updateThemeIntensity(intensity: Float) {
+        context.dataStore.edit {
+            it[PreferencesKeys.THEME_INTENSITY] = AppThemeIntensity.normalize(intensity)
         }
     }
 

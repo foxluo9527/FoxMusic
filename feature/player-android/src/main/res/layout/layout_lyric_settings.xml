@@ -37,13 +37,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#ffb3b3" />
+                        android:background="#4A443E" />
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#FF6B6B" />
+                        android:background="#B8513A" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>
@@ -70,13 +70,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#d98cd9" />
+                        android:background="#7E776C" />
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#FF00FF" />
+                        android:background="#E8A838" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>
@@ -103,13 +103,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#ffd699" />
+                        android:background="#5C5248" />
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#FFA500" />
+                        android:background="#8C5A3C" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>
@@ -136,13 +136,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#80e8ea" />
+                        android:background="#4E5A66" />
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#00CED1" />
+                        android:background="#38708C" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>
@@ -169,13 +169,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#c8c8c8" />
+                        android:background="#525C48" />
 
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:background="#FFFFFF" />
+                        android:background="#4E7A3C" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>
