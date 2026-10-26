@@ -14,22 +14,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,8 +36,10 @@ import com.fox.music.core.model.music.Album
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.feature.playlist.viewmodel.AlbumListIntent
 import com.fox.music.feature.playlist.viewmodel.AlbumListState
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 const val ALBUM_LIST_ROUTE = "album_list"
 
@@ -55,27 +54,28 @@ fun AlbumListContent(
     modifier: Modifier = Modifier,
     onAlbumClick: (Album) -> Unit = {},
     onBackClick: () -> Unit = {},
+    // 进详情页会离开组合，滚动位置靠外部（ViewModel）存档才能「原样返回」
+    initialFirstVisibleItemIndex: Int = 0,
+    initialFirstVisibleItemScrollOffset: Int = 0,
+    onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
 ) {
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val albumPagingItems = state.albums.collectAsLazyPagingItems()
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = initialFirstVisibleItemIndex,
+        initialFirstVisibleItemScrollOffset = initialFirstVisibleItemScrollOffset,
+    )
+
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) -> onScrollPositionChange(index, offset) }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
-        TopAppBar(
-            title = {
-                Text("推荐专辑")
-            },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                        contentDescription = "返回"
-                    )
-                }
-            }, colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface,
-            ),
-            scrollBehavior = scrollBehavior
+        FoxTopBar(
+            title = "推荐专辑",
+            showBackButton = true,
+            onBackClick = onBackClick,
         )
 
         when {
@@ -104,9 +104,9 @@ fun AlbumListContent(
                 with(sharedTransitionScope) {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
+                        state = gridState,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .nestedScroll(scrollBehavior.nestedScrollConnection),
+                            .fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 16.dp, horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -117,12 +117,13 @@ fun AlbumListContent(
                             contentType = { "album_item" }
                         ) { index ->
                             albumPagingItems[index]?.let { album ->
-                                AlbumGridItem(
-                                    album = album,
-                                    sharedTransitionScope = sharedTransitionScope,
-                                    animatedContentScope = animatedContentScope,
-                                    onClick = { onAlbumClick(album) },
-                                )
+                            AlbumGridItem(
+                                album = album,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                onClick = { onAlbumClick(album) },
+                                modifier = Modifier.animateItem(),
+                            )
                             }
                         }
                     }

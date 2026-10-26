@@ -14,39 +14,41 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.theme.CoverShapeRail
+import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.feature.playlist.viewmodel.PlaylistListIntent
 import com.fox.music.feature.playlist.viewmodel.PlaylistListState
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 const val PLAYLIST_LIST_ROUTE = "playlist_list"
 
@@ -64,14 +66,29 @@ fun PlaylistListContent(
     modifier: Modifier = Modifier,
     onPlaylistClick: (Playlist) -> Unit = {},
     onBackClick: () -> Unit = {},
+    // 进详情页会离开组合，滚动位置靠外部（ViewModel）存档才能「原样返回」
+    initialFirstVisibleItemIndex: Int = 0,
+    initialFirstVisibleItemScrollOffset: Int = 0,
+    onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
 ) {
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val playlistPagingItems = state.playlists.collectAsLazyPagingItems()
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = initialFirstVisibleItemIndex,
+        initialFirstVisibleItemScrollOffset = initialFirstVisibleItemScrollOffset,
+    )
+
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) -> onScrollPositionChange(index, offset) }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         // Top App Bar
-        TopAppBar(
-            title = {
+        FoxTopBar(
+            showBackButton = true,
+            onBackClick = onBackClick,
+            titleContent = {
                 // Tab Row
                 if (state.categories.isNotEmpty()) {
                     ScrollableTabRow(
@@ -104,18 +121,6 @@ fun PlaylistListContent(
                     }
                 }
             },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                        contentDescription = "返回"
-                    )
-                }
-            }, colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface,
-            ),
-            scrollBehavior = scrollBehavior
         )
 
         // Content
@@ -144,13 +149,17 @@ fun PlaylistListContent(
             else -> {
                 with(sharedTransitionScope) {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        // 3 列大封面：4 列时标题只剩碎字，与首页 rail 的封面尺度也脱节
+                        columns = GridCells.Fixed(3),
+                        state = gridState,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .nestedScroll(scrollBehavior.nestedScrollConnection),
-                        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            vertical = 16.dp,
+                            horizontal = FoxSpacing.pagePadding,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(13.dp),
                     ) {
                         items(
                             count = playlistPagingItems.itemCount,
@@ -163,6 +172,7 @@ fun PlaylistListContent(
                                     sharedTransitionScope = sharedTransitionScope,
                                     animatedContentScope = animatedContentScope,
                                     onClick = { onPlaylistClick(playlist) },
+                                    modifier = Modifier.animateItem(),
                                 )
                             }
                         }
@@ -183,39 +193,34 @@ private fun PlaylistGridItem(
     modifier: Modifier = Modifier,
 ) {
     with(sharedTransitionScope) {
+        val scheme = MaterialTheme.colorScheme
         Column(
-            modifier = modifier
-                .padding(horizontal = 4.dp)
-                .clickable(onClick = onClick),
+            modifier = modifier.clickable(onClick = onClick),
         ) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-                shape = MaterialTheme.shapes.medium,
-            ) {
-                CachedImage(
-                    imageUrl = playlist.coverImage,
-                    contentDescription = playlist.title,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .sharedElement(
-                            sharedTransitionScope.rememberSharedContentState("playlist-cover-${playlist.id}"),
-                            animatedContentScope
-                        ),
-                    shape = MaterialTheme.shapes.medium,
-                    placeholderIcon = Icons.AutoMirrored.Filled.QueueMusic,
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
+            CachedImage(
+                imageUrl = playlist.coverImage,
+                contentDescription = playlist.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .sharedElement(
+                        sharedTransitionScope.rememberSharedContentState("playlist-cover-${playlist.id}"),
+                        animatedContentScope
+                    ),
+                shape = CoverShapeRail,
+                placeholderIcon = Icons.AutoMirrored.Filled.QueueMusic,
+            )
+            Spacer(modifier = Modifier.height(9.dp))
             Text(
                 text = playlist.title,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                color = scheme.onBackground,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         }
     }

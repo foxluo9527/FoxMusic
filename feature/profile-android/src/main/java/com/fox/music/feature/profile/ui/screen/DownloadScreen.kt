@@ -19,9 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -34,12 +34,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,11 +55,17 @@ import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.DownloadActionBottomSheet
 import com.fox.music.core.ui.component.FoxIndeterminateLinearProgress
 import com.fox.music.core.ui.component.FoxLinearProgress
+import com.fox.music.core.ui.component.JumpToPlayingFabForList
+import com.fox.music.core.ui.component.LocalJumpHighlight
+import com.fox.music.core.ui.component.LocalNowPlayingMusicId
+import com.fox.music.core.ui.component.jumpHighlight
 import com.fox.music.core.ui.theme.CoverShapeRail
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.feature.profile.viewmodel.DownloadEffect
 import com.fox.music.feature.profile.viewmodel.DownloadViewModel
+import kotlinx.coroutines.launch
 
 const val DOWNLOAD_MANAGER_ROUTE = "download_manager"
 
@@ -109,6 +114,15 @@ fun DownloadScreen(
     val showActionSheet by viewModel.showActionSheet.collectAsState()
     val totalBytes by viewModel.totalBytes.collectAsState()
     val context = LocalContext.current
+    // 正在播放（app 层 provide）：用于高亮 + 「跳到正在播放」
+    val nowPlayingId = LocalNowPlayingMusicId.current
+    val downloadListState = rememberLazyListState()
+    val jumpScope = rememberCoroutineScope()
+    val jumpHighlight = LocalJumpHighlight.current
+    // 列表头部两个 item（批量操作卡 + 存储提示），任务从索引 2 开始
+    val playingTaskIndex =
+        if (nowPlayingId == null) -1 else downloads.indexOfFirst { it.musicId == nowPlayingId }
+    val playingLazyIndex = if (playingTaskIndex >= 0) playingTaskIndex + 2 else -1
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
@@ -124,23 +138,23 @@ fun DownloadScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "下载管理",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            FoxTopBar(
+                title = "下载管理",
+                showBackButton = true,
+                onBackClick = onBack,
+            )
+        },
+        floatingActionButton = {
+            JumpToPlayingFabForList(
+                listState = downloadListState,
+                targetIndex = playingLazyIndex,
+                onClick = {
+                    jumpScope.launch {
+                        downloadListState.animateScrollToItem(playingLazyIndex)
+                        // 到位后再闪一下，强调「就是这一行」
+                        jumpHighlight.flash(nowPlayingId)
                     }
-                }
+                },
             )
         },
     ) { padding ->
@@ -159,6 +173,7 @@ fun DownloadScreen(
             }
         } else {
             LazyColumn(
+                state = downloadListState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
@@ -223,6 +238,7 @@ fun DownloadScreen(
                     DownloadTaskItem(
                         task = task,
                         statusLabel = viewModel.statusLabel(task),
+                        isNowPlaying = task.musicId == nowPlayingId,
                         onClick = {
                             when (task.status) {
                                 DownloadStatus.COMPLETED -> viewModel.playDownload(task)
@@ -270,6 +286,7 @@ private fun DownloadTaskItem(
     onClick: () -> Unit,
     onActionClick: () -> Unit,
     onMoreClick: () -> Unit,
+    isNowPlaying: Boolean = false,
 ) {
     val scheme = MaterialTheme.colorScheme
     // v12：已完成的任务不再给「播放」动作键。
@@ -298,6 +315,7 @@ private fun DownloadTaskItem(
             .background(scheme.surface)
             .border(1.dp, PaperHairline, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
+            .jumpHighlight(task.musicId)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -313,7 +331,7 @@ private fun DownloadTaskItem(
                 text = task.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
-                color = scheme.onSurface,
+                color = if (isNowPlaying) scheme.primary else scheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Pause
@@ -32,8 +31,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -58,6 +55,8 @@ import com.fox.music.core.ui.component.FoxLinearProgress
 import com.fox.music.core.ui.component.InputDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.SearchBar
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarTextAction
 import com.fox.music.feature.player.viewmodel.ManageSearchEffect
 import com.fox.music.feature.player.viewmodel.ManageSearchIntent
 import com.fox.music.feature.player.viewmodel.ManageSearchPlatform
@@ -100,22 +99,16 @@ fun ManageSearchScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("搜索音乐") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+            FoxTopBar(
+                title = "搜索音乐",
+                showBackButton = true,
+                onBackClick = onBack,
                 actions = {
-                    TextButton(onClick = { viewModel.sendIntent(ManageSearchIntent.ShowPlaylistImport) }) {
-                        Text("导入歌单")
-                    }
+                    FoxTopBarTextAction(
+                        text = "导入歌单",
+                        onClick = { viewModel.sendIntent(ManageSearchIntent.ShowPlaylistImport) },
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
         bottomBar = {

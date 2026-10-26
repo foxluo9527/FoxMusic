@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,22 +19,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,11 +39,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.theme.FoxSpacing
+import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.feature.profile.ui.util.AvatarCropHelper
 import com.fox.music.feature.profile.viewmodel.EditProfileEffect
 import com.fox.music.feature.profile.viewmodel.EditProfileIntent
@@ -103,17 +106,10 @@ fun EditProfileScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("编辑资料") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+            FoxTopBar(
+                title = "编辑资料",
+                showBackButton = true,
+                onBackClick = onBack,
             )
         },
     ) { padding ->
@@ -138,18 +134,21 @@ fun EditProfileScreen(
                 )
             }
             else -> {
+                val scheme = MaterialTheme.colorScheme
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = FoxSpacing.pagePadding),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // 头像：96dp 圆 + 1dp 发丝线环 + 右下角相机徽章（原来相机图标
+                    // 直接裸压在头像角落，和长发头像糊在一起）
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
+                            .size(96.dp)
                             .clickable(enabled = !state.isUploadingAvatar) {
                                 pickImageLauncher.launch(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
@@ -161,43 +160,60 @@ fun EditProfileScreen(
                             imageUrl = state.avatarUrl,
                             contentDescription = "头像",
                             modifier = Modifier
-                                .size(100.dp)
-                                .clip(CircleShape),
+                                .size(96.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, PaperHairline, CircleShape),
                             placeholderIcon = Icons.Default.Person,
                         )
                         if (state.isUploadingAvatar) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(36.dp),
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 2.dp,
+                                color = scheme.primary,
                             )
                         } else {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "更换头像",
+                            Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .padding(4.dp),
-                            )
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(scheme.primary)
+                                    .border(2.dp, scheme.background, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "更换头像",
+                                    tint = scheme.surface,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
                         }
                     }
                     Text(
                         text = "点击更换头像",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp),
+                        fontSize = 12.sp,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 10.dp),
                     )
                     Spacer(modifier = Modifier.height(24.dp))
+                    // 输入框：统一 12dp 圆角 + 发丝线描边，与设置页卡片语言一致
+                    val fieldShape = RoundedCornerShape(12.dp)
                     OutlinedTextField(
                         value = state.nickname,
                         onValueChange = { viewModel.sendIntent(EditProfileIntent.NicknameChange(it)) },
-                        label = { Text("昵称") },
+                        label = { Text("昵称", fontSize = 13.sp) },
                         modifier = Modifier.fillMaxWidth(),
+                        shape = fieldShape,
                         singleLine = true,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = state.signature,
                         onValueChange = { viewModel.sendIntent(EditProfileIntent.SignatureChange(it)) },
-                        label = { Text("个性签名") },
+                        label = { Text("个性签名", fontSize = 13.sp) },
                         modifier = Modifier.fillMaxWidth(),
+                        shape = fieldShape,
                         minLines = 2,
                         maxLines = 4,
                     )
@@ -206,24 +222,52 @@ fun EditProfileScreen(
                         value = state.email,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("邮箱") },
-                        supportingText = { Text("邮箱为注册账号，不可修改") },
+                        label = { Text("邮箱", fontSize = 13.sp) },
+                        supportingText = {
+                            Text(
+                                text = "邮箱为注册账号，不可修改",
+                                fontSize = 11.5.sp,
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
+                        shape = fieldShape,
                         singleLine = true,
                     )
-                    Spacer(modifier = Modifier.height(32.dp))
-                    Button(
-                        onClick = { viewModel.sendIntent(EditProfileIntent.Save) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.isLoading && !state.isUploadingAvatar,
+                    Spacer(modifier = Modifier.height(28.dp))
+                    // 保存：实心强调色全宽胶囊（替代 M3 默认 Button 的重投影样式）
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(
+                                if (!state.isLoading && !state.isUploadingAvatar) {
+                                    scheme.primary
+                                } else {
+                                    scheme.primary.copy(alpha = 0.4f)
+                                },
+                            )
+                            .clickable(enabled = !state.isLoading && !state.isUploadingAvatar) {
+                                viewModel.sendIntent(EditProfileIntent.Save)
+                            },
+                        contentAlignment = Alignment.Center,
                     ) {
                         if (state.isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = scheme.surface,
+                            )
                         } else {
-                            Text("保存")
+                            Text(
+                                text = "保存",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = scheme.surface,
+                            )
                         }
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }

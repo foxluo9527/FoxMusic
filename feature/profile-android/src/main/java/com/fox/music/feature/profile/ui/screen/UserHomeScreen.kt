@@ -6,8 +6,12 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,49 +20,54 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -78,12 +87,20 @@ import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.user.UserHomeProfile
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxDialog
+import com.fox.music.core.ui.component.FoxSheet
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PostCard
+import com.fox.music.core.ui.component.PostImagePreviewDialog
 import com.fox.music.core.ui.component.ProfileRelationshipBottomBar
 import com.fox.music.core.ui.component.ReportBottomSheet
 import com.fox.music.core.ui.component.UserLastListenedBar
+import com.fox.music.core.ui.theme.CoverShapeRow
 import com.fox.music.core.ui.theme.FoxSpacing
+import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.theme.foxHairline
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.feature.profile.ui.util.HomepageBackgroundCropHelper
 import com.fox.music.feature.profile.ui.util.UserHomeCoverSpec
 import com.fox.music.feature.profile.viewmodel.UserHomeEffect
@@ -119,6 +136,8 @@ fun UserHomeScreen(
     val pagerState = rememberPagerState { UserHomeTabs.size }
     val scope = rememberCoroutineScope()
     val postPagingItems = viewModel.postsPagingFlow.collectAsLazyPagingItems()
+    // 头像 / 背景图点击后的全屏浏览（复用帖子图片预览：黑底 + 双指缩放 + 双击放大）
+    var previewImage by remember { mutableStateOf<String?>(null) }
 
     val cropBackgroundLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -239,6 +258,13 @@ fun UserHomeScreen(
                         onBack = viewModel::onBackClick,
                         onMore = { viewModel.sendIntent(UserHomeIntent.ShowMoreSheet) },
                         onPlayLastListened = viewModel::onLastListenedClick,
+                        onAvatarClick = {
+                            profile.avatar?.takeIf { it.isNotBlank() }?.let { previewImage = it }
+                        },
+                        onBackgroundClick = {
+                            profile.homepageBackground?.takeIf { it.isNotBlank() }
+                                ?.let { previewImage = it }
+                        },
                     )
                     UserHomeTabRow(
                         selectedTab = state.selectedTab,
@@ -318,23 +344,14 @@ fun UserHomeScreen(
     }
 
     if (state.showBlockDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.sendIntent(UserHomeIntent.DismissBlockDialog) },
-            title = { Text("加入黑名单") },
-            text = { Text("确定要将该用户加入黑名单吗？加入后将自动解除好友关系。") },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.sendIntent(UserHomeIntent.ConfirmBlock) },
-                    enabled = !state.isBlocking,
-                ) {
-                    Text("确定", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.sendIntent(UserHomeIntent.DismissBlockDialog) }) {
-                    Text("取消")
-                }
-            },
+        FoxDialog(
+            title = "加入黑名单",
+            text = "确定要将该用户加入黑名单吗？加入后将自动解除好友关系。",
+            confirmText = "确定",
+            onDismiss = { viewModel.sendIntent(UserHomeIntent.DismissBlockDialog) },
+            onConfirm = { viewModel.sendIntent(UserHomeIntent.ConfirmBlock) },
+            confirmEnabled = !state.isBlocking,
+            destructive = true,
         )
     }
 
@@ -349,6 +366,14 @@ fun UserHomeScreen(
             },
         )
     }
+
+    previewImage?.let { url ->
+        PostImagePreviewDialog(
+            images = listOf(url),
+            initialIndex = 0,
+            onDismiss = { previewImage = null },
+        )
+    }
 }
 
 @Composable
@@ -357,68 +382,51 @@ private fun UserHomeTopOverlay(
     showMore: Boolean,
     onMore: () -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        UserHomeOverlayIconButton(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "返回",
-            onClick = onBack,
-        )
-        if (showMore) {
-            UserHomeOverlayIconButton(
-                icon = Icons.Default.MoreVert,
-                contentDescription = "更多",
-                onClick = onMore,
-            )
-        } else {
-            Spacer(modifier = Modifier.size(36.dp))
-        }
-    }
+    FoxTopBar(
+        showBackButton = true,
+        onBackClick = onBack,
+        onMedia = true,
+        actions = {
+            if (showMore) {
+                FoxTopBarIconAction(
+                    icon = Icons.Default.MoreVert,
+                    contentDescription = "更多",
+                    onClick = onMore,
+                    tint = Color.White,
+                )
+            }
+        },
+    )
 }
 
-@Composable
-private fun UserHomeOverlayIconButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.35f))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = Color.White,
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}
-
+/**
+ * 个人主页头部：照片从下往上淡出成纸感底色，身份信息落在"纸面"而不是照片上。
+ *
+ * 改版前的三个问题：
+ * 1. 昵称 / 签名是纯白压在照片上，浅色照片（本例是米色被褥）只有 1.6:1 左右，几乎读不出来；
+ * 2. 头像与照片之间没有任何边界，80dp 圆直接"融"进背景；
+ * 3. 照片底边硬切到下面的白底 tab 行，中间少了一层过渡。
+ *
+ * 现在改成：照片保留在上半部，底部用 [MaterialTheme.colorScheme.background] 渐隐收口，
+ * 昵称/签名改用墨色（纸面上约 16:1），头像加 2.5dp 白环 + 阴影跨在渐变交界处。
+ */
 @Composable
 private fun UserHomeHeader(
     profile: UserHomeProfile,
     onBack: () -> Unit,
     onMore: () -> Unit,
     onPlayLastListened: () -> Unit,
+    onAvatarClick: () -> Unit = {},
+    onBackgroundClick: () -> Unit = {},
 ) {
     val scheme = MaterialTheme.colorScheme
+    val hasBackground = !profile.homepageBackground.isNullOrBlank()
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(UserHomeCoverSpec.WIDTH_TO_HEIGHT),
     ) {
-        if (!profile.homepageBackground.isNullOrBlank()) {
+        if (hasBackground) {
             CachedImage(
                 imageUrl = profile.homepageBackground,
                 contentDescription = null,
@@ -427,38 +435,66 @@ private fun UserHomeHeader(
                 contentScale = ContentScale.Crop,
                 placeholderIcon = Icons.Default.Image,
             )
+            // 背景层点击看大图：无涟漪（整屏 ripple 太跳），压在图片之上、
+            // 头像 / 顶部按钮 / 最近在听浮层之下，只有点到空白背景才触发。
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.18f)),
+                    .background(Color.Black.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onBackgroundClick,
+                    ),
             )
         } else {
+            // 没有自定义背景时不再用「主色 + 次色横向渐变」（两色相接处会出一条脏边），
+            // 改成同色系自上而下的一次衰减，仍保留一点顶部光感。
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        Brush.horizontalGradient(
+                        Brush.verticalGradient(
                             listOf(
-                                scheme.primary.copy(alpha = 0.35f),
-                                scheme.secondary.copy(alpha = 0.22f),
-                                scheme.surfaceVariant.copy(alpha = 0.5f),
+                                scheme.primary.copy(alpha = 0.18f),
+                                scheme.primary.copy(alpha = 0.07f),
+                                scheme.background,
                             ),
                         ),
                     ),
             )
         }
 
+        // 顶部压暗：给返回 / 更多 / 最近在听留出可读的深色底。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(88.dp)
+                .height(104.dp)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = 0.32f),
+                            Color.Black.copy(alpha = 0.34f),
+                            Color.Black.copy(alpha = 0.06f),
                             Color.Transparent,
                         ),
+                    ),
+                ),
+        )
+
+        // 底部渐隐：照片 → 页面底色。身份信息落在这层之上，所以文字可以用墨色。
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.62f)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        0.00f to Color.Transparent,
+                        0.34f to scheme.background.copy(alpha = 0.42f),
+                        0.62f to scheme.background.copy(alpha = 0.86f),
+                        0.82f to scheme.background,
+                        1.00f to scheme.background,
                     ),
                 ),
         )
@@ -478,106 +514,169 @@ private fun UserHomeHeader(
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
                     .padding(top = 8.dp)
-                    .height(36.dp)
-                    .padding(horizontal = 56.dp)
+                    .height(34.dp)
+                    .padding(horizontal = 58.dp)
             )
         }
 
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
+                .padding(start = 32.dp, end = 32.dp, bottom = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CachedImage(
-                imageUrl = profile.avatar,
-                contentDescription = profile.nickname,
+            Box(
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape),
-                shape = CircleShape,
-                placeholderIcon = Icons.Default.Person,
-            )
+                    .size(84.dp)
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = CircleShape,
+                        ambientColor = Color.Black.copy(alpha = 0.16f),
+                        spotColor = Color.Black.copy(alpha = 0.18f),
+                    )
+                    .background(scheme.surface, CircleShape)
+                    // 2.5dp 白环：让头像从照片里"剥"出来，同时给渐隐交界一个干净的接缝。
+                    .padding(2.5.dp)
+                    .clip(CircleShape)
+                    .then(
+                        // 有头像才可点开大图；占位态点了没意思
+                        if (!profile.avatar.isNullOrBlank()) {
+                            Modifier.clickable(onClick = onAvatarClick)
+                        } else {
+                            Modifier
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                CachedImage(
+                    imageUrl = profile.avatar,
+                    contentDescription = profile.nickname,
+                    modifier = Modifier.fillMaxSize(),
+                    shape = CircleShape,
+                    placeholderIcon = Icons.Default.Person,
+                )
+            }
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = profile.nickname?.takeIf { it.isNotBlank() } ?: "用户",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
+                // 单独指定 fontSize 会继承 bodyLarge 的 24sp lineHeight 而被裁切，
+                // 所以这里连 lineHeight 一起给死。
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 20.sp,
+                    lineHeight = 26.sp,
+                ),
+                fontWeight = FontWeight.SemiBold,
+                color = scheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             profile.signature?.takeIf { it.isNotBlank() }?.let { signature ->
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
                 Text(
                     text = signature,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.88f),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.5.sp,
+                        lineHeight = 17.sp,
+                    ),
+                    color = scheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp),
                 )
             }
         }
     }
 }
 
+/**
+ * 下划线 tab：与「我的」页的 [ProfileUnderlineTabs] 同一套规格
+ * （pagePadding 对齐、14.5sp、18dp/2dp 指示条），不再用各页各自的 16dp/24dp/3dp。
+ */
 @Composable
 private fun UserHomeTabRow(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-        UserHomeTabs.forEachIndexed { index, title ->
-            val selected = selectedTab == index
-            Column(
-                modifier = Modifier.clickable { onTabSelected(index) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = title,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+    val scheme = MaterialTheme.colorScheme
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(scheme.background)
+                .padding(horizontal = FoxSpacing.pagePadding),
+            horizontalArrangement = Arrangement.spacedBy(26.dp),
+        ) {
+            UserHomeTabs.forEachIndexed { index, title ->
+                val selected = selectedTab == index
+                val textColor by animateColorAsState(
+                    targetValue = if (selected) scheme.onBackground else scheme.onSurfaceVariant,
+                    label = "userHomeTabColor",
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(
+                val indicatorWidth by animateDpAsState(
+                    targetValue = if (selected) 18.dp else 0.dp,
+                    label = "userHomeTabIndicator",
+                )
+                Column(
                     modifier = Modifier
-                        .height(3.dp)
-                        .width(if (selected) 24.dp else 0.dp)
-                        .background(
-                            color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            shape = RoundedCornerShape(2.dp),
+                        .clickable { onTabSelected(index) }
+                        .padding(vertical = 11.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 14.5.sp,
+                            lineHeight = 19.sp,
                         ),
-                )
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = textColor,
+                    )
+                    Spacer(modifier = Modifier.height(7.dp))
+                    Box(
+                        modifier = Modifier
+                            .height(2.dp)
+                            .width(indicatorWidth)
+                            .background(scheme.primary, shape = RoundedCornerShape(2.dp)),
+                    )
+                }
             }
         }
+        HorizontalDivider(color = PaperHairline, thickness = 1.dp)
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 }
 
 @Composable
 private fun UserHomeContentRestricted(message: String) {
-    Box(
+    val scheme = MaterialTheme.colorScheme
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = FoxSpacing.pagePadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(CircleShape)
+                .background(scheme.surfaceVariant.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Spacer(modifier = Modifier.height(14.dp))
         Text(
             text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            ),
+            color = scheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
     }
@@ -597,40 +696,85 @@ private fun UserHomePlaylistTab(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = 12.dp,
+            start = FoxSpacing.pagePadding,
+            end = FoxSpacing.pagePadding,
             bottom = FoxSpacing.tabChromeBottom,
         ),
     ) {
+        // 分组标题走「标题 + 右侧计数」：计数是弱信息，退到 ink-3，不再和标题一起糊成一片灰。
         item {
-            Text(
-                text = "创建的歌单(${playlists.size})",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-        }
-        if (playlists.isEmpty()) {
-            item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 18.dp, bottom = FoxSpacing.headerGap),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = "暂无歌单",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    textAlign = TextAlign.Center,
+                    text = "创建的歌单",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                    ),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = "${playlists.size} 个",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 11.5.sp,
+                        lineHeight = 15.sp,
+                        fontFeatureSettings = "tnum",
+                    ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        if (playlists.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = "还没有创建歌单",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "在「我的」页点「创建歌单」即可开始收藏",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         } else {
-            items(playlists, key = { it.id }) { playlist ->
+            itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
                 UserHomePlaylistItem(
                     playlist = playlist,
                     onClick = { onPlaylistClick(playlist.id) },
                 )
+                // 最后一条不画线，避免列表尾巴多一根"悬空"的分隔。
+                if (index != playlists.lastIndex) {
+                    UserHomeListDivider()
+                }
             }
         }
     }
+}
+
+/** 分隔线从文字轴起算：封面 52 + 间距 13（24 的 pagePadding 已由 contentPadding 承担）。 */
+@Composable
+private fun UserHomeListDivider() {
+    HorizontalDivider(
+        color = PaperHairline,
+        thickness = 1.dp,
+        modifier = Modifier.padding(start = 65.dp),
+    )
 }
 
 @Composable
@@ -638,38 +782,54 @@ private fun UserHomePlaylistItem(
     playlist: Playlist,
     onClick: () -> Unit,
 ) {
+    val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CachedImage(
             imageUrl = playlist.coverImage,
             contentDescription = playlist.title,
             modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(12.dp)),
-            shape = RoundedCornerShape(12.dp),
+                .size(52.dp)
+                .clip(CoverShapeRow),
+            shape = CoverShapeRow,
             placeholderIcon = Icons.AutoMirrored.Filled.QueueMusic,
         )
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(13.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = playlist.title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 19.sp,
+                ),
+                fontWeight = FontWeight.Medium,
+                color = scheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${playlist.trackCount}首",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(top = 4.dp),
+                text = "${playlist.trackCount} 首",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 11.5.sp,
+                    lineHeight = 15.sp,
+                ),
+                // 旧版用 colorScheme.outline（浅灰）当副标题，纸感底上只有 2.6:1，
+                // 换成 ink-3 的 onSurfaceVariant 拿回 7:1。这里也不再"${n}首"挤在一起。
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 3.dp),
             )
         }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = scheme.onSurfaceVariant.copy(alpha = 0.45f),
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -747,43 +907,103 @@ private fun UserHomeMoreSheet(
     onReport: () -> Unit,
     onBlock: () -> Unit,
 ) {
+    val scheme = MaterialTheme.colorScheme
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    FoxSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        Column(modifier = Modifier.padding(bottom = 24.dp)) {
-            UserHomeMoreItem(
-                icon = Icons.Default.Share,
-                title = "分享名片",
-                onClick = onShareProfile,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp),
+        ) {
+            Text(
+                text = if (isSelf) "我的主页" else "更多操作",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                ),
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
             )
-            if (isSelf) {
-                UserHomeMoreItem(
-                    icon = Icons.Default.Image,
-                    title = "替换背景图",
-                    onClick = onReplaceBackground,
-                )
-                UserHomeMoreItem(
-                    icon = Icons.Default.Edit,
-                    title = "编辑资料",
-                    onClick = onEditProfile,
-                )
-                UserHomeMoreItem(
-                    icon = Icons.Default.Security,
-                    title = "隐私设置",
-                    onClick = onPrivacySettings,
-                )
-            } else {
-                UserHomeMoreItem(
-                    icon = Icons.Default.Report,
-                    title = "举报",
-                    onClick = onReport,
-                )
-                UserHomeMoreItem(
-                    icon = Icons.Default.Block,
-                    title = "加入黑名单",
-                    onClick = onBlock,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(scheme.surfaceVariant.copy(alpha = 0.5f)),
+            ) {
+                if (isSelf) {
+                    UserHomeMoreItem(
+                        icon = Icons.Default.Share,
+                        title = "分享名片",
+                        onClick = {
+                            // 分享面板会盖在操作面板上，先把本面板收起再弹。
+                            onDismiss()
+                            onShareProfile()
+                        },
+                    )
+                    UserHomeMoreDivider()
+                    UserHomeMoreItem(
+                        icon = Icons.Default.Image,
+                        title = "替换背景图",
+                        onClick = onReplaceBackground,
+                    )
+                    UserHomeMoreDivider()
+                    UserHomeMoreItem(
+                        icon = Icons.Default.Edit,
+                        title = "编辑资料",
+                        onClick = onEditProfile,
+                    )
+                    UserHomeMoreDivider()
+                    UserHomeMoreItem(
+                        icon = Icons.Default.Security,
+                        title = "隐私设置",
+                        onClick = onPrivacySettings,
+                    )
+                } else {
+                    UserHomeMoreItem(
+                        icon = Icons.Default.Share,
+                        title = "分享名片",
+                        onClick = {
+                            // 分享面板会盖在操作面板上，先把本面板收起再弹。
+                            onDismiss()
+                            onShareProfile()
+                        },
+                    )
+                    UserHomeMoreDivider()
+                    UserHomeMoreItem(
+                        icon = Icons.Default.Report,
+                        title = "举报该用户",
+                        onClick = onReport,
+                        destructive = true,
+                    )
+                    UserHomeMoreDivider()
+                    UserHomeMoreItem(
+                        icon = Icons.Default.Block,
+                        title = "加入黑名单",
+                        onClick = onBlock,
+                        destructive = true,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            // 独立「取消」：M3 默认面板只能下滑关闭，返回键之外的鼠标/单手用户没有明确出口。
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(scheme.surfaceVariant.copy(alpha = 0.5f))
+                    .clickable(onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "取消",
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.5.sp),
+                    fontWeight = FontWeight.Medium,
+                    color = scheme.onSurfaceVariant,
                 )
             }
         }
@@ -791,20 +1011,56 @@ private fun UserHomeMoreSheet(
 }
 
 @Composable
+private fun UserHomeMoreDivider() {
+    HorizontalDivider(
+        color = foxHairline(),
+        thickness = 1.dp,
+        modifier = Modifier.padding(start = 58.dp),
+    )
+}
+
+/**
+ * 面板行：图标放进 30dp 圆角方块（surface 底），让图标从「一列黑符号」变成可分组的视觉锚点；
+ * 危险操作（举报/拉黑）整行走 error 色，避免和普通设置项长得一样。
+ */
+@Composable
 private fun UserHomeMoreItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     onClick: () -> Unit,
+    destructive: Boolean = false,
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val contentColor = if (destructive) scheme.error else scheme.onSurface
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(imageVector = icon, contentDescription = null)
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(text = title, style = MaterialTheme.typography.bodyLarge)
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(scheme.surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+            ),
+            color = contentColor,
+        )
     }
 }

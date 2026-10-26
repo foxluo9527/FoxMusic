@@ -14,23 +14,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,6 +44,7 @@ import com.fox.music.core.ui.component.FoxDualPrimaryDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PlaylistPickerBottomSheet
 import com.fox.music.core.ui.component.PreviewLyricPanel
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.feature.player.viewmodel.CollectTrackArgs
 import com.fox.music.feature.player.viewmodel.CollectTrackEffect
 import com.fox.music.feature.player.viewmodel.CollectTrackIntent
@@ -92,24 +86,10 @@ fun CollectTrackScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        when (state.mode) {
-                            "add_single" -> "添加单曲"
-                            else -> "收录到平台"
-                        },
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
+            FoxTopBar(
+                title = if (state.mode == "add_single") "添加单曲" else "收录到平台",
+                showBackButton = true,
+                onBackClick = onBack,
             )
         },
         bottomBar = {

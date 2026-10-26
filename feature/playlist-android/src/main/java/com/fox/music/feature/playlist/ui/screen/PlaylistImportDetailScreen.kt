@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -39,8 +38,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +66,8 @@ import com.fox.music.core.ui.component.FoxMultiInputDialog
 import com.fox.music.core.ui.component.FoxSheet
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PreviewLyricPanel
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarTextAction
 import com.fox.music.feature.playlist.viewmodel.PlaylistImportDetailEffect
 import com.fox.music.feature.playlist.viewmodel.PlaylistImportDetailIntent
 import com.fox.music.feature.playlist.viewmodel.PlaylistImportDetailState
@@ -107,28 +106,25 @@ fun PlaylistImportDetailScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("导入详情") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+            FoxTopBar(
+                title = "导入详情",
+                showBackButton = true,
+                onBackClick = onBack,
                 actions = {
                     val detail = state.detail
                     if (detail != null && detail.failed > 0) {
-                        TextButton(
+                        FoxTopBarTextAction(
+                            text = "全部重试",
                             onClick = { viewModel.sendIntent(PlaylistImportDetailIntent.RetryAll) },
-                        ) { Text("全部重试") }
+                        )
                     }
                     if (detail != null && !detail.isFinished) {
-                        TextButton(onClick = { showCancelConfirm = true }) { Text("取消") }
+                        FoxTopBarTextAction(
+                            text = "取消",
+                            onClick = { showCancelConfirm = true },
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
     ) { padding ->

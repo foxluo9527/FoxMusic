@@ -32,7 +32,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,6 +49,8 @@ import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.core.ui.component.LoadingIndicator
+import com.fox.music.core.ui.component.FoxTopBarSpec
+import com.fox.music.core.ui.component.FoxTopBarTextAction
 import com.fox.music.feature.playlist.viewmodel.PlaylistEditEffect
 import com.fox.music.feature.playlist.viewmodel.PlaylistEditIntent
 import com.fox.music.feature.playlist.viewmodel.PlaylistEditViewModel
@@ -109,18 +110,22 @@ fun PlaylistEditScreen(
                 showBackButton = true,
                 onBackClick = onBack,
                 actions = {
-                    TextButton(
-                        onClick = { viewModel.sendIntent(PlaylistEditIntent.Save) },
-                        enabled = !state.isSaving && !state.isLoading,
-                    ) {
-                        if (state.isSaving) {
+                    if (state.isSaving) {
+                        Box(
+                            modifier = Modifier.size(FoxTopBarSpec.ActionBox),
+                            contentAlignment = Alignment.Center,
+                        ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
                                 strokeWidth = 2.dp,
                             )
-                        } else {
-                            Text("保存")
                         }
+                    } else {
+                        FoxTopBarTextAction(
+                            text = "保存",
+                            onClick = { viewModel.sendIntent(PlaylistEditIntent.Save) },
+                            enabled = !state.isSaving && !state.isLoading,
+                        )
                     }
                 },
             )

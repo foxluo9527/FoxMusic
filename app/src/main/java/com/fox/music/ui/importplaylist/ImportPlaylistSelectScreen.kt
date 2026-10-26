@@ -19,9 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -31,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarTextAction
 
 const val IMPORT_PLAYLIST_SELECT_ROUTE = "import_playlist_select/{url}"
 
@@ -58,19 +57,20 @@ fun ImportPlaylistSelectScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("选择导入歌曲") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) { Text("返回") }
-                },
+            FoxTopBar(
+                title = "选择导入歌曲",
+                showBackButton = true,
+                onBackClick = onBack,
                 actions = {
-                    TextButton(onClick = { viewModel.selectAll(true) }) { Text("全选") }
-                    TextButton(onClick = { viewModel.selectAll(false) }) { Text("清空") }
+                    FoxTopBarTextAction(
+                        text = "全选",
+                        onClick = { viewModel.selectAll(true) },
+                    )
+                    FoxTopBarTextAction(
+                        text = "清空",
+                        onClick = { viewModel.selectAll(false) },
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
     ) { padding ->

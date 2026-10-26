@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ReportProblem
@@ -29,13 +28,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,6 +51,8 @@ import com.fox.music.core.model.feedback.MusicFeedbackRecord
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.EmptyView
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.feature.profile.viewmodel.FeedbackFilter
 import com.fox.music.feature.profile.viewmodel.FeedbackHistoryEffect
@@ -110,21 +108,16 @@ fun FeedbackHistoryScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("音源反馈记录") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+            FoxTopBar(
+                title = "音源反馈记录",
+                showBackButton = true,
+                onBackClick = onBack,
                 actions = {
-                    IconButton(onClick = { viewModel.sendIntent(FeedbackHistoryIntent.Refresh) }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "刷新")
-                    }
+                    FoxTopBarIconAction(
+                        icon = Icons.Filled.Refresh,
+                        contentDescription = "刷新",
+                        onClick = { viewModel.sendIntent(FeedbackHistoryIntent.Refresh) },
+                    )
                 },
             )
         },

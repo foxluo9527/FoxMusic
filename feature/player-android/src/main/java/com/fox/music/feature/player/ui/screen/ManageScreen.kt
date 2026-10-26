@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -40,8 +39,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,6 +68,8 @@ import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.SearchBar
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.feature.player.viewmodel.ManageEffect
 import com.fox.music.feature.player.viewmodel.ManageIntent
 import com.fox.music.feature.player.viewmodel.ManageViewModel
@@ -127,24 +126,17 @@ fun ManageScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("曲库管理") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
+            FoxTopBar(
+                title = "曲库管理",
+                showBackButton = true,
+                onBackClick = onBack,
                 actions = {
-                    IconButton(
+                    FoxTopBarIconAction(
+                        icon = Icons.Default.Refresh,
+                        contentDescription = "刷新",
                         onClick = { viewModel.sendIntent(ManageIntent.Refresh) },
                         enabled = state.isLoggedIn && !state.isBusy,
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
-                    }
+                    )
                     Box {
                         IconButton(
                             onClick = { viewModel.sendIntent(ManageIntent.ToggleActionsMenu) },

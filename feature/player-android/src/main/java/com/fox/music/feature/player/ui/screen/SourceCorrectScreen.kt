@@ -29,7 +29,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -48,8 +47,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -82,6 +79,8 @@ import com.fox.music.core.ui.component.FoxDialogField
 import com.fox.music.core.ui.component.FoxMultiInputDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PreviewLyricPanel
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarTextAction
 import com.fox.music.feature.player.viewmodel.PreviewPlaybackState
 import com.fox.music.feature.player.viewmodel.SourceCorrectEffect
 import com.fox.music.feature.player.viewmodel.SourceCorrectIntent
@@ -123,16 +122,14 @@ fun SourceCorrectScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("音源纠错") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+            FoxTopBar(
+                title = "音源纠错",
+                showBackButton = true,
+                onBackClick = onBack,
                 actions = {
                     // 右上角切换「搜索替换 / 上传文件」模式（不再用 tab）
-                    TextButton(
+                    FoxTopBarTextAction(
+                        text = if (state.mode == SourceCorrectMode.SEARCH) "上传文件" else "搜索替换",
                         onClick = {
                             val next = if (state.mode == SourceCorrectMode.SEARCH) {
                                 SourceCorrectMode.UPLOAD
@@ -141,16 +138,8 @@ fun SourceCorrectScreen(
                             }
                             viewModel.sendIntent(SourceCorrectIntent.SwitchMode(next))
                         },
-                    ) {
-                        Text(
-                            if (state.mode == SourceCorrectMode.SEARCH) "上传文件" else "搜索替换",
-                        )
-                    }
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
         bottomBar = {

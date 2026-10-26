@@ -21,14 +21,12 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.ModeComment
@@ -37,7 +35,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -79,7 +76,6 @@ import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.CommentMoreBottomSheet
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.FoxDialog
-import com.fox.music.core.ui.component.FoxEditorialCircleButton
 import com.fox.music.core.ui.component.FoxEditorialSectionLabel
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PostMediaCarousel
@@ -92,6 +88,8 @@ import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
 import com.fox.music.core.ui.theme.foxEditorialAccent
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -553,73 +551,62 @@ private fun PostDetailTopBar(
     onMore: () -> Unit,
     onAuthorClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        FoxEditorialCircleButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
-                modifier = Modifier.size(18.dp),
-                tint = InkMuted,
-            )
-        }
-        if (post != null) {
-            Spacer(Modifier.width(8.dp))
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onAuthorClick),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CachedImage(
-                    imageUrl = post.authorAvatar,
-                    contentDescription = post.authorName,
-                    modifier = Modifier.size(30.dp),
-                    shape = CircleShape,
-                    placeholderIcon = Icons.Default.Person,
-                )
-                Spacer(Modifier.width(9.dp))
-                Column {
-                    Text(
-                        text = post.authorName ?: "用户",
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontSize = 13.sp,
-                            lineHeight = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+    FoxTopBar(
+        showBackButton = true,
+        onBackClick = onBack,
+        onMedia = true,
+        titleContent = {
+            if (post != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(onClick = onAuthorClick),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CachedImage(
+                        imageUrl = post.authorAvatar,
+                        contentDescription = post.authorName,
+                        modifier = Modifier.size(30.dp),
+                        shape = CircleShape,
+                        placeholderIcon = Icons.Default.Person,
                     )
-                    Text(
-                        text = formatPostDetailTime(post.createdAt).substringBefore(" "),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 9.5.sp,
-                            lineHeight = 13.sp,
-                        ),
-                        color = InkQuaternary,
-                        maxLines = 1,
-                    )
+                    Spacer(Modifier.width(9.dp))
+                    Column {
+                        Text(
+                            text = post.authorName ?: "用户",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = formatPostDetailTime(post.createdAt).substringBefore(" "),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 9.5.sp,
+                                lineHeight = 13.sp,
+                            ),
+                            color = InkQuaternary,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
-            FoxEditorialCircleButton(onClick = onMore) {
-                Icon(
-                    imageVector = Icons.Outlined.MoreVert,
+        },
+        actions = {
+            if (post != null) {
+                FoxTopBarIconAction(
+                    icon = Icons.Outlined.MoreVert,
                     contentDescription = "更多",
-                    modifier = Modifier.size(17.dp),
+                    onClick = onMore,
                     tint = InkMuted,
                 )
             }
-        } else {
-            Spacer(Modifier.weight(1f))
-        }
-    }
+        },
+    )
 }
 
 @Composable

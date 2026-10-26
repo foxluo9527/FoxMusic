@@ -4,7 +4,11 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +30,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.ChevronRight
@@ -42,14 +46,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,11 +67,13 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.theme.CoverShapeRail
 import com.fox.music.core.ui.component.DeletePlaylistConfirmDialog
 import com.fox.music.core.ui.component.DetailIntroContent
 import com.fox.music.core.ui.component.DetailIntroData
@@ -76,13 +81,22 @@ import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.FoxLinearProgress
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.core.ui.component.JumpToPlayingFabForList
+import com.fox.music.core.ui.component.LocalJumpHighlight
+import com.fox.music.core.ui.component.LocalNowPlayingMusicId
 import com.fox.music.core.ui.component.MusicSelectionBottomBar
 import com.fox.music.core.ui.component.PlaylistManageBottomSheet
+import com.fox.music.core.ui.component.PostImagePreviewDialog
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
+import com.fox.music.core.ui.component.FoxTopBarSpec
+import com.fox.music.core.ui.component.FoxTopBarTextAction
 import com.fox.music.feature.playlist.viewmodel.HeaderInfo
 import com.fox.music.feature.playlist.viewmodel.PlaylistDetailState
+import kotlinx.coroutines.launch
 
 @Suppress("DEPRECATION")
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlaylistDetailContent(
     state: PlaylistDetailState,
@@ -114,9 +128,32 @@ fun PlaylistDetailContent(
     onOpenImportDetail: () -> Unit = {},
     onEditPlaylist: (Long) -> Unit = {},
     onDeletePlaylist: () -> Unit = {},
+    currentMusicId: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val jumpScope = rememberCoroutineScope()
+    // 显式传入优先，其次读全局「正在播放」（app 层在 NavHost 外层统一 provide）
+    val nowPlayingId = currentMusicId ?: LocalNowPlayingMusicId.current
+    // 头部占 2 个 item（封面头部 + 操作行），导入中再多一个横幅；歌曲项在其后。
+    val importBannerVisible = state.importProgress?.status?.let {
+        it == "queued" || it == "running" || it == "paused" || it == "needs_retry"
+    } == true
+    val musicStartIndex = if (importBannerVisible) 3 else 2
+    val targetLazyIndex = remember(nowPlayingId, pagingItems.itemCount, musicStartIndex) {
+        if (nowPlayingId == null) {
+            -1
+        } else {
+            var pagingIndex = -1
+            for (i in 0 until pagingItems.itemCount) {
+                if (pagingItems.peek(i)?.id == nowPlayingId) {
+                    pagingIndex = i
+                    break
+                }
+            }
+            if (pagingIndex >= 0) musicStartIndex + pagingIndex else -1
+        }
+    }
     var headerHeightPx by remember { mutableStateOf(0f) }
     val showToolbarTitle by remember {
         derivedStateOf {
@@ -132,11 +169,21 @@ fun PlaylistDetailContent(
     var showManageSheet by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showIntro by rememberSaveable { mutableStateOf(false) }
+    var previewCoverUrl by remember { mutableStateOf<String?>(null) }
 
-    // 歌单 / 专辑 / 榜单：点头部（封面、名称、简介）进入介绍详情页，完整展示简介
+    previewCoverUrl?.let { url ->
+        PostImagePreviewDialog(
+            images = listOf(url),
+            initialIndex = 0,
+            onDismiss = { previewCoverUrl = null },
+        )
+    }
+
+    // 歌单 / 专辑 / 榜单 / 歌手：点头部（封面、名称、简介）进入介绍详情页，完整展示简介
     val canShowIntro = state.detailType == DetailType.PLAYLIST ||
             state.detailType == DetailType.ALBUM ||
-            state.detailType == DetailType.RANK
+            state.detailType == DetailType.RANK ||
+            state.detailType == DetailType.ARTIST
     val introData = state.headerInfo?.takeIf { showIntro && canShowIntro }?.toDetailIntroData()
     if (introData != null) {
         BackHandler { showIntro = false }
@@ -152,40 +199,26 @@ fun PlaylistDetailContent(
         modifier = modifier,
         topBar = {
             if (state.isSelectionMode) {
-                TopAppBar(
-                    title = {
-                        Text("已选 ${state.selectedMusicIds.size} 首")
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onExitSelectionMode) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "取消",
-                            )
-                        }
-                    },
+                FoxTopBar(
+                    title = "已选 ${state.selectedMusicIds.size} 首",
+                    showBackButton = true,
+                    onBackClick = onExitSelectionMode,
                     actions = {
-                        Text(
+                        FoxTopBarTextAction(
                             text = "全选",
-                            modifier = Modifier
-                                .clickable { onSelectAll() }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            onClick = onSelectAll,
                         )
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
                 )
             } else {
-                TopAppBar(
-                    title = {
+                FoxTopBar(
+                    showBackButton = true,
+                    onBackClick = onBack,
+                    titleContent = {
                         if (state.headerInfo != null && showToolbarTitle) {
                             Row(
                                 Modifier
-                                    .height(60.dp)
+                                    .fillMaxHeight()
                                     .then(
                                         if (canShowIntro) {
                                             Modifier.clickable { showIntro = true }
@@ -201,7 +234,15 @@ fun PlaylistDetailContent(
                                         contentDescription = state.headerInfo?.title,
                                         modifier = Modifier
                                             .size(40.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .combinedClickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                onClick = {
+                                                    if (canShowIntro) showIntro = true
+                                                },
+                                                onLongClick = { previewCoverUrl = url },
+                                            ),
                                         shape = RoundedCornerShape(8.dp),
                                     )
                                     Spacer(Modifier.width(10.dp))
@@ -215,58 +256,54 @@ fun PlaylistDetailContent(
                             }
                         }
                     },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "返回",
-                            )
-                        }
-                    },
                     actions = {
                         if (state.headerInfo != null && showToolbarActions) {
                             val headerInfo = state.headerInfo!!
                             val trackCount =
                                 headerInfo.trackCount.takeIf { it > 0 } ?: pagingItems.itemCount
-                            IconButton(onClick = onPlayAll) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = "播放全部($trackCount)",
-                                )
-                            }
+                            FoxTopBarIconAction(
+                                icon = Icons.Default.PlayArrow,
+                                contentDescription = "播放全部($trackCount)",
+                                onClick = onPlayAll,
+                            )
                             val showFavorite = state.detailType != DetailType.RECOMMEND &&
                                     state.detailType != DetailType.NEW_MUSIC &&
                                     state.detailType != DetailType.FAVORITE_MUSIC &&
-                                    state.detailType != DetailType.PLAY_HISTORY
+                                    state.detailType != DetailType.PLAY_HISTORY &&
+                                    state.detailType != DetailType.ARTIST
                             if (showFavorite) {
-                                IconButton(
-                                    onClick = onToggleFavorite,
-                                    enabled = !state.isFavoriteLoading,
-                                ) {
-                                    if (state.isFavoriteLoading) {
+                                if (state.isFavoriteLoading) {
+                                    Box(
+                                        modifier = Modifier.size(FoxTopBarSpec.ActionBox),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
                                         CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                                    } else {
-                                        Icon(
-                                            imageVector = if (headerInfo.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                            contentDescription = if (headerInfo.isFavorite) "已收藏" else "收藏",
-                                            tint = if (headerInfo.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                        )
                                     }
+                                } else {
+                                    FoxTopBarIconAction(
+                                        icon = if (headerInfo.isFavorite) {
+                                            Icons.Filled.Favorite
+                                        } else {
+                                            Icons.Filled.FavoriteBorder
+                                        },
+                                        contentDescription = if (headerInfo.isFavorite) "已收藏" else "收藏",
+                                        onClick = onToggleFavorite,
+                                        tint = if (headerInfo.isFavorite) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                    )
                                 }
                             }
                         } else if (canManagePlaylist) {
-                            IconButton(onClick = { showManageSheet = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.MoreVert,
-                                    contentDescription = "更多",
-                                )
-                            }
+                            FoxTopBarIconAction(
+                                icon = Icons.Default.MoreVert,
+                                contentDescription = "更多",
+                                onClick = { showManageSheet = true },
+                            )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
                 )
             }
         },
@@ -281,6 +318,20 @@ fun PlaylistDetailContent(
                     onDownload = onDownloadSelected,
                 )
             }
+        },
+        floatingActionButton = {
+            val jumpHighlight = LocalJumpHighlight.current
+            JumpToPlayingFabForList(
+                listState = listState,
+                targetIndex = targetLazyIndex,
+                onClick = {
+                    jumpScope.launch {
+                        listState.animateScrollToItem(targetLazyIndex)
+                        // 到位后再闪一下，强调「就是这一行」
+                        jumpHighlight.flash(nowPlayingId)
+                    }
+                },
+            )
         },
     ) { innerPadding ->
         when {
@@ -323,6 +374,7 @@ fun PlaylistDetailContent(
                         onEnterSelectionMode = onEnterSelectionMode,
                         onToggleSelection = onToggleSelection,
                         onHeaderClick = { showIntro = true },
+                        onCoverLongClick = { previewCoverUrl = it },
                         onPauseImport = onPauseImport,
                         onResumeImport = onResumeImport,
                         onRetryImport = onRetryImport,
@@ -330,6 +382,7 @@ fun PlaylistDetailContent(
                         onOpenImportDetail = onOpenImportDetail,
                         suppressRefreshIndicator = isPagingRefreshing,
                         onMeasureHeight = { headerHeightPx = it },
+                        nowPlayingId = nowPlayingId,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -386,6 +439,7 @@ private fun CollectionDetailContent(
     onEnterSelectionMode: (Long) -> Unit,
     onToggleSelection: (Long) -> Unit,
     onHeaderClick: () -> Unit = {},
+    onCoverLongClick: (String) -> Unit = {},
     onPauseImport: () -> Unit = {},
     onResumeImport: () -> Unit = {},
     onRetryImport: () -> Unit = {},
@@ -393,6 +447,7 @@ private fun CollectionDetailContent(
     onOpenImportDetail: () -> Unit = {},
     suppressRefreshIndicator: Boolean = false,
     onMeasureHeight: (Float) -> Unit,
+    nowPlayingId: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -407,6 +462,7 @@ private fun CollectionDetailContent(
                 CollectionDetailHeader(
                     headerInfo = info,
                     onClick = if (!state.isSelectionMode) onHeaderClick else null,
+                    onCoverLongClick = onCoverLongClick,
                     modifier = Modifier.onGloballyPositioned { coordinates ->
                         onMeasureHeight(coordinates.size.height.toFloat())
                     }
@@ -421,14 +477,15 @@ private fun CollectionDetailContent(
                     showFavorite = state.detailType !== DetailType.RECOMMEND &&
                             state.detailType != DetailType.NEW_MUSIC &&
                             state.detailType != DetailType.FAVORITE_MUSIC &&
-                            state.detailType != DetailType.PLAY_HISTORY,
+                            state.detailType != DetailType.PLAY_HISTORY &&
+                            state.detailType != DetailType.ARTIST,
                     trackCount = headerInfo.trackCount.takeIf { it > 0 } ?: pagingItems.itemCount,
                     isFavorite = headerInfo.isFavorite,
                     isFavoriteLoading = state.isFavoriteLoading,
                     onPlayAll = onPlayAll,
                     onToggleFavorite = onToggleFavorite,
                     modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 24.dp, vertical = 8.dp)
                         .graphicsLayer { alpha = actionAlpha }
                         .animateContentSize()
                 )
@@ -578,6 +635,7 @@ private fun CollectionDetailContent(
                     isSelected = music.id in state.selectedMusicIds,
                     onLongClick = { onEnterSelectionMode(music.id) },
                     onSelectionToggle = { onToggleSelection(music.id) },
+                    isNowPlaying = music.id == nowPlayingId,
                 )
             }
         }
@@ -666,6 +724,7 @@ private fun CollectionDetailHeader(
     headerInfo: HeaderInfo,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    onCoverLongClick: (String) -> Unit = {},
 ) {
     Row(
         modifier = modifier
@@ -678,7 +737,7 @@ private fun CollectionDetailHeader(
                     Modifier
                 }
             )
-            .padding(16.dp),
+            .padding(horizontal = 24.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top
     ) {
         if (headerInfo.coverImage != null) {// 封面图
@@ -687,8 +746,14 @@ private fun CollectionDetailHeader(
                 contentDescription = headerInfo.title,
                 modifier = Modifier
                     .size(120.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                shape = RoundedCornerShape(8.dp)
+                    .clip(CoverShapeRail)
+                    .combinedClickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { onClick?.invoke() },
+                        onLongClick = { onCoverLongClick(headerInfo.coverImage) },
+                    ),
+                shape = CoverShapeRail
             )
             Spacer(modifier = Modifier.width(16.dp))
         } else if (headerInfo.detailType == DetailType.FAVORITE_MUSIC ||
@@ -696,7 +761,7 @@ private fun CollectionDetailHeader(
         ) {
             Surface(
                 modifier = Modifier.size(120.dp),
-                shape = RoundedCornerShape(8.dp),
+                shape = CoverShapeRail,
                 color = MaterialTheme.colorScheme.surfaceVariant,
             ) {
                 Box(
@@ -725,19 +790,22 @@ private fun CollectionDetailHeader(
         Column(
             modifier = Modifier.weight(1f)
         ) {
-            // 类型标签 + 创建时间
+            // 类型标签 + 创建时间：白底描边胶囊（不再用 primaryContainer 色块）
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                    ),
                 ) {
                     Text(
                         text = getTypeLabel(headerInfo.detailType),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
                 if (headerInfo.detailType == DetailType.PLAYLIST){
@@ -760,12 +828,15 @@ private fun CollectionDetailHeader(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 标题
+            // 标题：长歌单名允许两行（一行截断丢信息最伤）
             Text(
                 text = headerInfo.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 19.sp,
+                    lineHeight = 25.sp,
+                ),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
 
@@ -834,7 +905,8 @@ private fun ActionButtonRow(
         ActionButton(
             icon = Icons.Default.PlayArrow,
             label = "播放全部($trackCount)",
-            onClick = onPlayAll
+            onClick = onPlayAll,
+            emphasized = true,
         )
         if (showFavorite) {
             Spacer(Modifier.width(10.dp))
@@ -854,27 +926,38 @@ private fun RowScope.ActionButton(
     label: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    emphasized: Boolean = false,
 ) {
+    val scheme = MaterialTheme.colorScheme
     Row(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clickable(enabled = enabled, onClick = onClick)
-            .height(40.dp)
-            .background(Color.White, CircleShape)
+            .height(44.dp)
+            .then(
+                if (emphasized) {
+                    // 「播放全部」是本页唯一实心块：视觉权重 = 功能权重
+                    Modifier.background(scheme.onSurface, CircleShape)
+                } else {
+                    Modifier
+                        .background(scheme.surface, CircleShape)
+                        .border(1.dp, scheme.onSurface.copy(alpha = 0.10f), CircleShape)
+                }
+            )
             .weight(1f)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            tint = if (emphasized) scheme.background else scheme.onSurface,
             modifier = Modifier.size(18.dp)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+            color = if (emphasized) scheme.background else scheme.onSurface
         )
     }
 }
@@ -889,6 +972,7 @@ private fun HeaderInfo.toDetailIntroData(): DetailIntroData {
         DetailType.NEW_MUSIC -> "新歌"
         DetailType.FAVORITE_MUSIC -> "收藏"
         DetailType.PLAY_HISTORY -> "历史"
+        DetailType.ARTIST -> "歌手"
     }
     val isAlbum = detailType == DetailType.ALBUM
     val subtitle = if (isAlbum) {
@@ -926,6 +1010,7 @@ private fun getTypeTitle(type: DetailType): String {
         DetailType.NEW_MUSIC -> "新歌速递"
         DetailType.FAVORITE_MUSIC -> "我的收藏"
         DetailType.PLAY_HISTORY -> "历史播放"
+        DetailType.ARTIST -> "歌手全部歌曲"
     }
 }
 
@@ -938,6 +1023,7 @@ private fun getTypeLabel(type: DetailType): String {
         DetailType.NEW_MUSIC -> "新歌"
         DetailType.FAVORITE_MUSIC -> "收藏"
         DetailType.PLAY_HISTORY -> "历史"
+        DetailType.ARTIST -> "歌手"
     }
 }
 
