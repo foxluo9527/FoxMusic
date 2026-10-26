@@ -64,6 +64,8 @@ val FoxColorPickerPresets: List<Color> = listOf(
  * @param onColorChange 拖动/点预设时回调新颜色
  * @param caption 右侧提示文案，例如「已应用到「普通词」」
  * @param presets 预设格，传空列表即隐藏
+ * @param presetsOnTop 预设行放面板上方（设计稿：先「预置颜色」再「自定义色盘」）；
+ *   默认 false = 预设在最底部
  */
 @Composable
 fun FoxColorPicker(
@@ -74,6 +76,7 @@ fun FoxColorPicker(
     presets: List<Color> = FoxColorPickerPresets,
     showHex: Boolean = true,
     panelHeight: Int = 110,
+    presetsOnTop: Boolean = false,
 ) {
     // ── HSV 本地态 ────────────────────────────────────────────────
     // 不能直接从 color 反推着用：色相在 s=0（纯白/灰）时数学上无定义，
@@ -92,6 +95,12 @@ fun FoxColorPicker(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
+        // 预设行放到面板上方时（设计稿：先给「预置颜色」，再给「自定义色盘」）
+        if (presetsOnTop && presets.isNotEmpty()) {
+            PresetRow(presets = presets, color = color, onColorChange = onColorChange)
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
         // 饱和度(x) × 明度(y) 面板
         Canvas(
             modifier = Modifier
@@ -199,39 +208,52 @@ fun FoxColorPicker(
             }
         }
 
-        if (presets.isNotEmpty()) {
+        if (!presetsOnTop && presets.isNotEmpty()) {
             Spacer(modifier = Modifier.height(13.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                presets.forEach { preset ->
-                    val selected = preset.toArgbInt() == color.toArgbInt()
-                    // 外圈 34dp 是可点区域（≥44dp 达不到时至少不挤压视觉），
-                    // 选中环画在外圈：26dp 色点 + 2dp 间隙 + 2dp 强调环（设计稿 .d.sel）
+            PresetRow(presets = presets, color = color, onColorChange = onColorChange)
+        }
+    }
+}
+
+/**
+ * 预设色点行（设计稿 .dots）：26dp 色点 + 选中时外圈 2dp 强调环。
+ *
+ * 外圈做成 34dp 可点区域：26dp 直接可点低于最小触控目标，但把色点做大又会顶到
+ * 面板边距；用「视觉 26 + 命中 34」两层解决。
+ */
+@Composable
+private fun PresetRow(
+    presets: List<Color>,
+    color: Color,
+    onColorChange: (Color) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        presets.forEach { preset ->
+            val selected = preset.toArgbInt() == color.toArgbInt()
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clickable { onColorChange(preset) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) {
                     Box(
                         modifier = Modifier
                             .size(34.dp)
-                            .clickable { onColorChange(preset) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (selected) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .border(
-                                        width = 2.dp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = CircleShape,
-                                    ),
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(26.dp)
-                                .clip(CircleShape)
-                                .background(preset)
-                                .border(1.dp, foxHairline(), CircleShape),
-                        )
-                    }
+                            .border(
+                                width = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = CircleShape,
+                            ),
+                    )
                 }
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(preset)
+                        .border(1.dp, foxHairline(), CircleShape),
+                )
             }
         }
     }

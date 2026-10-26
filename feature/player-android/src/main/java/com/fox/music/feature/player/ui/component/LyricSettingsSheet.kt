@@ -68,9 +68,6 @@ private const val FONT_SIZE_MAX = 34f
 /** 重置时的字号（与 [LyricStyle] 默认值一致）。 */
 private const val FONT_SIZE_DEFAULT = 18
 
-/** 滑杆下方刻度（12 的步进区间里取四档，等距排布）。 */
-private val FONT_SIZE_TICKS = listOf("16", "22", "28", "34")
-
 /**
  * 歌词设置 BottomSheet（设计稿② / v12 验收返工）。
  *
@@ -408,95 +405,56 @@ private fun LyricSettingsMainPage(
 }
 
 /**
- * 字号区块（v12 重做）：一行读数 + 一行 A−/滑杆/A+ + 一行刻度。
+ * 字号区块（v13）：**单行** —— 左「字号」标签，右 A− / 滑杆 / A+。
  *
- * 整块占满宽度，滑杆拿 `weight(1f)` 吃剩余空间，不再有固定 120dp 被裁的问题。
+ * 去掉行尾「24 sp」读数与 16/22/28/34 刻度行：滑杆本身就能感知大小，多一行数字只
+ * 让这一块显得笨重；标签已说明调的是什么，具体数值属于「能看见效果还非要读一遍」的
+ * 冗余信息。
  */
 @Composable
 private fun FontSizeBlock(
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .padding(top = 14.dp, bottom = 12.dp),
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "字号",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.5.sp,
-                    lineHeight = 18.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "$fontSize sp",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                ),
-                color = InkTertiary,
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FontStepButton(
-                label = "A−",
-                enabled = fontSize > FONT_SIZE_MIN.toInt(),
-                onClick = { onFontSizeChange((fontSize - 1).coerceAtLeast(FONT_SIZE_MIN.toInt())) },
-            )
-            FoxSlider(
-                value = fontSize.coerceIn(
-                    FONT_SIZE_MIN.toInt(),
-                    FONT_SIZE_MAX.toInt(),
-                ).toFloat(),
-                onValueChange = { onFontSizeChange(it.roundToInt()) },
-                valueRange = FONT_SIZE_MIN..FONT_SIZE_MAX,
-                // 字号必须是整数档，连续拖会得到 23.7sp 这种值
-                step = 1f,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 10.dp),
-            )
-            FontStepButton(
-                label = "A+",
-                enabled = fontSize < FONT_SIZE_MAX.toInt(),
-                onClick = { onFontSizeChange((fontSize + 1).coerceAtMost(FONT_SIZE_MAX.toInt())) },
-            )
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        // 刻度行：左右各留 44dp，正好对齐滑杆两端（按钮宽度）。
-        Row(
+        Text(
+            text = "字号",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.5.sp,
+                lineHeight = 18.sp,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.width(4.dp))
+        FontStepButton(
+            label = "A−",
+            enabled = fontSize > FONT_SIZE_MIN.toInt(),
+            onClick = { onFontSizeChange((fontSize - 1).coerceAtLeast(FONT_SIZE_MIN.toInt())) },
+        )
+        FoxSlider(
+            value = fontSize.coerceIn(
+                FONT_SIZE_MIN.toInt(),
+                FONT_SIZE_MAX.toInt(),
+            ).toFloat(),
+            onValueChange = { onFontSizeChange(it.roundToInt()) },
+            valueRange = FONT_SIZE_MIN..FONT_SIZE_MAX,
+            // 字号必须是整数档，连续拖会得到 23.7sp 这种值
+            step = 1f,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 44.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            FONT_SIZE_TICKS.forEach { tick ->
-                Text(
-                    text = tick,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 9.sp,
-                        lineHeight = 12.sp,
-                    ),
-                    color = InkQuaternary,
-                )
-            }
-        }
+                .weight(1f)
+                .padding(horizontal = 8.dp),
+        )
+        FontStepButton(
+            label = "A+",
+            enabled = fontSize < FONT_SIZE_MAX.toInt(),
+            onClick = { onFontSizeChange((fontSize + 1).coerceAtMost(FONT_SIZE_MAX.toInt())) },
+        )
     }
 }
 
@@ -576,17 +534,6 @@ private fun LyricPreviewCard(
             .border(width = 1.dp, color = foxHairline(), shape = shape)
             .padding(horizontal = 16.dp, vertical = 18.dp),
     ) {
-        // 说明这卡的底就是应用主题，避免用户再去找「背景色」
-        Text(
-            text = "背景跟随应用主题",
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 9.sp,
-                lineHeight = 12.sp,
-                letterSpacing = 1.8.sp,
-            ),
-            color = InkQuaternary,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
         PreviewLine(
             text = "沿着晚风走了很久",
             color = Color(colors.normal),
@@ -937,6 +884,8 @@ private fun LyricCustomColorPage(
                 LyricColorChannel.NORMAL -> "已应用到「普通词」"
             },
             presets = FoxColorPickerPresets,
+            // 设计稿：预置颜色在上，自定义色盘在下（点预设比拖面板更快）
+            presetsOnTop = true,
         )
 
         Spacer(Modifier.height(16.dp))

@@ -1,5 +1,13 @@
 package com.fox.music.feature.profile.ui.screen
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +48,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -131,6 +144,9 @@ fun ThemeSettingsScreen(
     }
     var draft by remember(applied) { mutableStateOf(applied) }
 
+    // 「自定义色」抽屉默认收起（纯展示态，不参与草稿，所以不进 ThemeDraft）。
+    var customColorExpanded by remember { mutableStateOf(false) }
+
     val onCancel: () -> Unit = {
         // 丢弃草稿，回到进入时的值
         draft = applied
@@ -206,26 +222,56 @@ fun ThemeSettingsScreen(
                 )
             }
             item {
-                ThemeSectionKicker(
-                    title = "自定义色",
-                    modifier = pagePadding.padding(top = 20.dp),
-                )
-            }
-            item {
-                // 取色盘（v12）：拖拽即改草稿，HEX 只读展示。预设卡在上面，
-                // 这里不再重复一排色圆点。
-                FoxColorPicker(
-                    color = Color(draft.seedArgb),
-                    onColorChange = { color ->
-                        draft = draft.copy(
-                            seedArgb = color.toArgb().toLong() and 0xFFFFFFFFL,
-                            custom = true,
+                // 自定义色：默认折叠。整行可点，右侧 chevron 顺时针转 90°（› → ⌄）后
+                // 取色盘向下展开。折叠是为了让「预设 → 浓度 → 深色模式」这条主路径不必
+                // 先滚过 110dp 的面板 + 22dp 色相条。
+                Column(modifier = pagePadding.padding(top = 16.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .clickable { customColorExpanded = !customColorExpanded },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = "自定义色",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp,
+                                letterSpacing = 2.sp,
+                            ),
+                            fontWeight = FontWeight.Medium,
+                            color = InkQuaternary,
                         )
-                    },
-                    modifier = pagePadding.padding(top = 10.dp),
-                    presets = emptyList(),
-                    showHex = true,
-                )
+                        ExpandChevron(expanded = customColorExpanded)
+                    }
+                    AnimatedVisibility(
+                        visible = customColorExpanded,
+                        enter = expandVertically(
+                            animationSpec = tween(durationMillis = 220),
+                            expandFrom = Alignment.Top,
+                        ) + fadeIn(animationSpec = tween(durationMillis = 160)),
+                        exit = shrinkVertically(
+                            animationSpec = tween(durationMillis = 200),
+                            shrinkTowards = Alignment.Top,
+                        ) + fadeOut(animationSpec = tween(durationMillis = 120)),
+                    ) {
+                        // 取色盘（v12）：拖拽即改草稿，HEX 只读展示。
+                        FoxColorPicker(
+                            color = Color(draft.seedArgb),
+                            onColorChange = { color ->
+                                draft = draft.copy(
+                                    seedArgb = color.toArgb().toLong() and 0xFFFFFFFFL,
+                                    custom = true,
+                                )
+                            },
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                            presets = emptyList(),
+                            showHex = true,
+                        )
+                    }
+                }
             }
             item {
                 ThemeSectionKicker(
@@ -340,6 +386,42 @@ private fun ThemeSectionKicker(
         color = InkQuaternary,
         modifier = modifier.fillMaxWidth(),
     )
+}
+
+/**
+ * 展开箭头：手绘 chevron（两条 1.6dp 圆头线段），收起时朝右「›」，
+ * 展开时顺时针转 90° 朝下「⌄」。
+ *
+ * 为什么不用 `Text("›")` 转：中文字体里的「›」是全角引号族字形，字号/基线随字体漂移，
+ * 而且旋转后线宽会被抗锯齿拉粗；Canvas 画的线宽在任何密度下都是精确的 1.6dp。
+ */
+@Composable
+private fun ExpandChevron(expanded: Boolean) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 90f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "customColorChevron",
+    )
+    val tint = InkQuaternary
+    Canvas(
+        modifier = Modifier
+            .size(18.dp)
+            .rotate(rotation),
+    ) {
+        val w = size.width
+        val h = size.height
+        val stroke = 1.6.dp.toPx()
+        val path = Path().apply {
+            moveTo(w * 0.36f, h * 0.22f)
+            lineTo(w * 0.64f, h * 0.5f)
+            lineTo(w * 0.36f, h * 0.78f)
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
 }
 
 /**
