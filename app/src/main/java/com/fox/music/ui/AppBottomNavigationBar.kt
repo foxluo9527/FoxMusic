@@ -50,6 +50,7 @@ import com.fox.music.feature.home.HOME_ROUTE
 import com.fox.music.feature.profile.ui.screen.PROFILE_ROUTE
 import com.fox.music.feature.social.COMMUNITY_PLAZA_ROUTE
 import com.fox.music.feature.stream.StreamRoutes
+import com.fox.music.navigation.navigateToTab
 
 /** 底部 Tab 路由：仅这些页面内嵌导航栏，以参与 NavHost 转场与可预测返回动画。 */
 val TAB_ROOT_ROUTES: Set<String> = AppDestinations.entries.map { it.route }.toSet()
@@ -139,11 +140,7 @@ fun AppBottomNavigationBar(
                                 // 压在当前 Tab 之上（栈 [HOME, 我的, 音流]），随后从别的 Tab 用
                                 // popUpTo(HOME){saveState} + restoreState 回「我的」时，恢复出来的是
                                 // 整段被保存的栈，栈顶仍是「音流」→ 我的页显示音流内容。
-                                navController.navigate(StreamRoutes.STREAM) {
-                                    popUpTo(HOME_ROUTE) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateToTab(StreamRoutes.STREAM)
                             }
                         },
                         modifier = Modifier
@@ -159,11 +156,7 @@ fun AppBottomNavigationBar(
                         selected = selectedRoute == dest.route,
                         onClick = {
                             if (selectedRoute != dest.route) {
-                                navController.navigate(dest.route) {
-                                    popUpTo(HOME_ROUTE) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateToTab(dest.route)
                             }
                         },
                         modifier = Modifier
