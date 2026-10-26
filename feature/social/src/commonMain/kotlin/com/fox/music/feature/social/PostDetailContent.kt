@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -49,10 +50,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -486,6 +491,12 @@ fun PostDetailContent(
                                             }
                                         } else null,
                                     )
+                                }
+                                if (comments.itemCount == 0 &&
+                                    state.pendingComments.isEmpty() &&
+                                    comments.loadState.refresh !is LoadState.Loading
+                                ) {
+                                    item(key = "comments_empty") { PostDetailCommentsEmpty() }
                                 }
                                 if (comments.loadState.append is LoadState.Loading) {
                                     item(key = "comments_loading") {
@@ -1089,7 +1100,18 @@ private fun PostDetailFeedTabs(
     HorizontalDivider(color = PaperHairline)
 }
 
-/** v10：选中 = 13.5sp 强调色 + 底部 2dp 强调色下划线；未选中 ink3。 */
+/**
+ * 分类下的「评论 / 点赞」切换项。
+ *
+ * v12 修：原来这条用了 `Box(width = IntrinsicSize.Min)` 撑下划线的写法，
+ * 而 `IntrinsicSize.Min` 遇到 CJK 文本时最小固有宽度会塌到接近 0（中文每个字
+ * 都是断行点，minIntrinsicWidth 只保证「不断行」不保证「不拆词」），父 Box 被
+ * 压窄后相邻的「点赞 3」就被挤成竖排单字——上一次的修法只加了宽度约束，
+ * 治标不治本。
+ *
+ * 现改为：**不做固有尺寸测量**，文本 `maxLines = 1 + softWrap = false` 强约束单行，
+ * 下划线用 `drawBehind` 按自身实测宽度画，天然跟随文字宽度，也不需要外层 Box。
+ */
 @Composable
 private fun PostDetailFeedTabItem(
     text: String,
@@ -1097,32 +1119,80 @@ private fun PostDetailFeedTabItem(
     onClick: () -> Unit,
 ) {
     val accent = foxEditorialAccent
-    Box(
+    Column(
         modifier = Modifier
-            .height(44.dp)
-            // 同搜索 tab：宽度取 IntrinsicSize.Min，否则下划线 fillMaxWidth 会把
-            // 父 Box 撑满整行，把相邻的「点赞」挤成竖排单字
-            .width(IntrinsicSize.Min)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.BottomCenter,
+            .clickable(onClick = onClick)
+            .heightIn(min = 44.dp)
+            // drawBehind 放在 padding 之前：这样量到的是「文字 + 上下留白」的外框，
+            // 下划线才能贴在整个 tab 的底边而不是紧贴文字。
+            .drawBehind {
+                if (selected) {
+                    val thickness = 2.dp.toPx()
+                    drawRect(
+                        color = accent,
+                        topLeft = Offset(0f, size.height - thickness),
+                        size = Size(size.width, thickness),
+                    )
+                }
+            }
+            .padding(top = 12.dp, bottom = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontSize = 13.5.sp,
-                    lineHeight = 18.sp,
-                ),
-                color = if (selected) accent else InkTertiary,
-            )
-            Spacer(modifier = Modifier.height(9.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .background(if (selected) accent else Color.Transparent),
-            )
-        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontSize = 13.5.sp,
+                lineHeight = 18.sp,
+            ),
+            color = if (selected) accent else InkTertiary,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+/**
+ * 评论空态（v12 新增）。
+ *
+ * 之前评论为空时这里什么都不渲染，Tab 下方直接是一片空白，看起来像页面坏了。
+ * 空态给一个装饰性引号 + 一句引导，不做插画、不加按钮。
+ */
+@Composable
+private fun PostDetailCommentsEmpty() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 34.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "\u201C",
+            style = MaterialTheme.typography.displaySmall.copy(
+                fontSize = 40.sp,
+                lineHeight = 40.sp,
+            ),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = "还没有评论",
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontSize = 13.5.sp,
+                lineHeight = 19.sp,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "说点什么\n让这首歌被更多人听见",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 11.5.sp,
+                lineHeight = 18.sp,
+            ),
+            color = InkQuaternary,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

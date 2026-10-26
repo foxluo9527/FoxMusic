@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -73,6 +74,7 @@ import com.fox.music.core.assistant.isPlayback
 import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.core.ui.component.FoxEditorialCircleButton
 import com.fox.music.core.ui.component.FoxEditorialRow
+import com.fox.music.core.ui.component.FoxSheet
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.theme.FoxEditorial
 import com.fox.music.core.ui.theme.foxHeroGradient
@@ -81,6 +83,7 @@ import com.fox.music.core.ui.theme.InkMuted
 import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
+import com.fox.music.core.ui.theme.foxHairline
 import com.fox.music.feature.assistant.AssistantChatMessage
 import com.fox.music.feature.assistant.AssistantState
 import kotlinx.datetime.Clock
@@ -207,9 +210,9 @@ fun AssistantContent(
         )
     }
 
-    // 历史会话面板（FoxDialog 容器 + 定制列表）
+    // 历史会话面板（v12：底部抽屉 FoxSheet + 定制列表）
     if (state.historyOpen) {
-        AssistantHistoryDialog(
+        AssistantHistorySheet(
             state = state,
             onOpenConversation = onOpenConversation,
             onDeleteConversation = onDeleteConversation,
@@ -286,11 +289,18 @@ private fun AssistantTopBar(
 }
 
 /**
- * 历史会话弹窗：复用 [FoxDialog] 的纸面容器 / 圆角 / 按钮排布，
- * 列表区定制——当前会话高亮、行内删除二次确认、发丝线分隔。
+ * 历史会话弹层（v12：由居中弹窗改为底部抽屉）。
+ *
+ * 驳回原因很直接——一个纵向会话列表被塞进 `widthIn(max = 320.dp)` 的居中弹窗里，
+ * 长标题被截、行高局促，和全站其它二级面板（播放列表 / 更多操作）的观感也不一致。
+ * 换成 [FoxSheet] 后宽度交给屏幕、密度交给列表，底部只在有数据时给一行计数。
+ *
+ * 内容仍是无卡片编辑列表：渐变 icon 容器 + 标题 + 相对时间 + 删除图标，
+ * 删除走行内二次确认（不叠第二个弹窗）。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AssistantHistoryDialog(
+private fun AssistantHistorySheet(
     state: AssistantState,
     onOpenConversation: (Long) -> Unit,
     onDeleteConversation: (Long) -> Unit,
@@ -300,29 +310,99 @@ private fun AssistantHistoryDialog(
     var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
     val scheme = MaterialTheme.colorScheme
 
-    FoxDialog(
-        title = "历史会话",
-        text = "",
-        confirmText = "关闭",
-        dismissText = null,
-        onDismiss = onToggleHistory,
-        onConfirm = onToggleHistory,
-    ) {
+    FoxSheet(onDismissRequest = onToggleHistory) {
+        // ── 刊头：HISTORY kicker + 衬线标题 + 关闭 ──────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 12.dp, top = 2.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "HISTORY",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 9.5.sp,
+                        lineHeight = 13.sp,
+                        letterSpacing = 2.6.sp,
+                    ),
+                    color = scheme.primary,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = "历史会话",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 21.sp,
+                        lineHeight = 27.sp,
+                    ),
+                    color = scheme.onSurface,
+                )
+            }
+            Text(
+                text = "关闭",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 17.sp,
+                ),
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clickable(onClick = onToggleHistory)
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(foxHairline()),
+        )
+
         if (state.conversations.isEmpty()) {
-            Box(
+            // ── 空态：一个衬线字形 + 两句说明，不铺满整屏 ─────────────
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(160.dp),
-                contentAlignment = Alignment.Center,
+                    .navigationBarsPadding()
+                    .padding(vertical = 44.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
+                    text = "✦",
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontSize = 32.sp,
+                        lineHeight = 32.sp,
+                    ),
+                    color = scheme.surfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
                     text = "还没有历史会话",
-                    fontSize = 13.5.sp,
-                    color = scheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontSize = 13.5.sp,
+                        lineHeight = 19.sp,
+                    ),
+                    color = scheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "和助手聊过之后\n这里会按时间留着每一次对话",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.5.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    color = InkQuaternary,
+                    textAlign = TextAlign.Center,
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .navigationBarsPadding(),
+            ) {
                 itemsIndexed(
                     items = state.conversations,
                     key = { _, conv -> conv.id },
@@ -331,40 +411,47 @@ private fun AssistantHistoryDialog(
                     val deleteConfirming = pendingDeleteId == conv.id
                     val tint = HISTORY_TINTS[index % HISTORY_TINTS.size]
                     if (deleteConfirming) {
-                        // 行内删除二次确认：点垃圾桶后就地变成「确认删除 / 取消」，不叠弹窗
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { pendingDeleteId = null }
-                                .padding(horizontal = 4.dp, vertical = 14.dp),
+                                .padding(horizontal = 20.dp, vertical = 15.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 text = "删除该会话？",
-                                fontSize = 13.5.sp,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 18.sp,
+                                ),
                                 color = scheme.error,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
                                 text = "取消",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = scheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp,
+                                ),
+                                color = InkTertiary,
                                 modifier = Modifier
                                     .clickable { pendingDeleteId = null }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
                             )
                             Text(
                                 text = "删除",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.sp,
+                                ),
                                 color = scheme.error,
+                                fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier
                                     .clickable {
                                         pendingDeleteId = null
                                         onDeleteConversation(conv.id)
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
                             )
                         }
                         if (index < state.conversations.lastIndex) {
@@ -372,12 +459,12 @@ private fun AssistantHistoryDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(1.dp)
-                                    .background(PaperHairline),
+                                    .background(foxHairline()),
                             )
                         }
                     } else {
-                        // 设计稿⑥：无卡片编辑列表 —— 渐变 icon 容器 + 标题 + 相对时间 + 删除图标，
-                        // 发丝线分隔（FoxEditorialRow 自带）；点当前会话关闭面板，点其它打开。
+                        // 无卡片编辑列表：渐变 icon 容器 + 标题 + 相对时间 + 删除图标；
+                        // 当前会话用 FoxEditorialRow 的强调竖条标出（不再靠"卡片高亮"）。
                         FoxEditorialRow(
                             title = conv.title ?: "会话 ${conv.id}",
                             subtitle = buildHistorySubtitle(conv),
@@ -385,14 +472,14 @@ private fun AssistantHistoryDialog(
                             leading = {
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(36.dp)
                                         .clip(RoundedCornerShape(11.dp))
                                         .background(foxHeroGradient(Color(tint))),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
                                         text = "✦",
-                                        fontSize = 16.sp,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
                                     )
@@ -414,6 +501,31 @@ private fun AssistantHistoryDialog(
                             onClick = {
                                 if (isCurrent) onToggleHistory() else onOpenConversation(conv.id)
                             },
+                        )
+                    }
+                }
+                item(key = "history_footer_rule") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(foxHairline()),
+                    )
+                }
+                item(key = "history_footer_count") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "共 ${state.conversations.size} 个会话",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp,
+                            ),
+                            color = InkQuaternary,
                         )
                     }
                 }

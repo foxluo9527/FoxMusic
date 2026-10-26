@@ -1,10 +1,13 @@
 package com.fox.music.feature.profile.ui.screen
 
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -24,12 +28,12 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -38,17 +42,23 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.fox.music.core.ui.component.FoxIndeterminateLinearProgress
-import com.fox.music.core.ui.component.FoxLinearProgress
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.download.DownloadStatus
 import com.fox.music.core.model.download.DownloadTask
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.DownloadActionBottomSheet
+import com.fox.music.core.ui.component.FoxIndeterminateLinearProgress
+import com.fox.music.core.ui.component.FoxLinearProgress
+import com.fox.music.core.ui.theme.CoverShapeRail
+import com.fox.music.core.ui.theme.FoxSpacing
+import com.fox.music.core.ui.theme.PaperHairline
 import com.fox.music.feature.profile.viewmodel.DownloadEffect
 import com.fox.music.feature.profile.viewmodel.DownloadViewModel
 
@@ -60,16 +70,27 @@ private fun RowScope.DownloadToolbarTextButton(
     icon: ImageVector,
     label: String,
 ) {
-    TextButton(modifier = Modifier.weight(1f), onClick = onClick) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(17.dp),
+            tint = scheme.primary,
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = scheme.primary,
         )
     }
 }
@@ -104,10 +125,16 @@ fun DownloadScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("下载管理") },
+                title = {
+                    Text(
+                        text = "下载管理",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background,
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -126,7 +153,7 @@ fun DownloadScreen(
             ) {
                 Text(
                     text = "暂无下载任务",
-                    style = MaterialTheme.typography.bodyLarge,
+                    fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -135,22 +162,47 @@ fun DownloadScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(
+                    start = FoxSpacing.pagePadding,
+                    end = FoxSpacing.pagePadding,
+                    top = 4.dp,
+                    bottom = 24.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // 批量操作：收进一张卡片，三段等分 + 发丝线分隔（原来是三个裸 TextButton）
                 item {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, PaperHairline, RoundedCornerShape(14.dp)),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         if (completedDownloads.isNotEmpty()) {
                             DownloadToolbarTextButton(
                                 onClick = viewModel::playAllCompleted,
                                 icon = Icons.Default.PlaylistPlay,
                                 label = "播放全部",
                             )
+                            HorizontalDivider(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(20.dp),
+                                color = PaperHairline,
+                            )
                         }
                         DownloadToolbarTextButton(
                             onClick = viewModel::pauseAll,
                             icon = Icons.Default.Pause,
                             label = "全部暂停",
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(20.dp),
+                            color = PaperHairline,
                         )
                         DownloadToolbarTextButton(
                             onClick = viewModel::resumeAll,
@@ -162,9 +214,9 @@ fun DownloadScreen(
                 item {
                     Text(
                         text = "已用存储 ${viewModel.formatBytes(totalBytes)}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
                     )
                 }
                 items(downloads, key = { it.musicId }) { task ->
@@ -219,14 +271,19 @@ private fun DownloadTaskItem(
     onActionClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
-    val actionIcon = when (task.status) {
-        DownloadStatus.COMPLETED -> Icons.Default.PlayArrow
+    val scheme = MaterialTheme.colorScheme
+    // v12：已完成的任务不再给「播放」动作键。
+    // 播放是「整行点击 → 进播放器」的职责，行尾再放一颗 ▶ 会和「继续下载」的 ▶
+    // 长得一模一样（同一颗图标、同一个位置），用户根本分不清点下去是播还是下。
+    // 所以已完成 = 没有动作键，只留右侧 ⋮。
+    val actionIcon: ImageVector? = when (task.status) {
+        DownloadStatus.COMPLETED -> null
         DownloadStatus.PAUSED -> Icons.Default.PlayArrow
         DownloadStatus.FAILED -> Icons.Default.Refresh
         DownloadStatus.PENDING, DownloadStatus.DOWNLOADING -> Icons.Default.Pause
     }
-    val actionDescription = when (task.status) {
-        DownloadStatus.COMPLETED -> "播放"
+    val actionDescription: String? = when (task.status) {
+        DownloadStatus.COMPLETED -> null
         DownloadStatus.PAUSED -> "继续下载"
         DownloadStatus.FAILED -> "重新下载"
         DownloadStatus.PENDING, DownloadStatus.DOWNLOADING -> "暂停下载"
@@ -237,39 +294,44 @@ private fun DownloadTaskItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(scheme.surface)
+            .border(1.dp, PaperHairline, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CachedImage(
             imageUrl = task.coverUrl,
             contentDescription = task.title,
-            modifier = Modifier.size(56.dp),
-            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.size(48.dp),
+            shape = CoverShapeRail,
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = task.title,
-                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = scheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = task.artistNames,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                color = scheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = statusLabel,
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.5.sp,
                 color = if (task.status == DownloadStatus.FAILED) {
-                    MaterialTheme.colorScheme.error
+                    scheme.error
                 } else {
-                    MaterialTheme.colorScheme.primary
+                    scheme.primary
                 },
             )
             if (showProgress) {
@@ -286,20 +348,30 @@ private fun DownloadTaskItem(
                 if (progressFraction != null) {
                     FoxLinearProgress(
                         progress = { progressFraction },
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 } else if (task.status == DownloadStatus.DOWNLOADING) {
                     FoxIndeterminateLinearProgress(
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
             }
         }
-        IconButton(onClick = onActionClick) {
-            Icon(actionIcon, contentDescription = actionDescription)
+        actionIcon?.let { icon ->
+            IconButton(onClick = onActionClick) {
+                Icon(
+                    icon,
+                    contentDescription = actionDescription,
+                    tint = scheme.primary,
+                )
+            }
         }
         IconButton(onClick = onMoreClick) {
-            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+            Icon(
+                Icons.Default.MoreVert,
+                contentDescription = "更多",
+                tint = scheme.onSurfaceVariant,
+            )
         }
     }
 }

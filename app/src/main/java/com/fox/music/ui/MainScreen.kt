@@ -1,5 +1,6 @@
 package com.fox.music.ui
 
+import android.app.Activity
 import androidx.annotation.OptIn
 import com.fox.music.core.common.EventViewModel
 import androidx.compose.animation.SharedTransitionLayout
@@ -7,16 +8,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
@@ -30,9 +26,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -51,7 +50,10 @@ import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.SleepTimerState
 import com.fox.music.core.ui.component.CreatePlaylistBottomSheet
+import com.fox.music.core.ui.component.FoxChoiceDialog
+import com.fox.music.core.ui.component.FoxInputDialog
 import com.fox.music.core.ui.component.LocalTransientMediaAudioCoordinator
+import com.fox.music.BuildConfig
 import com.fox.music.core.ui.component.MineDrawerContent
 import com.fox.music.core.ui.component.TransientMediaAudioCoordinator
 import com.fox.music.core.ui.component.UpdateDialog
@@ -81,6 +83,7 @@ import com.fox.music.navigation.navigateToPlayer
 import com.fox.music.ui.TAB_ROOT_ROUTES
 import com.fox.music.update.ApkInstallHelper
 import com.fox.music.update.ApkInstallResult
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
@@ -126,6 +129,23 @@ fun MainScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
 
+    // 抽屉展开时状态栏图标/文字变白：抽屉头部是深色封面图，深色图标压在上面看不见
+    //（用户反馈）。关闭时恢复进入前的样式（各 tab 页是浅色底 → 深色图标）。
+    val statusBarView = LocalView.current
+    val statusBarWindow = (statusBarView.context as? Activity)?.window
+    if (statusBarWindow != null) {
+        DisposableEffect(drawerState.isOpen) {
+            val controller = WindowCompat.getInsetsController(statusBarWindow, statusBarView)
+            val previousLight = controller.isAppearanceLightStatusBars
+            if (drawerState.isOpen) {
+                controller.isAppearanceLightStatusBars = false
+            }
+            onDispose {
+                controller.isAppearanceLightStatusBars = previousLight
+            }
+        }
+    }
+
     fun closeDrawer(block: () -> Unit = {}) {
         drawerScope.launch { drawerState.close() }
         block()
@@ -136,15 +156,23 @@ fun MainScreen(
     }
 
     LaunchedEffect(deepLinkRoute) {
-        if (deepLinkRoute.isNotBlank() && deepLinkRoute != HOME_ROUTE) {
-            navController.navigate(deepLinkRoute) {
-                if (deepLinkRoute in TAB_ROOT_ROUTES) {
-                    popUpTo(HOME_ROUTE) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                } else {
-                    launchSingleTop = true
-                }
+        if (deepLinkRoute.isBlank() || deepLinkRoute == HOME_ROUTE) return@LaunchedEffect
+        // v12 修崩溃：`Cannot navigate to messages/notifications/comment.
+        // Navigation graph has not been set for NavController`。
+        //
+        // 本 effect 注册在 [MainScreen] 主体里，比下方 NavHost 的 setGraph 更早进入
+        // 副作用队列；冷启动带通知路由（点推送进 App）时 effect 先跑，此时
+        // navController.graph 还是 null，navigate 直接抛 IllegalArgumentException。
+        // 等首个 back stack entry 落地（= NavHost 已 setGraph）再跳，既不改导航结构，
+        // 也不引入延时魔法值。
+        navController.currentBackStackEntryFlow.first()
+        navController.navigate(deepLinkRoute) {
+            if (deepLinkRoute in TAB_ROOT_ROUTES) {
+                popUpTo(HOME_ROUTE) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            } else {
+                launchSingleTop = true
             }
         }
     }
@@ -261,13 +289,14 @@ fun MainScreen(
         if (music.isThirdParty) {
             navController.navigate(
                 collectTrackRoute(
-                    CollectTrackArgs(
+                        CollectTrackArgs(
                         title = music.title,
                         artist = music.artists.joinToString(", ") { it.name },
                         platform = music.sourcePlatform ?: "netease",
                         externalId = music.sourceId,
                         coverUrl = music.coverImage.orEmpty(),
                         durationMs = music.duration,
+                        album = music.album?.title ?: "",
                         mode = "search",
                     )
                 )
@@ -388,8 +417,11 @@ fun MainScreen(
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             // 仿网易云侧边栏：面板只占约 86% 宽，右侧留出可见遮罩区（默认会撑满 360dp）。
+            // drawerShape = RectangleShape：去掉 M3 默认的右端 16dp 圆角——
+            // 用户明确反馈「外部圆角去掉」，面板贴屏幕边缘应是整整齐齐的直角。
             ModalDrawerSheet(
                 modifier = Modifier.fillMaxWidth(0.86f),
+                drawerShape = RectangleShape,
                 // 面板背景铺满整屏（含状态栏），否则状态栏区域露出的是遮罩底色，形成一条灰色断层。
                 windowInsets = WindowInsets(0.dp),
             ) {
@@ -416,6 +448,7 @@ fun MainScreen(
                     onThemeClick = { navigateFromDrawer(THEME_SETTINGS_ROUTE) },
                     onManageLibraryClick = { navigateFromDrawer(MANAGE_ROUTER) },
                     onSettingsClick = { navigateFromDrawer(SETTINGS_ROUTE) },
+                    versionLabel = "FOXMUSIC ${BuildConfig.VERSION_NAME}",
                 )
             }
         },
@@ -482,36 +515,22 @@ fun MainScreen(
     }
 
     if (showInputDialog) {
-        AlertDialog(
-            onDismissRequest = ::onInputDialogDismiss,
-            title = { Text(inputDialogTitle) },
-            text = {
-                OutlinedTextField(
-                    value = inputValue,
-                    onValueChange = { inputValue = it },
-                    label = { Text(inputDialogLabel) },
-                    modifier = Modifier.fillMaxWidth()
-                )
+        FoxInputDialog(
+            title = inputDialogTitle,
+            label = inputDialogLabel,
+            initialValue = inputValue,
+            confirmText = "确认",
+            onDismiss = ::onInputDialogDismiss,
+            onConfirm = { value ->
+                inputValue = value
+                onInputDialogConfirm()
             },
-            confirmButton = {
-                Button(
-                    onClick = ::onInputDialogConfirm,
-                    enabled = inputValue.isNotBlank()
-                ) {
-                    Text("确认")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = ::onInputDialogDismiss) {
-                    Text("取消")
-                }
-            }
         )
     }
 
     if (showSleepTimerPicker) {
         SleepTimerPickerDialog(
-            isActive = sleepTimerState.isActive,
+            sleepTimerState = sleepTimerState,
             onSelect = { minutes ->
                 viewModel.startSleepTimer(minutes)
                 showSleepTimerPicker = false
@@ -546,43 +565,37 @@ private val SleepTimerOptionsMinutes = listOf(0L, 15L, 30L, 45L, 60L, 90L, 120L)
 
 @Composable
 private fun SleepTimerPickerDialog(
-    isActive: Boolean,
+    sleepTimerState: SleepTimerState,
     onSelect: (Long) -> Unit,
     onCancelTimer: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("定时关闭") },
-        text = {
-            LazyColumn {
-                SleepTimerOptionsMinutes.forEach { minutes ->
-                    item {
-                        TextButton(
-                            onClick = { onSelect(minutes) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = if (minutes == 0L) "关闭定时" else "$minutes 分钟后停止播放",
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                }
-                if (isActive) {
-                    item {
-                        TextButton(
-                            onClick = onCancelTimer,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(text = "取消当前定时", modifier = Modifier.fillMaxWidth())
-                        }
-                    }
-                }
-            }
+    // 「取消当前定时」用 -1 标记，避免与「关闭定时」(0) 混淆
+    val cancelTimerMinutes = -1L
+    val optionMinutes: List<Long> =
+        if (sleepTimerState.isActive) SleepTimerOptionsMinutes + cancelTimerMinutes
+        else SleepTimerOptionsMinutes
+    val labels = optionMinutes.map { minutes ->
+        when (minutes) {
+            cancelTimerMinutes -> "取消当前定时"
+            0L -> "关闭定时"
+            else -> "$minutes 分钟后停止播放"
+        }
+    }
+    // 定时生效时按 totalMs 回显当前档位
+    val selectedIndex = if (sleepTimerState.isActive) {
+        SleepTimerOptionsMinutes.indexOfFirst { it * 60_000L == sleepTimerState.totalMs }
+    } else {
+        -1
+    }
+    FoxChoiceDialog(
+        title = "定时关闭",
+        options = labels,
+        selectedIndex = selectedIndex,
+        onSelect = { index ->
+            val minutes = optionMinutes[index]
+            if (minutes == cancelTimerMinutes) onCancelTimer() else onSelect(minutes)
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
+        onDismiss = onDismiss,
     )
 }
