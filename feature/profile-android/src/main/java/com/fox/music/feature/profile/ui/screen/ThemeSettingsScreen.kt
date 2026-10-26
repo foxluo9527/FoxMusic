@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +58,7 @@ import com.fox.music.core.ui.theme.AppThemePresets
 import com.fox.music.core.ui.theme.FoxEditorial
 import com.fox.music.core.ui.theme.FoxMusicTypography
 import com.fox.music.core.ui.theme.FoxSpacing
+import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
 import com.fox.music.core.ui.theme.SeedSwatch
@@ -68,7 +70,7 @@ import com.fox.music.feature.profile.viewmodel.ThemeSettingsViewModel
 const val THEME_SETTINGS_ROUTE = "theme_settings"
 
 private val AmbienceOptions: List<Pair<Float, String>> = listOf(
-    AppThemeIntensity.SOFT to "柔",
+    AppThemeIntensity.SOFT to "淡",
     AppThemeIntensity.BALANCED to "中",
     AppThemeIntensity.RICH to "浓",
 )
@@ -188,10 +190,9 @@ fun ThemeSettingsScreen(
                 )
             }
             item {
-                ThemeSectionHeader(
-                    number = "01",
-                    title = "配色",
-                    modifier = pagePadding.padding(top = 16.dp),
+                ThemeSectionKicker(
+                    title = "预设",
+                    modifier = pagePadding.padding(top = 20.dp),
                 )
             }
             item {
@@ -201,7 +202,13 @@ fun ThemeSettingsScreen(
                     onSelectSwatch = { argb ->
                         draft = draft.copy(seedArgb = argb, custom = true)
                     },
-                    modifier = pagePadding.padding(top = 8.dp),
+                    modifier = pagePadding.padding(top = 10.dp),
+                )
+            }
+            item {
+                ThemeSectionKicker(
+                    title = "自定义色",
+                    modifier = pagePadding.padding(top = 20.dp),
                 )
             }
             item {
@@ -215,32 +222,33 @@ fun ThemeSettingsScreen(
                             custom = true,
                         )
                     },
-                    modifier = pagePadding.padding(top = 14.dp),
+                    modifier = pagePadding.padding(top = 10.dp),
                     presets = emptyList(),
                     showHex = true,
                 )
             }
             item {
-                ThemeSectionHeader(
-                    number = "02",
+                ThemeSectionKicker(
                     title = "浓度",
-                    modifier = pagePadding.padding(top = 18.dp),
+                    modifier = pagePadding.padding(top = 20.dp),
                 )
             }
             item {
-                ThemeIntensityRow(
+                ThemeIntensitySeg(
                     intensity = draft.intensity,
                     onSelectIntensity = { value ->
                         draft = draft.copy(intensity = value, custom = true)
                     },
-                    modifier = pagePadding.padding(top = 8.dp),
+                    modifier = pagePadding.padding(top = 10.dp),
                 )
             }
             item {
-                ThemeSectionHeader(
-                    number = "03",
-                    title = "模式",
-                    modifier = pagePadding.padding(top = 18.dp),
+                Box(
+                    modifier = pagePadding
+                        .padding(top = 18.dp)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(foxHairline()),
                 )
             }
             item {
@@ -283,22 +291,55 @@ private fun appliedDraftOf(state: ThemeSettingsState, systemDark: Boolean): Them
     )
 }
 
-/** 刊头（设计稿①）：全大写眼标 + 衬线 32sp 主标题。 */
+/**
+ * 刊头（设计稿④）：全大写眼标（强调色）+ 衬线 21sp「主题设置」。
+ *
+ * v12 之前是 APPEARANCE + 32sp「主题」，和歌词设置弹层（LYRICS + 21sp）不成套；
+ * 两页现在共用同一套刊头尺度。
+ */
 @Composable
 private fun ThemeMasthead(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
-            text = "APPEARANCE",
-            style = FoxEditorial.kicker.copy(fontSize = 9.5.sp, lineHeight = 12.sp),
-            color = foxInkMuted(),
+            text = "THEME",
+            style = FoxEditorial.kicker.copy(
+                fontSize = 9.5.sp,
+                lineHeight = 12.sp,
+                letterSpacing = 2.6.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = "主题",
-            style = FoxEditorial.mastheadTitle,
+            text = "主题设置",
+            style = FoxEditorial.mastheadTitle.copy(
+                fontSize = 21.sp,
+                lineHeight = 24.sp,
+                letterSpacing = (-0.4).sp,
+            ),
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 3.dp),
         )
     }
+}
+
+/** 分区眼标（设计稿④）：11sp 全大写 + 2sp 字距 + ink4，取代原来「01 配色 ——」的编号行。 */
+@Composable
+private fun ThemeSectionKicker(
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            letterSpacing = 2.sp,
+        ),
+        fontWeight = FontWeight.Medium,
+        color = InkQuaternary,
+        modifier = modifier.fillMaxWidth(),
+    )
 }
 
 /**
@@ -338,175 +379,133 @@ private fun ThemeLivePreview(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(previewScheme.primary)
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = "正在播放",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 10.5.sp,
-                        lineHeight = 13.sp,
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = previewScheme.onPrimary,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "♪",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 11.sp,
-                        lineHeight = 13.sp,
-                    ),
-                    color = previewScheme.onPrimary,
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        lerp(previewScheme.primary, Color.White, 0.28f),
-                                        lerp(previewScheme.primary, Color.Black, 0.18f),
-                                    ),
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    lerp(previewScheme.primary, Color.White, 0.28f),
+                                    lerp(previewScheme.primary, Color.Black, 0.18f),
                                 ),
                             ),
+                        ),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "稳稳的幸福",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontSize = 13.sp,
+                            lineHeight = 16.sp,
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = previewScheme.onSurface,
                     )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "屋顶上的猫",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontSize = 12.5.sp,
-                                lineHeight = 16.sp,
-                            ),
-                            fontWeight = FontWeight.Bold,
-                            color = previewScheme.onSurface,
-                        )
-                        Text(
-                            text = "独立民谣",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
-                                lineHeight = 14.sp,
-                            ),
-                            color = foxInkMuted(darkTheme),
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
-                    }
+                    Text(
+                        text = "陈奕迅",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp,
+                        ),
+                        color = foxInkMuted(darkTheme),
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
+                // 实心圆播放键：预览里「强调色直接上色块」的最强样本
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(previewScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Image(
                         painter = painterResource(R.drawable.iv_play),
                         contentDescription = null,
-                        colorFilter = ColorFilter.tint(previewScheme.primary),
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-                // ① 实心 chip（primaryContainer 底 + onPrimaryContainer 字）
-                // ③ ghost 按钮（primary 描边 + primary 字）
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(7.dp))
-                            .background(previewScheme.primaryContainer)
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                    ) {
-                        Text(
-                            text = "已收藏",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
-                                lineHeight = 14.sp,
-                            ),
-                            fontWeight = FontWeight.Medium,
-                            color = previewScheme.onPrimaryContainer,
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(7.dp))
-                            .border(1.dp, previewScheme.primary, RoundedCornerShape(7.dp))
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                    ) {
-                        Text(
-                            text = "查看详情",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
-                                lineHeight = 14.sp,
-                            ),
-                            fontWeight = FontWeight.Medium,
-                            color = previewScheme.primary,
-                        )
-                    }
-                }
-                // ② 进度条余量（primaryContainer 底 + primary 已播段）
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(2.5.dp))
-                        .background(previewScheme.primaryContainer),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.62f)
-                            .fillMaxHeight()
-                            .background(previewScheme.primary),
+                        colorFilter = ColorFilter.tint(previewScheme.onPrimary),
+                        modifier = Modifier.size(14.dp),
                     )
                 }
             }
+            // 三颗 chip：实心强调色 / 容器色 / 描边幽灵——一次把 primary、
+            // primaryContainer、outline 三条通道同时摊开，浓度一档一档都有反应。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(previewScheme.primary)
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = "正在播放",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp,
+                            lineHeight = 13.sp,
+                        ),
+                        fontWeight = FontWeight.Medium,
+                        color = previewScheme.onPrimary,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(previewScheme.primaryContainer)
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = "沉浸",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp,
+                            lineHeight = 13.sp,
+                        ),
+                        fontWeight = FontWeight.Medium,
+                        color = previewScheme.onPrimaryContainer,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, foxHairline(darkTheme), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = "无损",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp,
+                            lineHeight = 13.sp,
+                        ),
+                        color = foxInkMuted(darkTheme),
+                    )
+                }
+            }
+            // 进度条：余量吃 primaryContainer —— 浓度档位在这里最直观
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(previewScheme.primaryContainer),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.42f)
+                        .fillMaxHeight()
+                        .background(previewScheme.primary),
+                )
+            }
         }
-    }
-}
-
-/** 分区标题（设计稿①）：衬线编号(accent) + 13sp 粗标题 + 右侧延伸发丝线。 */
-@Composable
-private fun ThemeSectionHeader(
-    number: String,
-    title: String,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = number,
-            style = FoxEditorial.sectionNumber.copy(fontSize = 12.5.sp, lineHeight = 15.sp),
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall.copy(
-                fontSize = 13.sp,
-                lineHeight = 16.sp,
-            ),
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.width(10.dp))
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(foxHairline()),
-        )
     }
 }
 
@@ -555,61 +554,55 @@ private fun ThemeSwatchGrid(
     }
 }
 
-/** 「02 浓度」：柔 / 中 / 浓三档等宽描边 pill，选中态 accent 描边 + accent 文字。 */
+/**
+ * 「浓度」分段控件（设计稿④）：整条 variant 底 + 三格等宽，选中格铺 surface 实底 + 粗字。
+ *
+ * v12 之前是三颗各自描边的 pill，和自定义配色页的通道切换不是一套语言；现在两处统一成
+ * 同一个分段控件，用户一眼能认出「这是在切换某一组里的一个」。
+ */
 @Composable
-private fun ThemeIntensityRow(
+private fun ThemeIntensitySeg(
     intensity: Float,
     onSelectIntensity: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val normalized = AppThemeIntensity.normalize(intensity)
     Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(11.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         AmbienceOptions.forEach { (value, label) ->
-            AmbiencePill(
-                label = label,
-                selected = AppThemeIntensity.normalize(intensity) == value,
-                onClick = { onSelectIntensity(value) },
-                modifier = Modifier.weight(1f),
-            )
+            val selected = normalized == value
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(30.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.surface else Color.Transparent
+                    )
+                    .clickable { onSelectIntensity(value) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 12.5.sp,
+                        lineHeight = 16.sp,
+                    ),
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        foxInkMuted()
+                    },
+                )
+            }
         }
-    }
-}
-
-/** 描边 pill：未选中 hairline 描边 + ink3 文字；选中 accent 描边 + accent 粗体文字。 */
-@Composable
-private fun AmbiencePill(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accent = MaterialTheme.colorScheme.primary
-    val shape = RoundedCornerShape(9.dp)
-    Box(
-        modifier = modifier
-            .clip(shape)
-            // 底色走语义 surface：深色下是 #1E1A15，不再硬编码浅色纸面（旧值深底上白得刺眼）
-            .background(MaterialTheme.colorScheme.surface)
-            .border(
-                width = 1.dp,
-                color = if (selected) accent else foxHairline(),
-                shape = shape,
-            )
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-            ),
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) accent else foxInkMuted(),
-        )
     }
 }
 
@@ -646,7 +639,7 @@ private fun ThemeActionBar(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp)
+                    .height(40.dp)
                     .clip(shape)
                     .border(width = 1.dp, color = foxHairline(), shape = shape)
                     .clickable(onClick = onCancel),
@@ -655,17 +648,17 @@ private fun ThemeActionBar(
                 Text(
                     text = "取消",
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         lineHeight = 18.sp,
                     ),
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    color = foxInkMuted(),
                 )
             }
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp)
+                    .height(40.dp)
                     .clip(shape)
                     .background(MaterialTheme.colorScheme.primary)
                     .clickable(onClick = onApply),
@@ -674,10 +667,10 @@ private fun ThemeActionBar(
                 Text(
                     text = "应用",
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         lineHeight = 18.sp,
                     ),
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
             }

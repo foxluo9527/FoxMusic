@@ -39,7 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fox.music.core.ui.component.FoxColorPicker
@@ -102,6 +102,10 @@ fun LyricSettingsSheet(
 
     var showCustomPage by remember { mutableStateOf(false) }
 
+    // 进二级页时的草稿快照：页头 ‹ 返回 = 撤销本页改的配色后回主页面（字号等其它项保留），
+    // 底部「取消」= 整层丢弃（与主页面取消、侧滑关闭同语义）。
+    var customEntryDraft by remember { mutableStateOf<LyricSettingsDraft?>(null) }
+
     // 草稿只在这里初始化一次（remember 无 key → 弹层每次进入都是新快照）。
     // 之后所有控件都只改它，绝不直接写 styleManager。
     var draft by remember {
@@ -114,6 +118,28 @@ fun LyricSettingsSheet(
                 custom = styleManager.customColors,
             )
         )
+    }
+
+    // 「应用」两条路径（主页面 / 自定义配色页底部）共用同一份落盘逻辑，
+    // 保证二级页点应用和主页面点应用效果完全一致（含桌面歌词的系统副作用）。
+    val applyAll: () -> Unit = {
+        styleManager.applyDraft(
+            fontSize = draft.fontSize,
+            showTranslation = draft.showTranslation,
+            paletteId = draft.paletteId,
+            custom = draft.custom,
+        )
+        // 桌面歌词是系统级副作用（要悬浮窗权限），只在这里执行一次。
+        if (draft.desktopLyric != syncManager.isDesktopLyricEnabled.value) {
+            if (draft.desktopLyric) {
+                syncManager.openDesktopLyric(context) {
+                    syncManager.enableDesktopLyric()
+                }
+            } else {
+                syncManager.disableDesktopLyric()
+            }
+        }
+        onDismiss()
     }
 
     // 统一走 FoxSheet：22dp 顶圆角 + drag handle + 语义 surface 底。
@@ -133,7 +159,20 @@ fun LyricSettingsSheet(
                     LyricCustomColorPage(
                         draft = draft,
                         onDraftChange = { draft = it },
-                        onBack = { showCustomPage = false },
+                        // 恢复默认只作用于配色：方案回「跟随主题」+ 清空自定义覆盖，
+                        // 字号 / 翻译 / 桌面歌词都不动。
+                        onReset = {
+                            draft = draft.copy(
+                                paletteId = LyricPalettes.default.id,
+                                custom = LyricCustomColors(),
+                            )
+                        },
+                        onCancel = onDismiss,
+                        onApply = applyAll,
+                        onBack = {
+                            customEntryDraft?.let { draft = it }
+                            showCustomPage = false
+                        },
                     )
                 }
             } else {
@@ -150,27 +189,12 @@ fun LyricSettingsSheet(
                         )
                     },
                     onLyricCorrectClick = onLyricCorrectClick,
-                    onCustomColorClick = { showCustomPage = true },
-                    onCancel = onDismiss,
-                    onApply = {
-                        styleManager.applyDraft(
-                            fontSize = draft.fontSize,
-                            showTranslation = draft.showTranslation,
-                            paletteId = draft.paletteId,
-                            custom = draft.custom,
-                        )
-                        // 桌面歌词是系统级副作用（要悬浮窗权限），只在这里执行一次。
-                        if (draft.desktopLyric != syncManager.isDesktopLyricEnabled.value) {
-                            if (draft.desktopLyric) {
-                                syncManager.openDesktopLyric(context) {
-                                    syncManager.enableDesktopLyric()
-                                }
-                            } else {
-                                syncManager.disableDesktopLyric()
-                            }
-                        }
-                        onDismiss()
+                    onCustomColorClick = {
+                        customEntryDraft = draft
+                        showCustomPage = true
                     },
+                    onCancel = onDismiss,
+                    onApply = applyAll,
                 )
             }
         }
@@ -206,27 +230,32 @@ private fun LyricSettingsMainPage(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "LYRICS",
-                    style = FoxEditorial.kicker.copy(fontSize = 9.5.sp, lineHeight = 12.sp),
-                    color = foxInkMuted(),
+                    style = FoxEditorial.kicker.copy(
+                        fontSize = 9.5.sp,
+                        lineHeight = 12.sp,
+                        letterSpacing = 2.6.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = themeAccent,
                 )
                 Text(
                     text = "歌词",
                     style = FoxEditorial.mastheadTitle.copy(
-                        fontSize = 19.sp,
-                        lineHeight = 22.sp,
-                        letterSpacing = (-0.6).sp,
+                        fontSize = 21.sp,
+                        lineHeight = 24.sp,
+                        letterSpacing = (-0.4).sp,
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 3.dp),
                 )
             }
             Text(
                 text = "重置",
                 style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 11.5.sp,
-                    lineHeight = 15.sp,
+                    fontSize = 12.5.sp,
+                    lineHeight = 16.sp,
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = foxInkMuted(),
                 modifier = Modifier.clickable(onClick = onReset),
             )
         }
@@ -298,7 +327,6 @@ private fun LyricSettingsMainPage(
         )
         FoxEditorialRow(
             title = "桌面歌词",
-            subtitle = "在桌面悬浮显示",
             trailing = {
                 FoxSwitch(
                     checked = draft.desktopLyric,
@@ -308,13 +336,11 @@ private fun LyricSettingsMainPage(
         )
         FoxEditorialRow(
             title = "歌词纠正",
-            subtitle = "发现词错？帮助我们修正",
             onClick = onLyricCorrectClick,
             trailing = { ChevronText() },
         )
         FoxEditorialRow(
             title = "自定义配色",
-            subtitle = "普通词 / 高亮词 两通道",
             onClick = onCustomColorClick,
             trailing = {
                 Row(
@@ -341,9 +367,8 @@ private fun LyricSettingsMainPage(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp)
+                    .height(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface)
                     .border(width = 1.dp, color = foxHairline(), shape = RoundedCornerShape(12.dp))
                     .clickable(onClick = onCancel),
                 contentAlignment = Alignment.Center,
@@ -354,13 +379,14 @@ private fun LyricSettingsMainPage(
                         fontSize = 13.5.sp,
                         lineHeight = 18.sp,
                     ),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    color = foxInkMuted(),
                 )
             }
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp)
+                    .height(40.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.primary)
                     .clickable(onClick = onApply),
@@ -372,7 +398,7 @@ private fun LyricSettingsMainPage(
                         fontSize = 13.5.sp,
                         lineHeight = 18.sp,
                     ),
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                 )
             }
@@ -539,7 +565,7 @@ private fun LyricPreviewCard(
     fontSize: Int,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(16.dp)
     val normalSize = (fontSize * 0.72f).coerceIn(11f, 24f)
     val highlightSize = (normalSize * 1.15f).coerceIn(12f, 28f)
     Column(
@@ -548,8 +574,7 @@ private fun LyricPreviewCard(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .border(width = 1.dp, color = foxHairline(), shape = shape)
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = 16.dp, vertical = 18.dp),
     ) {
         // 说明这卡的底就是应用主题，避免用户再去找「背景色」
         Text(
@@ -560,23 +585,28 @@ private fun LyricPreviewCard(
                 letterSpacing = 1.8.sp,
             ),
             color = InkQuaternary,
-            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 12.dp),
         )
-        Spacer(Modifier.height(10.dp))
         PreviewLine(
-            text = "你说已分开",
+            text = "沿着晚风走了很久",
             color = Color(colors.normal),
             fontSize = normalSize.sp,
             bold = false,
         )
         PreviewLine(
-            text = "为什么还要帮你撑伞",
+            text = "把心事都交给霓虹",
             color = Color(colors.highlight),
             fontSize = highlightSize.sp,
             bold = true,
         )
         PreviewLine(
-            text = "你说已分开",
+            text = "I gave my worries to the neon",
+            color = Color(colors.translation),
+            fontSize = 11.5.sp,
+            bold = false,
+        )
+        PreviewLine(
+            text = "城市在身后慢慢安静",
             color = Color(colors.normal),
             fontSize = normalSize.sp,
             bold = false,
@@ -616,19 +646,20 @@ private fun PreviewLine(
         text = text,
         style = MaterialTheme.typography.bodyMedium.copy(
             fontSize = fontSize,
-            lineHeight = fontSize * 2.1f,
+            lineHeight = fontSize * 2.05f,
         ),
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
         color = color,
-        textAlign = TextAlign.Center,
     )
 }
 
 /**
- * 方案 thumbnail（设计稿② / v12）：96×62 小卡，底色同样是语义 surface + 1dp 发丝线，
- * 卡内只展示两个颜色 —— 高亮色写「词」（15sp 粗）、普通色写「词」（9sp）。
+ * 方案 thumbnail（设计稿② / v12）：52dp 方形小卡 + 下方方案名。
  *
- * 不再展示方案渐变底：设置页看到的底就是应用主题的底，所见即所得。
+ * 底色同样是语义 surface + 发丝线，卡内只放两个「词」（高亮色 15sp 粗 / 普通色 9sp 细），
+ * 选中时换成 2dp 强调色描边、方案名同步转强调色 —— 一眼看出点名了哪一组。
+ *
+ * 不再展示方案自带渐变底：设置页看到的底就是应用主题的底，所见即所得。
  */
 @Composable
 private fun LyricPaletteThumb(
@@ -638,48 +669,64 @@ private fun LyricPaletteThumb(
     onClick: () -> Unit,
 ) {
     val accent = MaterialTheme.colorScheme.primary
-    val cardShape = RoundedCornerShape(11.dp)
-    Box(
+    val tileShape = RoundedCornerShape(13.dp)
+    Column(
         modifier = Modifier
-            .width(96.dp)
-            .height(62.dp)
-            .clip(cardShape)
-            .background(MaterialTheme.colorScheme.surface)
-            .then(
-                if (selected) {
-                    Modifier.border(width = 2.dp, color = accent, shape = cardShape)
-                } else {
-                    Modifier.border(width = 1.dp, color = foxHairline(), shape = cardShape)
-                },
-            )
+            .width(52.dp)
             .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(tileShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .then(
+                    if (selected) {
+                        Modifier.border(width = 2.dp, color = accent, shape = tileShape)
+                    } else {
+                        Modifier.border(width = 1.dp, color = foxHairline(), shape = tileShape)
+                    },
+                ),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "词",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 15.sp,
-                    lineHeight = 18.sp,
-                ),
-                fontWeight = FontWeight.Bold,
-                color = highlightColor,
-                maxLines = 1,
-            )
-            Text(
-                text = "词",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 9.sp,
-                    lineHeight = 12.sp,
-                ),
-                color = Color(palette.normalColor),
-                maxLines = 1,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = "词",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    fontWeight = FontWeight.Bold,
+                    color = highlightColor,
+                    maxLines = 1,
+                )
+                Text(
+                    text = "词",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 9.sp,
+                        lineHeight = 11.sp,
+                    ),
+                    color = Color(palette.normalColor),
+                    maxLines = 1,
+                )
+            }
         }
+        Text(
+            text = palette.name,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 9.5.sp,
+                lineHeight = 12.sp,
+            ),
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) accent else InkQuaternary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 5.dp),
+        )
     }
 }
 
@@ -701,22 +748,33 @@ private fun SwatchDot(color: Color, borderColor: Color?) {
 }
 
 /**
- * 自定义配色二级页（设计稿② / v12）：实时预览 → 双通道行 → 取色盘 → 跟随主题 / 返回。
+ * 自定义配色二级页（设计稿③ / v12 二轮返工）。
  *
- * 取色盘统一走 [FoxColorPicker]，预设点与明度/饱和度面板的 `onColorChange` 都按
- * [activeChannel] 分流写入草稿 —— v12 之前预设点硬编码 `setCustomHighlight`，
- * 选「普通」通道点预设却改了高亮色，这是用户报的 bug。
+ * 一条竖向动线：**刊头 → 实时预览 → 普通词/高亮词分段控件 → 取色盘 → 取消/应用**。
  *
- * 「背景」通道整体删除：背景跟随应用主题，不再可调。
+ * 为什么是分段控件而不是两行通道：v12 第一版做成「高亮·当前行 / 普通·其他行」两行，
+ * 每行右侧挂一个色点，用户看不出「我现在在改哪一种」，实际点预设点也一直是改高亮色。
+ * 分段控件把「当前编辑对象」做成唯一显式状态，取色盘、预设点、HEX 读数全部只服务于它。
+ *
+ * 背景通道整体删除（背景跟随应用主题），[LyricCustomColors] 的 background 字段不再有新写入。
+ *
+ * @param onBack 页头 ‹ —— 撤销本页配色改动并回主页面（字号等其它草稿项保留）
+ * @param onCancel 底部取消 —— 丢弃整层草稿并关闭弹层
+ * @param onApply 底部应用 —— 整份草稿落盘（与主页面「应用」同一路径）
+ * @param onReset 页头「恢复默认」—— 方案回「跟随主题」+ 清空自定义覆盖
  */
 @Composable
 private fun LyricCustomColorPage(
     draft: LyricSettingsDraft,
     onDraftChange: (LyricSettingsDraft) -> Unit,
+    onReset: () -> Unit,
+    onCancel: () -> Unit,
+    onApply: () -> Unit,
     onBack: () -> Unit,
 ) {
     val themeAccent = MaterialTheme.colorScheme.primary
-    var activeChannel by remember { mutableStateOf(LyricColorChannel.HIGHLIGHT) }
+    // 设计稿默认停在「普通词」：普通行字最多，先调它更符合直觉。
+    var activeChannel by remember { mutableStateOf(LyricColorChannel.NORMAL) }
 
     val colors = remember(draft.paletteId, draft.custom, themeAccent) {
         LyricPalettes.byId(draft.paletteId).resolve(themeAccent.toArgb(), draft.custom)
@@ -725,111 +783,145 @@ private fun LyricCustomColorPage(
         LyricColorChannel.HIGHLIGHT -> colors.highlight
         LyricColorChannel.NORMAL -> colors.normal
     }
-    val activeSize = (draft.fontSize * 0.72f).coerceIn(11f, 24f)
+    // 预览字号与主页面预览同一套换算，两页看到的大小一致。
+    val normalSize = (draft.fontSize * 0.72f).coerceIn(11f, 24f)
+    val highlightSize = (normalSize * 1.15f).coerceIn(12f, 28f)
 
     Column {
+        // ── 刊头：‹ + CUSTOM / 自定义配色 + 恢复默认 ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 2.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(bottom = 12.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            // 触控盒 44dp，视觉圆 28dp（原来 28dp 直接可点，低于最小触控目标）
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .width(36.dp)
+                        .height(44.dp)
+                        .clickable(onClick = onBack),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        tint = foxInkMuted(),
                         modifier = Modifier.size(16.dp),
                     )
                 }
+                Column(modifier = Modifier.padding(start = 2.dp)) {
+                    Text(
+                        text = "CUSTOM",
+                        style = FoxEditorial.kicker.copy(
+                            fontSize = 9.5.sp,
+                            lineHeight = 12.sp,
+                            letterSpacing = 2.6.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = themeAccent,
+                    )
+                    Text(
+                        text = "自定义配色",
+                        style = FoxEditorial.mastheadTitle.copy(
+                            fontSize = 19.sp,
+                            lineHeight = 22.sp,
+                            letterSpacing = (-0.6).sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
             }
-            Spacer(Modifier.width(6.dp))
             Text(
-                text = "自定义配色",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 15.sp,
-                    lineHeight = 20.sp,
+                text = "恢复默认",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 16.sp,
                 ),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = foxInkMuted(),
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .clickable(onClick = onReset),
             )
         }
 
-        // 实时预览：底同样是语义 surface，只靠发丝线收边
+        // ── 实时预览：底固定语义 surface（背景跟随应用主题），只让字色变化 ──
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surface)
-                .border(width = 1.dp, color = foxHairline(), shape = RoundedCornerShape(14.dp))
-                .padding(vertical = 22.dp, horizontal = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .border(width = 1.dp, color = foxHairline(), shape = RoundedCornerShape(16.dp))
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            Text(
-                text = "你说已分开 为什么还要帮你撑伞",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                ),
-                fontWeight = FontWeight.Bold,
-                color = Color(colors.highlight),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "Cuz baby you are mine mine",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = activeSize.sp,
-                    lineHeight = (activeSize * 1.5f).sp,
-                ),
+            PreviewLine(
+                text = "沿着晚风走了很久",
                 color = Color(colors.normal),
-                textAlign = TextAlign.Center,
+                fontSize = normalSize.sp,
+                bold = false,
             )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "翻译：因为宝贝 你本属于我",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp,
-                ),
+            PreviewLine(
+                text = "把心事都交给霓虹",
+                color = Color(colors.highlight),
+                fontSize = highlightSize.sp,
+                bold = true,
+            )
+            PreviewLine(
+                text = "I gave my worries to the neon",
                 color = Color(colors.translation),
-                textAlign = TextAlign.Center,
+                fontSize = 11.5.sp,
+                bold = false,
             )
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(16.dp))
 
-        CustomChannelRow(
-            title = LyricColorChannel.HIGHLIGHT.title,
-            value = hexString(colors.highlight),
-            color = Color(colors.highlight),
-            selected = activeChannel == LyricColorChannel.HIGHLIGHT,
-            onClick = { activeChannel = LyricColorChannel.HIGHLIGHT },
-        )
-        CustomChannelRow(
-            title = LyricColorChannel.NORMAL.title,
-            value = hexString(colors.normal),
-            color = Color(colors.normal),
-            selected = activeChannel == LyricColorChannel.NORMAL,
-            onClick = { activeChannel = LyricColorChannel.NORMAL },
-        )
+        // ── 通道分段控件：唯一决定「取色盘改谁」的状态 ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(11.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            LyricColorChannel.entries.forEach { channel ->
+                val selected = channel == activeChannel
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.surface else Color.Transparent
+                        )
+                        .clickable { activeChannel = channel },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = channel.title,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 12.5.sp,
+                            lineHeight = 16.sp,
+                        ),
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            foxInkMuted()
+                        },
+                    )
+                }
+            }
+        }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(14.dp))
 
-        // 取色盘：当前通道的草稿色是唯一数据源，拖动 / 点预设都按通道分流
+        // ── 取色盘：面板 / 色相条 / 预设点全部按 activeChannel 分流 ──
         FoxColorPicker(
             color = Color(activeArgb),
             onColorChange = { picked ->
@@ -841,14 +933,15 @@ private fun LyricCustomColorPage(
                 onDraftChange(draft.copy(custom = nextCustom))
             },
             caption = when (activeChannel) {
-                LyricColorChannel.HIGHLIGHT -> "已应用到“高亮词”"
-                LyricColorChannel.NORMAL -> "已应用到“普通词”"
+                LyricColorChannel.HIGHLIGHT -> "已应用到「高亮词」"
+                LyricColorChannel.NORMAL -> "已应用到「普通词」"
             },
             presets = FoxColorPickerPresets,
         )
 
         Spacer(Modifier.height(16.dp))
 
+        // ── 取消 / 应用（设计稿：40dp 高、12dp 圆角、13.5sp SemiBold） ──
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -856,117 +949,51 @@ private fun LyricCustomColorPage(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(width = 1.dp, color = foxHairline(), shape = RoundedCornerShape(22.dp))
-                    .clickable {
-                        // 只改草稿：方案回默认 + 清空自定义覆盖，点「应用」才落盘
-                        onDraftChange(
-                            draft.copy(
-                                paletteId = LyricPalettes.default.id,
-                                custom = LyricCustomColors(),
-                            )
-                        )
-                    },
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(width = 1.dp, color = foxHairline(), shape = RoundedCornerShape(12.dp))
+                    .clickable(onClick = onCancel),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "跟随主题",
+                    text = "取消",
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
+                        fontSize = 13.5.sp,
+                        lineHeight = 18.sp,
                     ),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    color = foxInkMuted(),
                 )
             }
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(46.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.primary)
-                    .clickable(onClick = onBack),
+                    .clickable(onClick = onApply),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "返回",
+                    text = "应用",
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
+                        fontSize = 13.5.sp,
+                        lineHeight = 18.sp,
                     ),
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                 )
             }
         }
+        Spacer(Modifier.height(4.dp))
     }
 }
 
 /** 取色通道：只剩「普通词」与「高亮词」；背景不再可调（跟随应用主题）。 */
 private enum class LyricColorChannel(val title: String) {
-    HIGHLIGHT("高亮 · 当前行"),
-    NORMAL("普通 · 其他行"),
+    NORMAL("普通词"),
+    HIGHLIGHT("高亮词"),
 }
-
-/** 双通道行：标题 + 当前 HEX + 右侧当前色 swatch（选中加 2dp accent 环）。 */
-@Composable
-private fun CustomChannelRow(
-    title: String,
-    value: String,
-    color: Color,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clickable(onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 11.sp,
-                    lineHeight = 14.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(color)
-                .border(width = 1.dp, color = foxHairline(), shape = CircleShape)
-                .then(
-                    if (selected) {
-                        Modifier.border(
-                            width = 2.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = CircleShape,
-                        )
-                    } else {
-                        Modifier
-                    },
-                ),
-        )
-    }
-}
-
-/** 0xAARRGGBB → "#RRGGBB"（大写）。 */
-private fun hexString(argb: Int): String =
-    "#" + (argb and 0xFFFFFF).toString(16).uppercase().padStart(6, '0')
 
 /**
  * 设置弹层的草稿快照（v12）。

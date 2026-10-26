@@ -11,9 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -40,17 +38,19 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * 取色盘预设格（与歌词「高亮色预设」同一套纸感色，深浅两底都压得住）。
+ * 取色盘预设格（v12 设计稿 03 的 8 格，纸感色系，深浅两底都压得住）。
+ *
+ * 顺序与设计稿一致，最后一格是弱化的暖灰 —— 用来做「比正文更淡」的注释行颜色。
  */
 val FoxColorPickerPresets: List<Color> = listOf(
     Color(0xFFB8513A),
     Color(0xFFC25E42),
     Color(0xFFB07624),
     Color(0xFF4E7A3C),
-    Color(0xFF38708C),
     Color(0xFF38598C),
     Color(0xFF8C4E6E),
     Color(0xFF2E2E2C),
+    Color(0xFFA79F92),
 )
 
 /**
@@ -170,31 +170,30 @@ fun FoxColorPicker(
 
         if (showHex || caption != null) {
             Spacer(modifier = Modifier.height(13.dp))
+            // 左边只读 HEX，右边「已应用到 xxx」——两端对齐（设计稿 .hexrow）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                if (showHex) {
-                    Text(
-                        text = color.toHexUpper(),
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = if (showHex) color.toHexUpper() else "",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        letterSpacing = 0.7.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 if (caption != null) {
                     Text(
                         text = caption,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 11.sp,
+                            fontSize = 11.5.sp,
                             lineHeight = 15.sp,
                         ),
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f, fill = false),
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
@@ -202,24 +201,36 @@ fun FoxColorPicker(
 
         if (presets.isNotEmpty()) {
             Spacer(modifier = Modifier.height(13.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 presets.forEach { preset ->
                     val selected = preset.toArgbInt() == color.toArgbInt()
+                    // 外圈 34dp 是可点区域（≥44dp 达不到时至少不挤压视觉），
+                    // 选中环画在外圈：26dp 色点 + 2dp 间隙 + 2dp 强调环（设计稿 .d.sel）
                     Box(
                         modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .background(preset)
-                            .border(1.dp, foxHairline(), CircleShape)
-                            .then(
-                                if (selected) {
-                                    Modifier.padding(3.dp).border(2.dp, Color.White, CircleShape)
-                                } else {
-                                    Modifier
-                                }
-                            )
+                            .size(34.dp)
                             .clickable { onColorChange(preset) },
-                    )
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (selected) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .border(
+                                        width = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shape = CircleShape,
+                                    ),
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(preset)
+                                .border(1.dp, foxHairline(), CircleShape),
+                        )
+                    }
                 }
             }
         }
