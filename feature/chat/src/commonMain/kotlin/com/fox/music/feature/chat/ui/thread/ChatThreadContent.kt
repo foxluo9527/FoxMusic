@@ -15,22 +15,18 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +40,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.chat.MessageStatus
+import com.fox.music.core.ui.component.FoxConfirmDialog
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.core.ui.component.PlatformFileImage
 import com.fox.music.feature.chat.ui.component.ChatInputBar
 import com.fox.music.feature.chat.ui.component.EmojiPickerPanel
@@ -114,48 +113,37 @@ fun ChatThreadContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
-                    if (state.isSelectionMode) {
-                        Text("已选择 ${state.selectedCount} 条")
-                    } else {
-                        Text(state.title)
-                    }
+            FoxTopBar(
+                title = if (state.isSelectionMode) {
+                    "已选择 ${state.selectedCount} 条"
+                } else {
+                    state.title
                 },
-                navigationIcon = {
-                    if (state.isSelectionMode) {
-                        IconButton(onClick = onExitSelection) {
-                            Icon(Icons.Default.Close, contentDescription = "退出多选")
-                        }
-                    } else {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                        }
-                    }
-                },
+                showBackButton = true,
+                onBackClick = if (state.isSelectionMode) onExitSelection else onBack,
                 actions = {
                     if (state.isSelectionMode) {
-                        IconButton(
+                        FoxTopBarIconAction(
+                            icon = Icons.Default.Delete,
+                            contentDescription = "删除所选",
                             onClick = { showDeleteSelectedDialog = true },
                             enabled = state.selectedCount > 0,
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "删除所选")
-                        }
+                        )
                     } else {
                         if (showSettingsAction) {
-                            IconButton(onClick = onSettingsClick) {
-                                Icon(Icons.Default.Settings, contentDescription = "聊天设置")
-                            }
+                            FoxTopBarIconAction(
+                                icon = Icons.Default.Settings,
+                                contentDescription = "聊天设置",
+                                onClick = onSettingsClick,
+                            )
                         }
-                        IconButton(onClick = onMoreClick) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                        }
+                        FoxTopBarIconAction(
+                            icon = Icons.Default.MoreVert,
+                            contentDescription = "更多",
+                            onClick = onMoreClick,
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -293,20 +281,18 @@ fun ChatThreadContent(
     }
 
     if (showDeleteSelectedDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteSelectedDialog = false },
-            title = { Text("删除消息") },
-            text = { Text("确定删除选中的 ${state.selectedCount} 条消息？") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteSelectedDialog = false
-                        onDeleteSelected()
-                    },
-                ) { Text("删除") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteSelectedDialog = false }) { Text("取消") }
+        // 全局弹窗扫尾（设计稿⑨）：破坏性确认统一走 FoxConfirmDialog
+        FoxConfirmDialog(
+            title = "删除消息？",
+            text = "将删除选中的 ${state.selectedCount} 条消息，删除后无法恢复。",
+            confirmText = "删除",
+            dismissText = "取消",
+            destructive = true,
+            icon = Icons.Default.DeleteOutline,
+            onDismiss = { showDeleteSelectedDialog = false },
+            onConfirm = {
+                showDeleteSelectedDialog = false
+                onDeleteSelected()
             },
         )
     }

@@ -8,18 +8,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.feature.chat.viewmodel.NotificationSettingsEffect
 import com.fox.music.feature.chat.viewmodel.NotificationSettingsIntent
 import com.fox.music.feature.chat.viewmodel.NotificationSettingsViewModel
@@ -57,17 +52,10 @@ fun NotificationSettingsScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("通知设置") },
-                navigationIcon = {
-                    IconButton(onClick = viewModel::onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
+            FoxTopBar(
+                title = "通知设置",
+                showBackButton = true,
+                onBackClick = viewModel::onBackClick,
             )
         },
     ) { padding ->
@@ -83,10 +71,17 @@ fun NotificationSettingsScreen(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
+            // 原来这 8 行每行都挂同一句副标题「前台横幅与后台系统通知」——
+            // 副标题不承载差异信息就是纯噪音，抬到组头说一次即可。
+            Text(
+                text = "以下开关同时作用于前台横幅与后台系统通知。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+            )
             viewModel.notificationTypes.forEachIndexed { index, type ->
                 NotificationSwitchItem(
                     title = viewModel.typeLabel(type),
-                    subtitle = viewModel.typeSubtitle(),
                     checked = state.settings.isEnabled(type),
                     onCheckedChange = { enabled ->
                         viewModel.sendIntent(
@@ -108,7 +103,6 @@ fun NotificationSettingsScreen(
 @Composable
 private fun NotificationSwitchItem(
     title: String,
-    subtitle: String?,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -118,17 +112,11 @@ private fun NotificationSwitchItem(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

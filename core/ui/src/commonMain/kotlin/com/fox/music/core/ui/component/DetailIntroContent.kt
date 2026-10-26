@@ -1,5 +1,6 @@
 package com.fox.music.core.ui.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,17 +21,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,9 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fox.music.core.ui.theme.CoverShapeHero
 
 /**
  * 歌单 / 专辑 / 榜单 / 歌手头部点击后进入的「介绍」页数据。
@@ -92,26 +89,10 @@ fun DetailIntroContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "${data.typeLabel}介绍",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
+            FoxTopBar(
+                title = "${data.typeLabel}介绍",
+                showBackButton = true,
+                onBackClick = onBack,
             )
         },
     ) { innerPadding ->
@@ -119,7 +100,7 @@ fun DetailIntroContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 48.dp),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 48.dp),
         ) {
             item {
                 IntroHero(
@@ -183,11 +164,11 @@ fun DetailIntroContent(
                         modifier = Modifier
                             .fillMaxWidth(),
                     ) {
-                        data.infoRows.forEach { (label, value) ->
+                        data.infoRows.forEachIndexed { rowIndex, (label, value) ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 7.dp),
+                                    .padding(vertical = 12.dp),
                             ) {
                                 Text(
                                     text = label,
@@ -200,6 +181,12 @@ fun DetailIntroContent(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f),
+                                )
+                            }
+                            if (rowIndex < data.infoRows.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                    thickness = 1.dp,
                                 )
                             }
                         }
@@ -227,7 +214,7 @@ private fun IntroHero(
             errorImageUrl = data.coverFallbackUrl,
             contentDescription = data.title,
             modifier = Modifier
-                .size(if (data.coverIsCircle) 140.dp else 172.dp)
+                .size(if (data.coverIsCircle) 140.dp else 200.dp)
                 .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -237,21 +224,22 @@ private fun IntroHero(
                             ?.let(onCoverLongClick)
                     },
                 ),
-            shape = if (data.coverIsCircle) CircleShape else RoundedCornerShape(16.dp),
+            shape = if (data.coverIsCircle) CircleShape else CoverShapeHero,
             placeholderIcon = data.coverPlaceholderIcon,
         )
 
         Spacer(Modifier.height(20.dp))
 
         Surface(
-            shape = RoundedCornerShape(4.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)),
         ) {
             Text(
                 text = data.typeLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }
 
@@ -259,8 +247,11 @@ private fun IntroHero(
 
         Text(
             text = data.title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontSize = 22.sp,
+                lineHeight = 29.sp,
+            ),
+            fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
 
@@ -290,8 +281,8 @@ private fun IntroHero(
 private fun IntroSectionTitle(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+        fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 28.dp, bottom = 10.dp),
     )
 }

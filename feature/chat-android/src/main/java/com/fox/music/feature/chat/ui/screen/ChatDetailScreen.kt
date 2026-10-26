@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.MoreVert
@@ -38,14 +37,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +58,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -72,6 +69,9 @@ import com.fox.music.core.model.chat.MessageType
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.FoxDialog
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
+import com.fox.music.core.ui.component.FoxTopBarSpec
 import com.fox.music.feature.chat.ui.component.ChatInputBar
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewDialog
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewType
@@ -431,8 +431,10 @@ fun ChatDetailScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
+            FoxTopBar(
+                showBackButton = true,
+                onBackClick = viewModel::onBackClick,
+                titleContent = {
                     Column {
                         Text(
                             text = if (state.isSelectionMode) {
@@ -440,6 +442,14 @@ fun ChatDetailScreen(
                             } else {
                                 state.peerNickname ?: "聊天"
                             },
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = FoxTopBarSpec.TitleSize,
+                                lineHeight = FoxTopBarSpec.TitleLineHeight,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         if (!state.isSelectionMode) {
                             state.peerLastListened?.let { music ->
@@ -457,28 +467,21 @@ fun ChatDetailScreen(
                         }
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = viewModel::onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
                 actions = {
                     if (!state.isSelectionMode) {
-                        IconButton(onClick = {
-                            onNavigateToSettings(
-                                state.userId,
-                                state.peerNickname ?: "",
-                                state.peerAvatar,
-                            )
-                        }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                        }
+                        FoxTopBarIconAction(
+                            icon = Icons.Default.MoreVert,
+                            contentDescription = "更多",
+                            onClick = {
+                                onNavigateToSettings(
+                                    state.userId,
+                                    state.peerNickname ?: "",
+                                    state.peerAvatar,
+                                )
+                            },
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
         bottomBar = {

@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
@@ -33,13 +32,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ProfileRelationshipBottomBar
 import com.fox.music.core.ui.component.FoxInputDialog
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.feature.chat.ui.component.UserStatusChip
 import com.fox.music.feature.chat.viewmodel.UserProfileState
 
@@ -84,28 +82,21 @@ fun UserProfileContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("用户资料") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
+            FoxTopBar(
+                title = "用户资料",
+                showBackButton = true,
+                onBackClick = onBack,
                 actions = {
                     if (state.userId > 0L) {
-                        IconButton(
+                        FoxTopBarIconAction(
+                            icon = Icons.Default.Share,
+                            contentDescription = "分享名片",
                             onClick = {
                                 onShareProfile(state.userId, state.displayName, state.signature)
                             },
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = "分享名片")
-                        }
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
         containerColor = MaterialTheme.colorScheme.surface,

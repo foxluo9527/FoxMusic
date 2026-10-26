@@ -37,7 +37,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
@@ -74,11 +73,10 @@ import com.fox.music.core.model.music.SearchHistory
 import com.fox.music.core.model.music.SearchSuggest
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.ui.component.CachedImage
-import com.fox.music.core.ui.component.FoxEditorialCircleButton
+import com.fox.music.core.ui.component.FoxBackButton
 import com.fox.music.core.ui.component.FoxEditorialRow
 import com.fox.music.core.ui.component.FoxEditorialSectionLabel
 import com.fox.music.core.ui.theme.FoxEditorial
-import com.fox.music.core.ui.theme.InkMuted
 import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
@@ -157,14 +155,7 @@ fun SearchContent(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FoxEditorialCircleButton(onClick = { handleBack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回",
-                        modifier = Modifier.size(18.dp),
-                        tint = InkMuted,
-                    )
-                }
+                FoxBackButton(onClick = { handleBack() })
                 Spacer(modifier = Modifier.width(6.dp))
                 FoxEditorialSearchField(
                     query = state.query,

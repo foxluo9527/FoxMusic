@@ -13,17 +13,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +34,7 @@ import com.fox.music.feature.chat.util.formatMessageDate
 import com.fox.music.feature.chat.viewmodel.NotificationCategory
 import com.fox.music.feature.chat.viewmodel.NotificationCategoryState
 import com.fox.music.core.ui.component.FoxInfoDialog
+import com.fox.music.core.ui.component.FoxTopBar
 
 /**
  * 通知分类页（评论和@ / 赞和通知 / 系统公告）—— 跨端无状态实现。
@@ -57,17 +54,10 @@ fun NotificationCategoryContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text(state.category.title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
+            FoxTopBar(
+                title = state.category.title,
+                showBackButton = true,
+                onBackClick = onBack,
             )
         },
     ) { padding ->

@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Person
@@ -22,14 +21,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.chat.Message
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.feature.chat.viewmodel.UserChatSearchEffect
 import com.fox.music.feature.chat.viewmodel.UserChatSearchIntent
 import com.fox.music.feature.chat.viewmodel.UserChatSearchViewModel
@@ -87,8 +85,10 @@ fun UserChatSearchScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
+            FoxTopBar(
+                showBackButton = true,
+                onBackClick = onBack,
+                titleContent = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = state.userNickname,
@@ -114,22 +114,15 @@ fun UserChatSearchScreen(
                         )
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
                 actions = {
                     if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.sendIntent(UserChatSearchIntent.UpdateQuery("")) }) {
-                            Icon(Icons.Default.Clear, contentDescription = "清除")
-                        }
+                        FoxTopBarIconAction(
+                            icon = Icons.Default.Clear,
+                            contentDescription = "清除",
+                            onClick = { viewModel.sendIntent(UserChatSearchIntent.UpdateQuery("")) },
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
     ) { padding ->

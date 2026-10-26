@@ -36,7 +36,6 @@ import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
@@ -71,15 +70,15 @@ import androidx.compose.ui.graphics.Color
 import com.fox.music.core.assistant.AssistantAction
 import com.fox.music.core.assistant.AiConversationSummary
 import com.fox.music.core.assistant.isPlayback
+import com.fox.music.core.ui.component.FoxBackButton
 import com.fox.music.core.ui.component.FoxDialog
-import com.fox.music.core.ui.component.FoxEditorialCircleButton
 import com.fox.music.core.ui.component.FoxEditorialRow
 import com.fox.music.core.ui.component.FoxSheet
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.theme.FoxEditorial
 import com.fox.music.core.ui.theme.foxHeroGradient
 import com.fox.music.core.ui.theme.AccentTerracotta
-import com.fox.music.core.ui.theme.InkMuted
 import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
@@ -222,10 +221,11 @@ fun AssistantContent(
 }
 
 /**
- * v10 顶栏：左返回圆钮 + 中间「ASSISTANT」眼标与衬线 21sp 标题 + 右历史/新建圆钮。
+ * 刊头顶栏：左 [FoxBackButton] 返回键 + 中间「ASSISTANT」眼标与衬线 21sp 标题
+ * + 右历史/新建 [FoxTopBarIconAction]。
  *
- * 三个圆钮统一走 [FoxEditorialCircleButton]（surface 实底 + hairline 描边，
- * 视觉 32dp / 命中 44dp），图标全部线性 SVG。
+ * v14 起三个动作钮统一走全站顶栏动作规格（视觉 20dp / 命中 44dp），
+ * 刊头文案与衬线标题保持不变。
  */
 @Composable
 private fun AssistantTopBar(
@@ -243,14 +243,7 @@ private fun AssistantTopBar(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FoxEditorialCircleButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
-                modifier = Modifier.size(18.dp),
-                tint = InkMuted,
-            )
-        }
+        FoxBackButton(onClick = onBack)
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -268,23 +261,17 @@ private fun AssistantTopBar(
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        FoxEditorialCircleButton(onClick = onLoadConversations) {
-            Icon(
-                imageVector = Icons.Outlined.History,
-                contentDescription = "历史会话",
-                modifier = Modifier.size(17.dp),
-                tint = InkMuted,
-            )
-        }
+        FoxTopBarIconAction(
+            icon = Icons.Outlined.History,
+            contentDescription = "历史会话",
+            onClick = onLoadConversations,
+        )
         Spacer(modifier = Modifier.width(6.dp))
-        FoxEditorialCircleButton(onClick = onNewConversation) {
-            Icon(
-                imageVector = Icons.Outlined.Add,
-                contentDescription = "新会话",
-                modifier = Modifier.size(17.dp),
-                tint = InkMuted,
-            )
-        }
+        FoxTopBarIconAction(
+            icon = Icons.Outlined.Add,
+            contentDescription = "新会话",
+            onClick = onNewConversation,
+        )
     }
 }
 

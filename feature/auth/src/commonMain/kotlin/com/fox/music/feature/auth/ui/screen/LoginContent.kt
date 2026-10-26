@@ -28,7 +28,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.Email
@@ -68,6 +67,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.core.ui.theme.FoxDisplayFont
 import com.fox.music.core.ui.theme.FoxSemanticColors
 import com.fox.music.core.ui.theme.FoxShapes
@@ -396,23 +396,10 @@ private fun AuthAmbientBackground() {
 
 @Composable
 private fun AuthTopBar(onNavigateBack: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .padding(horizontal = 4.dp),
-    ) {
-        IconButton(
-            onClick = onNavigateBack,
-            modifier = Modifier.align(Alignment.CenterStart),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
-                tint = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-    }
+    FoxTopBar(
+        showBackButton = true,
+        onBackClick = onNavigateBack,
+    )
 }
 
 @Composable

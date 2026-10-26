@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Person
@@ -27,8 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.component.FoxDialog
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
 import com.fox.music.feature.chat.ui.component.ConversationItem
 import com.fox.music.feature.chat.ui.component.MessageCategoryItem
 import com.fox.music.feature.chat.util.displayName
@@ -97,25 +96,22 @@ fun MessagesContent(
         },
         topBar = {
             if (showBackButton) {
-                TopAppBar(
-                    title = { Text("我的消息") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                        }
-                    },
+                FoxTopBar(
+                    title = "我的消息",
+                    showBackButton = true,
+                    onBackClick = onBack,
                     actions = {
-                        IconButton(onClick = onNotificationSettingsClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "通知设置")
-                        }
-                        IconButton(onClick = onSearchClick) {
-                            Icon(Icons.Default.Search, contentDescription = "搜索")
-                        }
+                        FoxTopBarIconAction(
+                            icon = Icons.Default.Settings,
+                            contentDescription = "通知设置",
+                            onClick = onNotificationSettingsClick,
+                        )
+                        FoxTopBarIconAction(
+                            icon = Icons.Default.Search,
+                            contentDescription = "搜索",
+                            onClick = onSearchClick,
+                        )
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
                 )
             }
         },

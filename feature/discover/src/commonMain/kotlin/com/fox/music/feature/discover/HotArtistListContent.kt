@@ -15,23 +15,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -39,12 +39,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.Artist
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.theme.FoxSpacing
 import com.fox.music.core.ui.component.ErrorView
 import com.fox.music.core.ui.component.LoadingIndicator
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * 热门歌手页纯界面。
@@ -61,26 +65,29 @@ fun HotArtistListContent(
     onArtistClick: (Long) -> Unit = {},
     onAllArtistsClick: () -> Unit = {},
     onBackClick: () -> Unit = {},
+    // 进详情页会离开组合，滚动位置靠外部（ViewModel）存档才能「原样返回」
+    initialFirstVisibleItemIndex: Int = 0,
+    initialFirstVisibleItemScrollOffset: Int = 0,
+    onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
 ) {
     val artistPagingItems = state.artists.collectAsLazyPagingItems()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = initialFirstVisibleItemIndex,
+        initialFirstVisibleItemScrollOffset = initialFirstVisibleItemScrollOffset,
+    )
+
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) -> onScrollPositionChange(index, offset) }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("热门歌手") },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                        contentDescription = "返回",
-                    )
-                }
-            },
-            scrollBehavior = scrollBehavior,
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface,
-            ),
+        FoxTopBar(
+            title = "热门歌手",
+            showBackButton = true,
+            onBackClick = onBackClick,
         )
 
         when {
@@ -108,21 +115,26 @@ fun HotArtistListContent(
             else -> {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
+                    state = gridState,
                     modifier = Modifier
                         .fillMaxSize()
                         .nestedScroll(scrollBehavior.nestedScrollConnection),
-                    contentPadding = PaddingValues(vertical = 8.dp, horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(
+                        vertical = 12.dp,
+                        horizontal = FoxSpacing.pagePadding,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item(
                         span = { GridItemSpan(4) },
                         key = "all_artists_entry",
                         contentType = "all_artists_entry",
                     ) {
-                        AllArtistsEntry(
-                            onClick = onAllArtistsClick,
-                        )
+                            AllArtistsEntry(
+                                onClick = onAllArtistsClick,
+                                modifier = Modifier.animateItem(),
+                            )
                     }
 
                     items(
@@ -138,6 +150,7 @@ fun HotArtistListContent(
                             HotArtistGridItem(
                                 artist = artist,
                                 onClick = { onArtistClick(artist.id) },
+                                modifier = Modifier.animateItem(),
                             )
                         }
                     }
@@ -191,20 +204,20 @@ private fun HotArtistGridItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scheme = MaterialTheme.colorScheme
     Column(
         modifier = modifier
-            .padding(horizontal = 4.dp)
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Card(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f),
             shape = CircleShape,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
+            color = scheme.surfaceVariant.copy(alpha = 0.45f),
+            border = BorderStroke(0.5.dp, scheme.outlineVariant.copy(alpha = 0.6f)),
+            tonalElevation = 0.dp,
         ) {
             CachedImage(
                 imageUrl = artist.avatar,
@@ -220,7 +233,10 @@ private fun HotArtistGridItem(
 
         Text(
             text = artist.name,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontWeight = FontWeight.Medium,
+                lineHeight = 15.sp,
+            ),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,

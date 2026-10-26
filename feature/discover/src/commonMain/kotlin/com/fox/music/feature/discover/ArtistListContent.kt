@@ -9,17 +9,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -27,8 +23,10 @@ import androidx.compose.ui.unit.dp
 import com.fox.music.core.ui.component.AlphabetIndexBar
 import com.fox.music.core.ui.component.ArtistListItem
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxTopBar
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.SectionLetterHeader
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -42,27 +40,29 @@ fun ArtistListContent(
     modifier: Modifier = Modifier,
     onArtistClick: (Long) -> Unit = {},
     onBackClick: () -> Unit = {},
+    // 进详情页会离开组合，滚动位置靠外部（ViewModel）存档才能「原样返回」
+    initialFirstVisibleItemIndex: Int = 0,
+    initialFirstVisibleItemScrollOffset: Int = 0,
+    onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
 ) {
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = initialFirstVisibleItemIndex,
+        initialFirstVisibleItemScrollOffset = initialFirstVisibleItemScrollOffset,
+    )
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .distinctUntilChanged()
+            .collect { (index, offset) -> onScrollPositionChange(index, offset) }
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("全部歌手") },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBackIos,
-                        contentDescription = "返回",
-                    )
-                }
-            },
-            scrollBehavior = scrollBehavior,
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surface,
-            ),
+        FoxTopBar(
+            title = "全部歌手",
+            showBackButton = true,
+            onBackClick = onBackClick,
         )
 
         when {
@@ -71,7 +71,7 @@ fun ArtistListContent(
                 ErrorView(
                     modifier = Modifier.fillMaxSize(),
                     message = state.error ?: "加载失败",
-                    onRetry = { onIntent(ArtistListIntent.Load) },
+                    onRetry = { onIntent(ArtistListIntent.Refresh) },
                 )
             }
 
@@ -89,8 +89,7 @@ fun ArtistListContent(
                         state = listState,
                         modifier = Modifier
                             .fillMaxSize()
-                            .nestedScroll(scrollBehavior.nestedScrollConnection)
-                            .padding(end = 28.dp),
+                            .nestedScroll(scrollBehavior.nestedScrollConnection),
                     ) {
                         state.sections.forEach { section ->
                             stickyHeader(key = "header_${section.letter}") {
@@ -103,9 +102,12 @@ fun ArtistListContent(
                                 items = section.artists,
                                 key = { it.id },
                             ) { artist ->
+                                // key 稳定 + animateItem：缓存快照换成网络结果时，
+                                // 新增/移动的条目是平滑位移，而不是整屏闪一下
                                 ArtistListItem(
                                     artist = artist,
                                     onClick = { onArtistClick(artist.id) },
+                                    modifier = Modifier.animateItem().padding(horizontal = 15.dp),
                                 )
                             }
                         }

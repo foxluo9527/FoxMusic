@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,7 +28,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -42,14 +42,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,10 +68,17 @@ import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.DetailIntroContent
 import com.fox.music.core.ui.component.DetailIntroData
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.component.FoxTopBarIconAction
+import com.fox.music.core.ui.component.FoxTopBarSpec
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PostImagePreviewDialog
 import com.fox.music.core.ui.component.MusicListItem
+import com.fox.music.core.ui.component.JumpToPlayingFabForList
+import com.fox.music.core.ui.component.LocalJumpHighlight
+import com.fox.music.core.ui.component.LocalNowPlayingMusicId
 import com.fox.music.core.ui.component.SectionHeader
+import kotlinx.coroutines.launch
 
 /**
  * 歌手详情页纯界面。
@@ -94,8 +100,12 @@ fun ArtistDetailContent(
     onBack: () -> Unit = {},
     onMusicMoreClick: (Music) -> Unit = {},
     updateMusicList: (List<Music>, String) -> Unit = { _, _ -> },
+    onViewAllArtistSongs: (Long) -> Unit = {},
+    currentMusicId: Long? = null,
 ) {
     val artist = state.artist
+    // 显式传入优先，其次读全局「正在播放」（app 层在 NavHost 外层统一 provide）
+    val nowPlayingId = currentMusicId ?: LocalNowPlayingMusicId.current
     var showIntro by rememberSaveable { mutableStateOf(false) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     // 预览兜底链：库里存在「avatar 指向的 OSS 文件已失效、coverImage 仍可显示」的艺人
@@ -152,8 +162,10 @@ fun ArtistDetailContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
+            FoxTopBar(
+                showBackButton = true,
+                onBackClick = onBack,
+                titleContent = {
                     if (artist != null && showCollapsedTitle) {
                         Row(
                             Modifier
@@ -181,52 +193,37 @@ fun ArtistDetailContent(
                             Spacer(Modifier.width(10.dp))
                             Text(
                                 text = artist.name,
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontSize = FoxTopBarSpec.TitleSize,
+                                    lineHeight = FoxTopBarSpec.TitleLineHeight,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                actions = {
+                    if (artist != null && showCollapsedTitle) {
+                        FoxTopBarIconAction(
+                            icon = if (artist.isFavorite) {
+                                Icons.Filled.Favorite
+                            } else {
+                                Icons.Filled.FavoriteBorder
+                            },
+                            contentDescription = "收藏",
+                            onClick = { onIntent(ArtistDetailIntent.ToggleFavorite) },
+                            enabled = !state.isFavoriteLoading,
+                            tint = if (artist.isFavorite) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
                         )
                     }
                 },
-                actions = {
-                    if (artist != null) {
-                        IconButton(
-                            onClick = { onIntent(ArtistDetailIntent.ToggleFavorite) },
-                            enabled = !state.isFavoriteLoading,
-                        ) {
-                            if (showCollapsedTitle) {
-                                if (state.isFavoriteLoading) {
-                                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                                } else {
-                                    Icon(
-                                        imageVector = if (artist.isFavorite) {
-                                            Icons.Filled.Favorite
-                                        } else {
-                                            Icons.Filled.FavoriteBorder
-                                        },
-                                        contentDescription = "收藏",
-                                        tint = if (artist.isFavorite) {
-                                            MaterialTheme.colorScheme.error
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                ),
             )
         },
     ) { innerPadding ->
@@ -263,6 +260,8 @@ fun ArtistDetailContent(
                     onCoverLongClick = { openArtistPreview(it) },
                     onHeaderHeightMeasured = { headerHeightPx = it },
                     isFavoriteLoading = state.isFavoriteLoading,
+                    onViewAllArtistSongs = onViewAllArtistSongs,
+                    nowPlayingId = nowPlayingId,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -289,10 +288,23 @@ private fun ArtistDetailBody(
     onHeaderHeightMeasured: (Float) -> Unit,
     modifier: Modifier = Modifier,
     isFavoriteLoading: Boolean,
+    onViewAllArtistSongs: (Long) -> Unit = {},
+    nowPlayingId: Long? = null,
 ) {
+    // 热门歌曲在 LazyColumn 里的全局索引 = 头部(0) + 「热门歌曲」标题(1) + 歌曲内偏移。
+    val hotIndex = if (nowPlayingId == null) {
+        -1
+    } else {
+        hotMusics.indexOfFirst { it.id == nowPlayingId }
+    }
+    val hotLazyIndex = if (hotIndex >= 0) hotIndex + 2 else -1
+    val jumpScope = rememberCoroutineScope()
+    val jumpHighlight = LocalJumpHighlight.current
+
+    Box(modifier = modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         item(key = "header") {
@@ -312,7 +324,13 @@ private fun ArtistDetailBody(
             item {
                 SectionHeader(
                     title = "热门歌曲",
-                    onMoreClick = null,
+                    // 只有当该歌手还有更多作品时才给「更多」入口；热门歌单本身即全量时不重复给
+                    moreText = "",
+                    onMoreClick = if (artist.musicCount > hotMusics.size) {
+                        { onViewAllArtistSongs(artist.id) }
+                    } else {
+                        null
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
@@ -324,6 +342,7 @@ private fun ArtistDetailBody(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     onClick = { onMusicClick(music) },
                     onMoreClick = { onMusicMoreClick(music) },
+                    isNowPlaying = music.id == nowPlayingId,
                 )
             }
         }
@@ -389,6 +408,21 @@ private fun ArtistDetailBody(
         item {
             Spacer(Modifier.height(68.dp))
         }
+    }
+        JumpToPlayingFabForList(
+            listState = listState,
+            targetIndex = hotLazyIndex,
+            onClick = {
+                jumpScope.launch {
+                    listState.animateScrollToItem(hotLazyIndex)
+                    // 到位后再闪一下，强调「就是这一行」
+                    jumpHighlight.flash(nowPlayingId)
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 16.dp),
+        )
     }
 }
 
