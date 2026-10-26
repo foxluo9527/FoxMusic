@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +32,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fox.music.core.ui.theme.foxHairline
@@ -229,30 +226,10 @@ fun FoxColorPicker(
     }
 }
 
-/** 拖动/点按统一处理：按下即生效，之后逐帧跟随，抬手结束。 */
-private inline fun Modifier.pickerDrag(
-    crossinline onPosition: (Offset, Size) -> Unit,
-): Modifier = this.pointerInput(Unit) {
-    awaitPointerEventScope {
-        while (true) {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            onPosition(down.position, size.toSize())
-            down.consume()
-            var event = awaitPointerEvent()
-            while (event.changes.any { it.pressed }) {
-                event.changes.forEach { change ->
-                    if (change.pressed) {
-                        onPosition(change.position, size.toSize())
-                        change.consume()
-                    }
-                }
-                event = awaitPointerEvent()
-            }
-        }
-    }
-}
-
-private fun IntSize.toSize(): Size = Size(width.toFloat(), height.toFloat())
+/** 拖动/点按统一处理：按下即生效，之后逐帧跟随，抬手结束（实现见 FoxDragTo.kt）。 */
+private fun Modifier.pickerDrag(
+    onPosition: (Offset, Size) -> Unit,
+): Modifier = foxDragTo(onPosition)
 
 /** ARGB / HSV 互转（commonMain 没有 android.graphics，全部自己算）。 */
 internal data class Hsv(val h: Float, val s: Float, val v: Float)

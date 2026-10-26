@@ -26,8 +26,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +46,7 @@ import com.fox.music.core.ui.component.FoxColorPicker
 import com.fox.music.core.ui.component.FoxColorPickerPresets
 import com.fox.music.core.ui.component.FoxEditorialRow
 import com.fox.music.core.ui.component.FoxSheet
+import com.fox.music.core.ui.component.FoxSlider
 import com.fox.music.core.ui.component.FoxSwitch
 import com.fox.music.core.ui.theme.FoxEditorial
 import com.fox.music.core.ui.theme.InkQuaternary
@@ -432,23 +431,18 @@ private fun FontSizeBlock(
                 enabled = fontSize > FONT_SIZE_MIN.toInt(),
                 onClick = { onFontSizeChange((fontSize - 1).coerceAtLeast(FONT_SIZE_MIN.toInt())) },
             )
-            Slider(
+            FoxSlider(
                 value = fontSize.coerceIn(
                     FONT_SIZE_MIN.toInt(),
                     FONT_SIZE_MAX.toInt(),
                 ).toFloat(),
                 onValueChange = { onFontSizeChange(it.roundToInt()) },
                 valueRange = FONT_SIZE_MIN..FONT_SIZE_MAX,
-                // 不画刻度点：设计稿要求一条干净的轨道 + 单颗圆钮
-                steps = 0,
+                // 字号必须是整数档，连续拖会得到 23.7sp 这种值
+                step = 1f,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 10.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
             )
             FontStepButton(
                 label = "A+",
