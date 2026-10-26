@@ -78,11 +78,7 @@ private fun openAssistantScreen(
         else -> null
     }
     if (tabRoute != null) {
-        navController.navigate(tabRoute) {
-            popUpTo(HOME_ROUTE) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
-        }
+        navController.navigateToTab(tabRoute)
         return
     }
 

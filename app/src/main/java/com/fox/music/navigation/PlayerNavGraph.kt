@@ -61,7 +61,8 @@ fun NavGraphBuilder.playerNavGraph(
                             navController.navigate(DOWNLOAD_MANAGER_ROUTE)
                         }
                         PlaybackSourceKind.STREAM -> {
-                            navController.navigate(StreamRoutes.STREAM)
+                            // 先回到主壳再切音流 Tab，不能把音流压在播放页回退栈上。
+                            navController.navigateFromPlayerToTab(StreamRoutes.STREAM)
                         }
                         else -> {
                             val detailType = source.toDetailType() ?: return@PlayerScreen
