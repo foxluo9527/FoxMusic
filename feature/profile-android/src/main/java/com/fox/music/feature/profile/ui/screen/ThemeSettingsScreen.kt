@@ -1,6 +1,5 @@
 package com.fox.music.feature.profile.ui.screen
 
-import android.app.Activity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,11 +8,14 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,14 +23,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +39,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,18 +49,20 @@ import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.model.user.AppThemeIntensity
 import com.fox.music.core.model.user.DarkMode
 import com.fox.music.core.ui.component.FoxColorCard
+import com.fox.music.core.ui.component.FoxColorPicker
 import com.fox.music.core.ui.component.FoxEditorialRow
+import com.fox.music.core.ui.component.FoxSwitch
 import com.fox.music.core.ui.component.FoxTopBar
+import com.fox.music.core.ui.theme.AppThemePresets
 import com.fox.music.core.ui.theme.FoxEditorial
 import com.fox.music.core.ui.theme.FoxMusicTypography
 import com.fox.music.core.ui.theme.FoxSpacing
-import com.fox.music.core.ui.theme.InkQuaternary
 import com.fox.music.core.ui.theme.InkTertiary
 import com.fox.music.core.ui.theme.PaperHairline
 import com.fox.music.core.ui.theme.SeedSwatch
-import com.fox.music.core.ui.theme.previewColorScheme
-import com.fox.music.feature.profile.viewmodel.ThemeSettingsEffect
+import com.fox.music.core.ui.theme.colorSchemeFromSeed
 import com.fox.music.feature.profile.viewmodel.ThemeSettingsIntent
+import com.fox.music.feature.profile.viewmodel.ThemeSettingsState
 import com.fox.music.feature.profile.viewmodel.ThemeSettingsViewModel
 
 const val THEME_SETTINGS_ROUTE = "theme_settings"
@@ -89,6 +87,25 @@ private val ThemeSwatchTags: Map<String, String> = mapOf(
     "琥珀" to "暖", "焦糖" to "大地", "青瓷" to "清", "石墨" to "极简", "葡萄" to "雅",
 )
 
+/**
+ * 页面草稿（v12 验收返工）。
+ *
+ * 主题页从「点一下立刻落盘 + recreate」改成「草稿 → 应用」：
+ * - 配色 / 浓度 / 深色的任何改动都只在这里，绝不落盘、绝不重建 Activity；
+ * - 草稿唯一的下游是预览卡的 colorScheme（见 [ThemeLivePreview]）；
+ * - 只有点「应用」才 dispatch [ThemeSettingsIntent]，由 userPreferences flow 驱动全站重绘。
+ *
+ * [custom] = 是否走「按种子色派生整套强调色」这条路。预设主题本身没有种子色，
+ * 所以一旦用户动了配色或浓度，就把当前生效的 primary 当作种子转进自定义分支 ——
+ * 这样预览里看到的配色，落盘后就是最终配色，不会出现"预览一套、应用后另一套"。
+ */
+private data class ThemeDraft(
+    val seedArgb: Long,
+    val intensity: Float,
+    val darkTheme: Boolean,
+    val custom: Boolean,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThemeSettingsScreen(
@@ -97,16 +114,44 @@ fun ThemeSettingsScreen(
     onBack: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
+    val systemDark = isSystemInDarkTheme()
 
-    LaunchedEffect(Unit) {
-        viewModel.effect.collect { effect ->
-            when (effect) {
-                ThemeSettingsEffect.RecreateActivity -> {
-                    (context as? Activity)?.recreate()
-                }
-            }
+    // 落盘值 → 进入页面时的基准草稿。apply 之后落盘值变化，remember 的 key 变了，
+    // 草稿自动回填成新的落盘值；编辑过程中落盘值不动，草稿不会被冲掉。
+    val applied = remember(
+        state.appThemeId,
+        state.customThemeSeedArgb,
+        state.themeIntensity,
+        state.darkMode,
+        systemDark,
+    ) {
+        appliedDraftOf(state = state, systemDark = systemDark)
+    }
+    var draft by remember(applied) { mutableStateOf(applied) }
+
+    val onCancel: () -> Unit = {
+        // 丢弃草稿，回到进入时的值
+        draft = applied
+        onBack()
+    }
+    val onApply: () -> Unit = {
+        val seedChanged = draft.seedArgb != applied.seedArgb
+        val intensityChanged = AppThemeIntensity.normalize(draft.intensity) !=
+            AppThemeIntensity.normalize(applied.intensity)
+        val darkChanged = draft.darkTheme != applied.darkTheme
+
+        // 已转到自定义分支（动过配色或浓度）才写主题；只拨深色开关不该顺手改配色。
+        if (draft.custom && (!applied.custom || seedChanged || intensityChanged)) {
+            viewModel.sendIntent(ThemeSettingsIntent.SelectCustomHue(draft.seedArgb))
         }
+        if (intensityChanged) {
+            viewModel.sendIntent(ThemeSettingsIntent.SelectIntensity(draft.intensity))
+        }
+        if (darkChanged) {
+            viewModel.sendIntent(ThemeSettingsIntent.SetDarkMode(draft.darkTheme))
+        }
+        draft = applied
+        onBack()
     }
 
     Scaffold(
@@ -116,8 +161,11 @@ fun ThemeSettingsScreen(
             FoxTopBar(
                 title = "",
                 showBackButton = true,
-                onBackClick = onBack,
+                onBackClick = onCancel,
             )
+        },
+        bottomBar = {
+            ThemeActionBar(onCancel = onCancel, onApply = onApply)
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
@@ -126,15 +174,16 @@ fun ThemeSettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+            contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item {
                 ThemeMasthead(modifier = pagePadding.padding(top = 4.dp))
             }
             item {
                 ThemeLivePreview(
-                    appThemeId = state.appThemeId,
-                    customThemeSeedArgb = state.customThemeSeedArgb,
-                    themeIntensity = state.themeIntensity,
+                    seedArgb = draft.seedArgb,
+                    intensity = draft.intensity,
+                    darkTheme = draft.darkTheme,
                     modifier = pagePadding.padding(top = 14.dp),
                 )
             }
@@ -148,15 +197,27 @@ fun ThemeSettingsScreen(
             item {
                 ThemeSwatchGrid(
                     swatches = state.seedSwatches,
-                    selectedArgb = state.customThemeSeedArgb,
-                    isCustomTheme = state.appThemeId == AppThemeIds.CUSTOM,
-                    // 当前真正生效的主色：预设主题（如黑胶夜场）也能在网格里标出对应色卡，
-                    // 否则非自定义主题下 9 张卡全都没有选中态。
-                    activePrimaryArgb = MaterialTheme.colorScheme.primary.toArgb(),
+                    selectedArgb = draft.seedArgb,
                     onSelectSwatch = { argb ->
-                        viewModel.sendIntent(ThemeSettingsIntent.SelectCustomHue(argb))
+                        draft = draft.copy(seedArgb = argb, custom = true)
                     },
                     modifier = pagePadding.padding(top = 8.dp),
+                )
+            }
+            item {
+                // 取色盘（v12）：拖拽即改草稿，HEX 只读展示。预设卡在上面，
+                // 这里不再重复一排色圆点。
+                FoxColorPicker(
+                    color = Color(draft.seedArgb),
+                    onColorChange = { color ->
+                        draft = draft.copy(
+                            seedArgb = color.toArgb().toLong() and 0xFFFFFFFFL,
+                            custom = true,
+                        )
+                    },
+                    modifier = pagePadding.padding(top = 14.dp),
+                    presets = emptyList(),
+                    showHex = true,
                 )
             }
             item {
@@ -168,9 +229,9 @@ fun ThemeSettingsScreen(
             }
             item {
                 ThemeIntensityRow(
-                    intensity = state.themeIntensity,
+                    intensity = draft.intensity,
                     onSelectIntensity = { value ->
-                        viewModel.sendIntent(ThemeSettingsIntent.SelectIntensity(value))
+                        draft = draft.copy(intensity = value, custom = true)
                     },
                     modifier = pagePadding.padding(top = 8.dp),
                 )
@@ -183,50 +244,46 @@ fun ThemeSettingsScreen(
                 )
             }
             item {
-                // 深色开关（设计稿①03）：接真实偏好 —— FOLLOW_SYSTEM 时按系统解析，
-                // 拨动即写 DarkMode.DARK / LIGHT，主 Activity 的 darkTheme 直接读偏好流，
-                // 所以整页立刻变深，退出重进也不会回滚。
-                val systemDark = isSystemInDarkTheme()
-                val darkChecked = when (state.darkMode) {
-                    DarkMode.DARK -> true
-                    DarkMode.LIGHT -> false
-                    else -> systemDark
-                }
                 FoxEditorialRow(
                     title = "深色模式",
                     trailing = {
-                        Switch(
-                            checked = darkChecked,
+                        FoxSwitch(
+                            checked = draft.darkTheme,
                             onCheckedChange = { enabled ->
-                                viewModel.sendIntent(ThemeSettingsIntent.SetDarkMode(enabled))
+                                draft = draft.copy(darkTheme = enabled)
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                uncheckedThumbColor = Color.White,
-                                // 轨道走语义色：深色下是 #2A241D，不再固定用浅色 variant
-                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                            ),
                         )
                     },
                 )
-            }
-            item {
-                ThemeHexEntry(
-                    currentHex = hexOf(MaterialTheme.colorScheme.primary.toArgb()),
-                    onApplyHex = { argb ->
-                        viewModel.sendIntent(ThemeSettingsIntent.SelectCustomHue(argb))
-                    },
-                )
-            }
-            item {
-                Spacer(Modifier.height(24.dp))
             }
         }
     }
 }
 
-/** 刊头（设计稿①）：全大写眼标 + 衬线 32sp 主标题 + 11.5sp 副标。 */
+/** 落盘偏好 → 进入页面时的基准草稿。 */
+private fun appliedDraftOf(state: ThemeSettingsState, systemDark: Boolean): ThemeDraft {
+    val dark = when (state.darkMode) {
+        DarkMode.DARK -> true
+        DarkMode.LIGHT -> false
+        DarkMode.FOLLOW_SYSTEM -> systemDark
+    }
+    val custom = state.appThemeId == AppThemeIds.CUSTOM
+    val seed = if (custom) {
+        state.customThemeSeedArgb
+    } else {
+        // 预设主题没有「种子色」这一层，取它当前实际生效的 primary 当种子：
+        // 这样只调浓度也能转进派生分支，且派生出的浅色 primary 与预设完全一致。
+        AppThemePresets.colorScheme(state.appThemeId, dark).primary.toArgb().toLong() and 0xFFFFFFFFL
+    }
+    return ThemeDraft(
+        seedArgb = seed,
+        intensity = state.themeIntensity,
+        darkTheme = dark,
+        custom = custom,
+    )
+}
+
+/** 刊头（设计稿①）：全大写眼标 + 衬线 32sp 主标题。 */
 @Composable
 private fun ThemeMasthead(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -241,49 +298,41 @@ private fun ThemeMasthead(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = 6.dp),
         )
-        Text(
-            text = "纸感底不变 · 只改强调系统",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 11.5.sp,
-                lineHeight = 15.sp,
-            ),
-            color = foxInkMuted(),
-            modifier = Modifier.padding(top = 7.dp),
-        )
     }
 }
 
 /**
- * 「活体预览」（设计稿①新增）：一块迷你应用界面 —— 顶部条用当前强调色实底，
- * 卡体是纸面，内含封面 / 曲名 / 播放字形 + 两条次级色条。整块套一层
- * [previewColorScheme]，所以点到哪支色板，这里就变成哪套配色铺开后的样子。
+ * 「活体预览」（设计稿①）：一块迷你应用界面 —— 顶部条用当前强调色实底，
+ * 卡体是纸面，内含封面 / 曲名 / 播放字形，以及三个**吃 primaryContainer** 的元件：
+ * 实心 chip、进度条余量、ghost 按钮。整块套一层由草稿派生的 colorScheme，
+ * 所以换色 / 换浓度 / 换明暗，这里立刻是铺开后的样子。
+ *
+ * 为什么补这三个：预览原来只画了吃 primary 的元件，而浓度三档影响的恰恰是
+ * primaryContainer —— 元件里没有容器色，浓度调到哪一档预览都"一点没变"（v12 驳回项）。
  */
 @Composable
 private fun ThemeLivePreview(
-    appThemeId: String,
-    customThemeSeedArgb: Long,
-    themeIntensity: Float,
+    seedArgb: Long,
+    intensity: Float,
+    darkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val previewScheme = previewColorScheme(
-        appThemeId = appThemeId,
-        customThemeSeedArgb = customThemeSeedArgb,
-        themeIntensity = themeIntensity,
+    val previewScheme = colorSchemeFromSeed(
+        seedArgb = seedArgb,
+        darkTheme = darkTheme,
+        intensity = intensity,
     )
     val cardShape = RoundedCornerShape(14.dp)
     MaterialTheme(
         colorScheme = previewScheme,
         typography = FoxMusicTypography,
     ) {
-        // accent-soft 一律预混实色（禁用 alpha 叠加）：surface 与 primary 按 12% 混合，
-        // 等价于设计稿的 #F3E3DE，但会跟着当前主色走。
-        val accentSoft = lerp(previewScheme.surface, previewScheme.primary, 0.12f)
         Column(
             modifier = modifier
                 .fillMaxWidth()
                 .clip(cardShape)
                 // 发丝线走深色感知：深底上用 #3A322A，浅底用 PaperHairline
-                .border(width = 1.dp, color = foxHairline(), shape = cardShape)
+                .border(width = 1.dp, color = foxHairline(darkTheme), shape = cardShape)
                 .background(previewScheme.surface),
         ) {
             Row(
@@ -351,7 +400,7 @@ private fun ThemeLivePreview(
                                 fontSize = 10.5.sp,
                                 lineHeight = 14.sp,
                             ),
-                            color = foxInkMuted(),
+                            color = foxInkMuted(darkTheme),
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
@@ -362,25 +411,62 @@ private fun ThemeLivePreview(
                         modifier = Modifier.size(16.dp),
                     )
                 }
+                // ① 实心 chip（primaryContainer 底 + onPrimaryContainer 字）
+                // ③ ghost 按钮（primary 描边 + primary 字）
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 11.dp),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        .padding(top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(26.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(accentSoft),
-                    )
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(previewScheme.primaryContainer)
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            text = "已收藏",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.5.sp,
+                                lineHeight = 14.sp,
+                            ),
+                            fontWeight = FontWeight.Medium,
+                            color = previewScheme.onPrimaryContainer,
+                        )
+                    }
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(26.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(previewScheme.surfaceVariant),
+                            .clip(RoundedCornerShape(7.dp))
+                            .border(1.dp, previewScheme.primary, RoundedCornerShape(7.dp))
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            text = "查看详情",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.5.sp,
+                                lineHeight = 14.sp,
+                            ),
+                            fontWeight = FontWeight.Medium,
+                            color = previewScheme.primary,
+                        )
+                    }
+                }
+                // ② 进度条余量（primaryContainer 底 + primary 已播段）
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(2.5.dp))
+                        .background(previewScheme.primaryContainer),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.62f)
+                            .fillMaxHeight()
+                            .background(previewScheme.primary),
                     )
                 }
             }
@@ -427,13 +513,13 @@ private fun ThemeSectionHeader(
 /**
  * 「01 配色」：9 支作家色板的 3 列实底网格。卡面就是该主色本身（白字名 + 用途标签），
  * 选中卡走 FoxColorCard 的 2dp 内描边，标签同时换成「已选」。
+ *
+ * 点击只改草稿（v12）—— 不再逐次落盘，也不会重建 Activity。
  */
 @Composable
 private fun ThemeSwatchGrid(
     swatches: List<SeedSwatch>,
     selectedArgb: Long,
-    isCustomTheme: Boolean,
-    activePrimaryArgb: Int,
     onSelectSwatch: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -450,10 +536,7 @@ private fun ThemeSwatchGrid(
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 row.forEach { swatch ->
-                    // 选中判定两条路：① 自定义主题 → 比对已存的 seed；
-                    // ② 预设主题 → 比对当前真正生效的 primary（预设主题下否则一张都不选中）
-                    val isSelected = (isCustomTheme && selectedArgb == swatch.argb) ||
-                        activePrimaryArgb == swatch.argb.toInt()
+                    val isSelected = selectedArgb == swatch.argb
                     FoxColorCard(
                         name = swatch.name,
                         containerColor = Color(swatch.argb),
@@ -531,181 +614,93 @@ private fun AmbiencePill(
 }
 
 /**
- * 「03 模式」里的自定义色值行：右侧显示当前强调色 hex + ›，点开折叠的 HEX 输入。
+ * 底部动作条：取消 / 应用 两个等宽按钮。
+ *
+ * 取消丢弃草稿回到进入时的值；应用才把草稿 dispatch 成落盘 intent。
  */
 @Composable
-private fun ThemeHexEntry(
-    currentHex: String,
-    onApplyHex: (Long) -> Unit,
+private fun ThemeActionBar(
+    onCancel: () -> Unit,
+    onApply: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var hexExpanded by remember { mutableStateOf(false) }
-    var hexInput by remember { mutableStateOf("") }
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        FoxEditorialRow(
-            title = "自定义色值",
-            onClick = { hexExpanded = !hexExpanded },
-            trailing = {
-                Text(
-                    text = currentHex,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 11.5.sp,
-                        lineHeight = 15.sp,
-                    ),
-                    color = foxInkFaint(),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "›",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 15.sp,
-                        lineHeight = 18.sp,
-                    ),
-                    color = foxInkFaint(),
-                )
-            },
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .navigationBarsPadding(),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(foxHairline()),
         )
-        if (hexExpanded) {
-            HexInputRow(
-                value = hexInput,
-                onValueChange = { raw ->
-                    // 只接受 0-9 / A-F，最多 6 位
-                    hexInput = raw
-                        .uppercase()
-                        .filter { it.isDigit() || it in 'A'..'F' }
-                        .take(6)
-                },
-                onApply = { argb -> onApplyHex(argb) },
-                modifier = Modifier.padding(top = 10.dp),
-            )
-        }
-    }
-}
-
-/**
- * HEX 输入行：6 位 hex 解析，非法输入不生效（按钮保持禁用 + 文案提示）。
- * 支持带不带 `#`，合法后回填成规范大写形式。
- */
-@Composable
-private fun HexInputRow(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onApply: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val normalized = value.trim().removePrefix("#")
-    val parsed = remember(normalized) { parseHexColor(normalized) }
-    Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = FoxSpacing.pagePadding, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(52.dp),
-                singleLine = true,
-                shape = RoundedCornerShape(13.dp),
-                placeholder = {
-                    Text(
-                        text = "例如 B8513A",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                    )
-                },
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = PaperHairline,
-                ),
-            )
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (parsed != null) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                    )
-                    .clickable(enabled = parsed != null) {
-                        val argb = parsed
-                        if (argb != null) onApply(argb)
-                    }
-                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                    .weight(1f)
+                    .height(46.dp)
+                    .clip(shape)
+                    .border(width = 1.dp, color = foxHairline(), shape = shape)
+                    .clickable(onClick = onCancel),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "取消",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(onClick = onApply),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "应用",
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         lineHeight = 18.sp,
                     ),
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (parsed != null) {
-                        Color.White
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    },
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
             }
-        }
-        if (value.isNotEmpty() && parsed == null) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "需要 6 位十六进制色值（0-9 / A-F）",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.5.sp,
-                    lineHeight = 14.sp,
-                ),
-                color = MaterialTheme.colorScheme.error,
-            )
         }
     }
 }
 
 // ── 深色感知的语义色（v10 验收返工） ─────────────────────────────────────
-/** 发丝线：深色下取设计稿的 #3A322A，浅色取 PaperHairline #E4DDD1。 */
+/**
+ * 发丝线：深色下取设计稿的 #3A322A，浅色取 PaperHairline #E4DDD1。
+ *
+ * [dark] 默认跟随系统；预览卡要传草稿的明暗，否则拨深色开关时卡片边框不跟着走。
+ */
 @Composable
-private fun foxHairline(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF3A322A) else PaperHairline
+private fun foxHairline(dark: Boolean = isSystemInDarkTheme()): Color =
+    if (dark) Color(0xFF3A322A) else PaperHairline
 
 /**
- * 次级文字（眼标 / 副标 / 元信息）色。
+ * 次级文字（眼标 / 元信息）色。
  *
  * 深色下上修到 #A99F92：设计稿深色 ink4 = #7E7568 在 #17140F 上只有 4.05:1，
  * 不过 WCAG AA；#A99F92 是 7.0:1。**这是对设计稿做的可访问性上修**，不是风格改动。
  */
 @Composable
-private fun foxInkMuted(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFA99F92) else InkTertiary
-
-/** 占位级文字（hex 值 / › 指示）：深色下 #8A8175（≈5.3:1）。 */
-@Composable
-private fun foxInkFaint(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF8A8175) else InkQuaternary
-
-/** 0xAARRGGBB → "#RRGGBB"（大写）。 */
-private fun hexOf(argb: Int): String =
-    "#" + (argb and 0xFFFFFF).toString(16).uppercase().padStart(6, '0')
-
-/** 解析 6 位 hex → 0xAARRGGBB；非法返回 null（调用方据此禁用「应用」）。 */
-private fun parseHexColor(raw: String): Long? {
-    if (raw.length != 6) return null
-    if (raw.any { !(it.isDigit() || it in 'A'..'F' || it in 'a'..'f') }) return null
-    val rgb = raw.toLongOrNull(16) ?: return null
-    return 0xFF000000L or rgb
-}
+private fun foxInkMuted(dark: Boolean = isSystemInDarkTheme()): Color =
+    if (dark) Color(0xFFA99F92) else InkTertiary

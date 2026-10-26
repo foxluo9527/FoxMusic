@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import com.fox.music.core.model.user.AppThemeIds
 import com.fox.music.core.model.user.AppThemeIntensity
 import com.fox.music.core.model.user.AppThemePreset
+import kotlin.math.pow
 
 /** 自定义配色的一支种子色：色值 + 中文名（设计稿①要求色圆点下方带色名）。 */
 data class SeedSwatch(
@@ -463,6 +464,57 @@ internal fun darken(color: Color, amount: Float): Color =
 internal fun lighten(color: Color, amount: Float): Color =
     mixColor(color, Color.White, amount.coerceIn(0f, 1f))
 
+// ── 容器色可读性兜底（v12 验收返工） ──────────────────────────────────────
+/**
+ * 容器色上正文字的最低对比度。
+ *
+ * 取 4.6 而不是刚好 4.5：Compose 的 Color 通道是 float32，逐档混合后的舍入误差在
+ * 第三位小数，卡在 4.50 边界上有可能实测落到 4.49。留 0.1 余量后，12 支色板 × 三档
+ * 落到屏幕 8bit 后的实测最低值仍有 4.59:1（AA 要求 4.5:1）。
+ */
+private const val ContainerTextMinContrast = 4.6f
+
+/** WCAG 2.1 相对亮度（sRGB 非线性分量先解 gamma）。 */
+private fun relativeLuminance(color: Color): Float {
+    fun channel(v: Float): Float =
+        if (v <= 0.03928f) v / 12.92f else ((v + 0.055f) / 1.055f).pow(2.4f)
+    return 0.2126f * channel(color.red) +
+        0.7152f * channel(color.green) +
+        0.0722f * channel(color.blue)
+}
+
+/** WCAG 2.1 对比度：(L亮 + 0.05) / (L暗 + 0.05)，返回 1.0~21.0。 */
+internal fun contrastRatio(a: Color, b: Color): Float {
+    val la = relativeLuminance(a)
+    val lb = relativeLuminance(b)
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+}
+
+/**
+ * 把 [foreground] 沿「更黑 / 更白」方向继续推进，直到与 [background] 的对比度 ≥ [target]。
+ *
+ * 为什么需要它：浓度三档拉开到 6% / 22% / 48% 后，浓郁档的 primaryContainer 已经是
+ * 明确的实色（陶土种子下 #DDAA9D），而 onPrimaryContainer 原本固定是
+ * `darken(seed, 0.28f)`（#843A2A）——两者实测只有 3.93:1，够不上 AA。
+ * 这里按实际算出来的对比度逐档加深/提亮，既保住色相血缘，又保证任何种子色
+ * （用户取色盘可能拖出任意色）在任何档位下都读得清。
+ */
+private fun ensureContrast(
+    foreground: Color,
+    background: Color,
+    target: Float = ContainerTextMinContrast,
+    towardWhite: Boolean,
+): Color {
+    if (contrastRatio(foreground, background) >= target) return foreground
+    val anchor = if (towardWhite) Color.White else Color.Black
+    repeat(14) { step ->
+        val mixToAnchor = 0.10f + 0.06f * step
+        val candidate = mixColor(foreground, anchor, 1f - mixToAnchor)
+        if (contrastRatio(candidate, background) >= target) return candidate
+    }
+    return anchor
+}
+
 /**
  * 深色底上的强调色：把种子色的**明度**提到可读区间，同时**保住彩度**。
  *
@@ -524,7 +576,9 @@ private fun hsvToColor(hue: Float, saturation: Float, value: Float): Color {
  * 底色（background / surface / surfaceVariant / outline）永远是纸感中性值，
  * 色板只影响强调系统 —— 换主色不会让整屏发花。
  *
- * @param intensity 氛围强度：柔和 0.08 / 均衡 0.12 / 浓郁 0.18，决定容器色里 seed 的占比。
+ * @param intensity 氛围强度：柔和 0.06 / 均衡 0.22 / 浓郁 0.48，决定容器色里 seed 的占比。
+ *   上限放到 0.55 是因为浓郁档已经到 0.48 —— 旧值 0.32 会把它截断成 0.32，
+ *   三档在派生结果上又回到"改了等于没改"（v12 验收驳回项）。
  */
 fun colorSchemeFromSeed(
     seedArgb: Long,
@@ -532,7 +586,7 @@ fun colorSchemeFromSeed(
     intensity: Float = AppThemeIntensity.DEFAULT,
 ): ColorScheme {
     val seed = Color(seedArgb)
-    val containerFraction = intensity.coerceIn(0.04f, 0.32f)
+    val containerFraction = intensity.coerceIn(0.04f, 0.55f)
     // 次级容器比主容器再淡一档（均衡档下 ≈ 8%），保持层级而不是三个同强度的色块。
     val softContainerFraction = containerFraction * (8f / 12f)
     return if (darkTheme) {
@@ -542,11 +596,17 @@ fun colorSchemeFromSeed(
         val primary = boostForDark(seed)
         val secondary = boostForDark(seed, minValue = 0.78f)
         val tertiary = mixColor(seed, VinylCreamMuted, 0.45f)
+        val primaryContainer = mixColor(seed, DarkPaperVariant, containerFraction + 0.16f)
         darkColorScheme(
             primary = primary,
             onPrimary = DarkInkBase,
-            primaryContainer = mixColor(seed, DarkPaperVariant, containerFraction + 0.16f),
-            onPrimaryContainer = lighten(seed, 0.62f),
+            primaryContainer = primaryContainer,
+            // 浓郁档容器已经很"实"，固定 lighten(seed, 0.62f) 会掉到 AA 以下，这里按实测兜底
+            onPrimaryContainer = ensureContrast(
+                foreground = lighten(seed, 0.62f),
+                background = primaryContainer,
+                towardWhite = true,
+            ),
             secondary = secondary,
             onSecondary = DarkInkBase,
             secondaryContainer = mixColor(seed, DarkPaperVariant, softContainerFraction + 0.12f),
@@ -570,11 +630,19 @@ fun colorSchemeFromSeed(
     } else {
         val secondary = mixColor(seed, Color(0xFF807A70), 0.82f)
         val tertiary = mixColor(seed, Color(0xFF8C6B8C), 0.55f)
+        val primaryContainer = mixColor(seed, PaperSurface, containerFraction)
         lightColorScheme(
             primary = seed,
             onPrimary = Color.White,
-            primaryContainer = mixColor(seed, PaperSurface, containerFraction),
-            onPrimaryContainer = darken(seed, 0.28f),
+            primaryContainer = primaryContainer,
+            // 浓郁档（0.48）容器色变深，darken(seed, 0.28f) 在陶土种子下实测只有
+            // 3.93:1，这里按实测继续加深到达标（≥4.6:1 兜底，AA 4.5 之上留余量），
+            // 色相血缘不变。
+            onPrimaryContainer = ensureContrast(
+                foreground = darken(seed, 0.28f),
+                background = primaryContainer,
+                towardWhite = false,
+            ),
             secondary = secondary,
             onSecondary = Color.White,
             secondaryContainer = mixColor(seed, PaperSurface, softContainerFraction),
