@@ -28,8 +28,8 @@ android {
         applicationId = "com.fox.music"
         minSdk = 26
         targetSdk = 37
-        versionCode = 114
-        versionName = "1.2.2"
+        versionCode = 115
+        versionName = "1.2.3"
 
         val buglyAppId = localProperties.getProperty("BUGLY_APP_ID")
             ?: (project.findProperty("BUGLY_APP_ID") as String?)
