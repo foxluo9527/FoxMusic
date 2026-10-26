@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,14 +44,11 @@ fun ReportBottomSheet(
     onSubmit: (reason: String, description: String?) -> Unit,
     reportHeader: String = "举报",
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedReason by remember { mutableStateOf(REPORT_REASONS.first().key) }
     var description by remember { mutableStateOf("") }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
+    // 统一走 FoxSheet：22dp 顶圆角 + drag handle + 语义 surface 底
+    FoxSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

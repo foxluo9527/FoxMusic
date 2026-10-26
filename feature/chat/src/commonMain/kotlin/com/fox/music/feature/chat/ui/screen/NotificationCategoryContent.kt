@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -39,6 +37,7 @@ import com.fox.music.core.model.chat.Notification
 import com.fox.music.feature.chat.util.formatMessageDate
 import com.fox.music.feature.chat.viewmodel.NotificationCategory
 import com.fox.music.feature.chat.viewmodel.NotificationCategoryState
+import com.fox.music.core.ui.component.FoxInfoDialog
 
 /**
  * 通知分类页（评论和@ / 赞和通知 / 系统公告）—— 跨端无状态实现。
@@ -125,30 +124,17 @@ fun NotificationCategoryContent(
     }
 
     selectedAnnouncement?.let { announcement ->
-        AlertDialog(
-            onDismissRequest = { selectedAnnouncement = null },
-            title = { Text(announcement.title) },
-            text = {
-                Column {
-                    if (!announcement.createdAt.isNullOrBlank()) {
-                        Text(
-                            text = formatMessageDate(announcement.createdAt),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 12.dp),
-                        )
-                    }
-                    Text(
-                        text = announcement.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+        val createdAt = announcement.createdAt
+        val dateLine = if (!createdAt.isNullOrBlank()) formatMessageDate(createdAt) else ""
+        FoxInfoDialog(
+            title = announcement.title,
+            text = if (dateLine.isBlank()) {
+                announcement.content
+            } else {
+                "$dateLine\n\n${announcement.content}"
             },
-            confirmButton = {
-                TextButton(onClick = { selectedAnnouncement = null }) {
-                    Text("知道了")
-                }
-            },
+            confirmText = "知道了",
+            onDismiss = { selectedAnnouncement = null },
         )
     }
 }

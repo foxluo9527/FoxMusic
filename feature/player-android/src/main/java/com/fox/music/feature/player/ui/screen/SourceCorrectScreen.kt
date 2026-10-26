@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
@@ -79,6 +77,9 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.ProviderCandidate
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxDialog
+import com.fox.music.core.ui.component.FoxDialogField
+import com.fox.music.core.ui.component.FoxMultiInputDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PreviewLyricPanel
 import com.fox.music.feature.player.viewmodel.PreviewPlaybackState
@@ -210,6 +211,7 @@ fun SourceCorrectScreen(
                         resolvedUrls = state.resolvedUrls,
                         previewCandidateId = state.previewCandidateId,
                         isPreviewPlaying = state.preview.isPlaying,
+                        isBuffering = state.preview.isBuffering,
                         targetDurationMs = state.targetMusic?.duration,
                         onEditQuery = { showQueryEditor = true },
                         onSearch = { viewModel.sendIntent(SourceCorrectIntent.SearchProviders) },
@@ -240,6 +242,7 @@ fun SourceCorrectScreen(
                     positionMs = state.preview.positionMs,
                     durationMs = state.preview.durationMs,
                     isPlaying = state.preview.isPlaying,
+                    isBuffering = state.preview.isBuffering,
                     lyrics = state.targetLyrics,
                     onPlayPause = { viewModel.sendIntent(SourceCorrectIntent.TogglePreviewPlayPause) },
                     onSeek = { viewModel.sendIntent(SourceCorrectIntent.SeekPreview(it)) },
@@ -263,28 +266,15 @@ fun SourceCorrectScreen(
     }
 
     if (showReplaceConfirm) {
-        AlertDialog(
-            onDismissRequest = { showReplaceConfirm = false },
-            title = { Text("确认替换音源") },
-            text = {
-                Text(
-                    "将把「${state.targetMusic?.title ?: "当前歌曲"}」的音源替换为「${state.resolvedCandidate?.title ?: ""}」，替换后会自动重新分析高潮片段。"
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showReplaceConfirm = false
-                        viewModel.sendIntent(SourceCorrectIntent.ReplaceFromThirdParty)
-                    },
-                ) {
-                    Text("确认替换")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showReplaceConfirm = false }) {
-                    Text("取消")
-                }
+        FoxDialog(
+            title = "确认替换音源",
+            text = "将把「${state.targetMusic?.title ?: "当前歌曲"}」的音源替换为" +
+                "「${state.resolvedCandidate?.title ?: ""}」，替换后会自动重新分析高潮片段。",
+            confirmText = "确认替换",
+            onDismiss = { showReplaceConfirm = false },
+            onConfirm = {
+                showReplaceConfirm = false
+                viewModel.sendIntent(SourceCorrectIntent.ReplaceFromThirdParty)
             },
         )
     }
@@ -405,6 +395,7 @@ private fun SearchReplaceTab(
     resolvedUrls: Map<String, String>,
     previewCandidateId: String?,
     isPreviewPlaying: Boolean,
+    isBuffering: Boolean = false,
     targetDurationMs: Long?,
     onEditQuery: () -> Unit,
     onSearch: () -> Unit,
@@ -476,12 +467,14 @@ private fun SearchReplaceTab(
                         val resolved = resolvedUrls.containsKey(candidate.id) ||
                             candidate.playType == CandidatePlayType.DIRECT
                         val isPreviewing = previewCandidateId == candidate.id
+                        val candidateBuffering = isPreviewing && isBuffering
                         CandidateRow(
                             candidate = candidate,
                             selected = selectedCandidateId == candidate.id,
                             resolved = resolved,
                             isResolving = resolvingIds.contains(candidate.id),
                             isPreviewing = isPreviewing && isPreviewPlaying,
+                            isBuffering = candidateBuffering,
                             targetDurationMs = targetDurationMs,
                             onSelect = { onSelectCandidate(candidate) },
                             onTogglePlay = { onTogglePlay(candidate) },
@@ -513,43 +506,15 @@ internal fun QueryEditorDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit,
 ) {
-    var title by remember { mutableStateOf(initialTitle) }
-    var artist by remember { mutableStateOf(initialArtist) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("搜索条件") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("歌曲名称") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = artist,
-                    onValueChange = { artist = it },
-                    label = { Text("艺人（可留空，宽松匹配）") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(title.trim(), artist.trim()) },
-                enabled = title.isNotBlank(),
-            ) {
-                Text("搜索")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        },
+    FoxMultiInputDialog(
+        title = "搜索条件",
+        confirmText = "搜索",
+        fields = listOf(
+            FoxDialogField(label = "歌曲名称", initialValue = initialTitle),
+            FoxDialogField(label = "艺人（可留空，宽松匹配）", initialValue = initialArtist),
+        ),
+        onDismiss = onDismiss,
+        onConfirm = { values -> onConfirm(values[0].trim(), values[1].trim()) },
     )
 }
 
@@ -561,6 +526,7 @@ internal fun CandidateRow(
     resolved: Boolean,
     isResolving: Boolean,
     isPreviewing: Boolean,
+    isBuffering: Boolean = false,
     targetDurationMs: Long?,
     onSelect: () -> Unit,
     onTogglePlay: () -> Unit,
@@ -607,6 +573,12 @@ internal fun CandidateRow(
         Spacer(modifier = Modifier.width(8.dp))
         when {
             isResolving -> CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+            )
+            // 缓冲中（点击播放后 MediaPlayer 还在 prepare）：与解析同样的转圈动画，
+            // 不要停留在播放图标（用户 2026-10-22 反馈）
+            isBuffering -> CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
                 strokeWidth = 2.dp,
             )

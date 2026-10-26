@@ -34,15 +34,12 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -77,6 +74,8 @@ import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.user.UserHomeProfile
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxDialog
+import com.fox.music.core.ui.component.FoxSheet
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PostCard
 import com.fox.music.core.ui.component.ProfileRelationshipBottomBar
@@ -475,23 +474,14 @@ private fun UserHomeRoute(
     }
 
     if (state.showBlockDialog) {
-        AlertDialog(
-            onDismissRequest = { state = state.copy(showBlockDialog = false) },
-            title = { Text("加入黑名单") },
-            text = { Text("确定要将该用户加入黑名单吗？加入后将自动解除好友关系。") },
-            confirmButton = {
-                TextButton(
-                    onClick = { confirmBlock() },
-                    enabled = !state.isBlocking,
-                ) {
-                    Text("确定", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { state = state.copy(showBlockDialog = false) }) {
-                    Text("取消")
-                }
-            },
+        FoxDialog(
+            title = "加入黑名单",
+            text = "确定要将该用户加入黑名单吗？加入后将自动解除好友关系。",
+            confirmText = "确定",
+            onDismiss = { state = state.copy(showBlockDialog = false) },
+            onConfirm = { confirmBlock() },
+            confirmEnabled = !state.isBlocking,
+            destructive = true,
         )
     }
 
@@ -506,28 +496,16 @@ private fun UserHomeRoute(
     }
 
     state.pendingDeletePost?.let { post ->
-        AlertDialog(
-            onDismissRequest = {
+        FoxDialog(
+            title = "删除动态",
+            text = "确定删除这条动态吗？删除后不可恢复。",
+            confirmText = "删除",
+            onDismiss = {
                 if (!state.isDeletingPost) state = state.copy(pendingDeletePost = null)
             },
-            title = { Text("删除动态") },
-            text = { Text("确定删除这条动态吗？删除后不可恢复。") },
-            confirmButton = {
-                TextButton(
-                    onClick = { confirmDeletePost() },
-                    enabled = !state.isDeletingPost,
-                ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { state = state.copy(pendingDeletePost = null) },
-                    enabled = !state.isDeletingPost,
-                ) {
-                    Text("取消")
-                }
-            },
+            onConfirm = { confirmDeletePost() },
+            confirmEnabled = !state.isDeletingPost,
+            destructive = true,
         )
     }
 }
@@ -934,7 +912,7 @@ private fun UserHomeMoreSheet(
     onBlock: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    FoxSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {

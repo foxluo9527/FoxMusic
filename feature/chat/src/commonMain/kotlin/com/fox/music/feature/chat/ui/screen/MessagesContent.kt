@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -28,7 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -44,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.chat.ChatConversation
 import com.fox.music.core.ui.theme.FoxSpacing
+import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.feature.chat.ui.component.ConversationItem
 import com.fox.music.feature.chat.ui.component.MessageCategoryItem
 import com.fox.music.feature.chat.util.displayName
@@ -151,32 +150,20 @@ fun MessagesContent(
 
     if (showDeleteDialog && selectedConversation != null) {
         val target = selectedConversation!!
-        AlertDialog(
-            onDismissRequest = {
+        FoxDialog(
+            title = "删除会话",
+            text = "确定要删除与「${target.user.displayName()}」的会话吗？聊天记录将保留。",
+            confirmText = "删除",
+            onDismiss = {
                 showDeleteDialog = false
                 selectedConversation = null
             },
-            title = { Text("删除会话") },
-            text = { Text("确定要删除与「${target.user.displayName()}」的会话吗？聊天记录将保留。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteConversation(target.user.id)
-                        showDeleteDialog = false
-                        selectedConversation = null
-                    }
-                ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
-                }
+            onConfirm = {
+                onDeleteConversation(target.user.id)
+                showDeleteDialog = false
+                selectedConversation = null
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDeleteDialog = false
-                    selectedConversation = null
-                }) {
-                    Text("取消")
-                }
-            },
+            destructive = true,
         )
     }
 }

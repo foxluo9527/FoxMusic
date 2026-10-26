@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tag
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,11 +35,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -60,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ProfileRelationshipBottomBar
+import com.fox.music.core.ui.component.FoxInputDialog
 import com.fox.music.feature.chat.ui.component.UserStatusChip
 import com.fox.music.feature.chat.viewmodel.UserProfileState
 
@@ -235,34 +233,16 @@ private fun RemarkEditDialog(
     onDismiss: () -> Unit,
 ) {
     val maxLength = UserProfileState.MAX_REMARK_LENGTH
-    var text by remember(initialRemark) { mutableStateOf(initialRemark) }
-    AlertDialog(
-        onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("修改备注") },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { if (it.length <= maxLength) text = it },
-                singleLine = true,
-                label = { Text("好友备注") },
-                placeholder = { Text("最多 $maxLength 个字符") },
-                supportingText = { Text("${text.length}/$maxLength") },
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(text) },
-                enabled = !isSaving,
-            ) {
-                Text(if (isSaving) "保存中..." else "保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) {
-                Text("取消")
-            }
-        },
+    FoxInputDialog(
+        title = "修改备注",
+        label = "好友备注",
+        initialValue = initialRemark,
+        placeholder = "最多 $maxLength 个字符",
+        confirmText = if (isSaving) "保存中..." else "保存",
+        maxLength = maxLength,
+        confirmEnabled = !isSaving,
+        onDismiss = { if (!isSaving) onDismiss() },
+        onConfirm = onConfirm,
     )
 }
 

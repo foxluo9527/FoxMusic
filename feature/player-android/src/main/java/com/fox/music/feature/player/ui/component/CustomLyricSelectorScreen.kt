@@ -32,7 +32,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -61,6 +60,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.LyricsParser
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
+import com.fox.music.core.ui.component.FoxSheet
+import com.fox.music.feature.player.lyric.data.CustomLyricItem
 import com.fox.music.feature.player.lyric.data.LyricStyle
 import com.fox.music.feature.player.viewmodel.CustomLyricSelectorEffect
 import com.fox.music.feature.player.viewmodel.CustomLyricSelectorIntent
@@ -69,6 +70,14 @@ import com.fox.music.feature.player.viewmodel.CustomLyricSelectorViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** 歌词来源展示名（客户端 λ 协定：netease/lrclib/lyricsovh） */
+private fun sourceLabel(raw: String?): String = when (raw?.lowercase()) {
+    "netease" -> "网易云官方"
+    "lrclib" -> "LRCLIB"
+    "lyricsovh" -> "lyrics.ovh"
+    else -> raw ?: "未知来源"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,7 +121,7 @@ fun CustomLyricSelectorSheet(
         }
     }
 
-    ModalBottomSheet(
+    FoxSheet(
         onDismissRequest = { dismissSheet() },
         modifier = Modifier
             .fillMaxSize()
@@ -125,28 +134,10 @@ fun CustomLyricSelectorSheet(
                 scaleX = 1f
                 scaleY = 1f
             },
+        sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
         scrimColor = Color.Black.copy(alpha = 0.3f),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        sheetState = sheetState,
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
-        dragHandle = {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .size(width = 40.dp, height = 4.dp)
-                        .background(
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            RoundedCornerShape(2.dp)
-                        )
-                )
-            }
-        }
     ) {
         PredictiveBackHandler { progress ->
             try {
@@ -184,14 +175,27 @@ private fun CustomLyricSelectorContent(
     onApply: (com.fox.music.core.model.music.Music, String, String?) -> Unit,
 ) {
     val pagingItems = state.pagingData.collectAsLazyPagingItems()
-    val pagerState = rememberPagerState(pageCount = { pagingItems.itemCount })
     val pagerScope = rememberCoroutineScope()
 
+    // 首页 = 服务端智能匹配（歌名+艺人+时长）的「最佳匹配」歌词，其后才是搜索列表
+    val best = state.bestMatched
+    val bestOffset = if (best != null) 1 else 0
+    val itemCount = bestOffset + pagingItems.itemCount
+    val pagerState = rememberPagerState(pageCount = { itemCount })
+
     val currentPage = pagerState.currentPage
-    val itemCount = pagingItems.itemCount
     val hasPrev = currentPage > 0
     val hasNext = currentPage < itemCount - 1
-    val activeItem = if (itemCount > 0) pagingItems[currentPage] else null
+    val activeItem: CustomLyricItem? = when {
+        bestOffset == 1 && currentPage == 0 -> best
+        else -> {
+            // LazyPagingItems 越界访问会直接抛 IndexOutOfBoundsException("Index: X, Size: Y")，
+            // 不像普通 List 返回 null。best 未就绪 / 列表仍为空时 currentPage 会指向空列表，
+            // 必须先做边界保护（曾因缺此判断进入歌词纠正即崩溃）。
+            val listIndex = currentPage - bestOffset
+            if (listIndex in 0 until pagingItems.itemCount) pagingItems[listIndex] else null
+        }
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -225,7 +229,8 @@ private fun CustomLyricSelectorContent(
             }
 
             when {
-                pagingItems.loadState.refresh is LoadState.Loading -> {
+                // 列表还在加载时，若已拿到最佳匹配就先展示它（不空等列表）
+                pagingItems.loadState.refresh is LoadState.Loading && itemCount == 0 -> {
                     Box(
                         Modifier
                             .weight(1f)
@@ -235,7 +240,7 @@ private fun CustomLyricSelectorContent(
                             CircularProgressIndicator()
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                "搜索中...",
+                                if (state.isMatchedLoading) "智能匹配中..." else "搜索中...",
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         }
@@ -266,8 +271,13 @@ private fun CustomLyricSelectorContent(
                             state = pagerState,
                             modifier = Modifier.fillMaxSize(),
                         ) { page ->
-                            val item = pagingItems[page]
+                            val item: CustomLyricItem? = if (bestOffset == 1 && page == 0) best else {
+                                // 同 activeItem：越界访问 LazyPagingItems 会抛异常，需边界保护
+                                val listIndex = page - bestOffset
+                                if (listIndex in 0 until pagingItems.itemCount) pagingItems[listIndex] else null
+                            }
                             val isSelected = page == currentPage
+                            val isBestMatched = bestOffset == 1 && page == 0
 
                             if (item != null) {
                                 Box(
@@ -285,6 +295,30 @@ private fun CustomLyricSelectorContent(
                                             else Modifier
                                         )
                                 ) {
+                                    if (isBestMatched) {
+                                        Box(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Box(
+                                                Modifier
+                                                    .background(
+                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                                                        RoundedCornerShape(50)
+                                                    )
+                                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    "最佳匹配 · ${sourceLabel(item?.music?.sourcePlatform)} · ${item?.lyricLineCount ?: 0} 行",
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
                                     BilingualLyricComponent(
                                         modifier = Modifier
                                             .fillMaxSize()

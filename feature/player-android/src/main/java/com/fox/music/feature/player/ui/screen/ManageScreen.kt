@@ -68,6 +68,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.SearchBar
 import com.fox.music.feature.player.viewmodel.ManageEffect
@@ -77,11 +78,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 
 const val MANAGE_ROUTER = "manage"
-const val MANAGE_SEARCH_ROUTE = "manage_search?query={query}"
+const val MANAGE_SEARCH_ROUTE = "manage_search?query={query}&fromSearch={fromSearch}"
 
-/** 第三方平台搜索（添加单曲/去收录）一级页路由，可带入初始关键词 */
-fun manageSearchRoute(query: String = ""): String =
-    "manage_search?query=${android.net.Uri.encode(query)}"
+/**
+ * 第三方平台搜索（添加单曲/去收录）一级页路由，可带入初始关键词。
+ *
+ * @param fromSearch true = 从搜索页「去收录」进入。此时收录成功后要一路返回到搜索页
+ *   （跳过本页），而不是停在这里。
+ */
+fun manageSearchRoute(query: String = "", fromSearch: Boolean = false): String =
+    "manage_search?query=${android.net.Uri.encode(query)}&fromSearch=$fromSearch"
 
 private const val ManageMenuAnimMs = 220
 private val ManageMenuFloatSpec = tween<Float>(
@@ -248,64 +254,33 @@ fun ManageScreen(
     }
 
     state.pendingDelete?.let { music ->
-        AlertDialog(
-            onDismissRequest = { viewModel.sendIntent(ManageIntent.DismissDelete) },
-            title = { Text("删除音乐") },
-            text = { Text("确定删除「${music.title}」吗？此操作不可恢复。") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.sendIntent(ManageIntent.ConfirmDelete) }) {
-                    Text("删除")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.sendIntent(ManageIntent.DismissDelete) }) {
-                    Text("取消")
-                }
-            },
+        FoxDialog(
+            title = "删除音乐",
+            text = "确定删除「${music.title}」吗？此操作不可恢复。",
+            confirmText = "删除",
+            onDismiss = { viewModel.sendIntent(ManageIntent.DismissDelete) },
+            onConfirm = { viewModel.sendIntent(ManageIntent.ConfirmDelete) },
+            destructive = true,
         )
     }
 
     if (state.showChartsConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.sendIntent(ManageIntent.DismissChartsConfirm) },
-            title = { Text("更新排行榜") },
-            text = {
-                Text("将导入网易云官方榜单（每榜最多约 50 首），可能需要一段时间，确定继续？")
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.sendIntent(ManageIntent.ConfirmUpdateCharts) }) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.sendIntent(ManageIntent.DismissChartsConfirm) }) {
-                    Text("取消")
-                }
-            },
+        FoxDialog(
+            title = "更新排行榜",
+            text = "将导入网易云官方榜单（每榜最多约 50 首），可能需要一段时间，确定继续？",
+            confirmText = "确定",
+            onDismiss = { viewModel.sendIntent(ManageIntent.DismissChartsConfirm) },
+            onConfirm = { viewModel.sendIntent(ManageIntent.ConfirmUpdateCharts) },
         )
     }
 
     if (state.showHotPlaylistsConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.sendIntent(ManageIntent.DismissHotPlaylistsConfirm) },
-            title = { Text("更新热门歌单") },
-            text = {
-                Text("将在后台同步热门歌单，导入的歌单会关联到当前登录账号，确定继续？")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.sendIntent(ManageIntent.ConfirmUpdateHotPlaylists) },
-                ) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { viewModel.sendIntent(ManageIntent.DismissHotPlaylistsConfirm) },
-                ) {
-                    Text("取消")
-                }
-            },
+        FoxDialog(
+            title = "更新热门歌单",
+            text = "将在后台同步热门歌单，导入的歌单会关联到当前登录账号，确定继续？",
+            confirmText = "确定",
+            onDismiss = { viewModel.sendIntent(ManageIntent.DismissHotPlaylistsConfirm) },
+            onConfirm = { viewModel.sendIntent(ManageIntent.ConfirmUpdateHotPlaylists) },
         )
     }
 }

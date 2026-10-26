@@ -1,22 +1,18 @@
 package com.fox.music.core.ui.component
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.fox.music.core.model.app.AppUpdateInfo
 
+/**
+ * 版本升级弹窗 —— 三种态分别落到 Fox 家族，取代原来那套手写 AlertDialog：
+ *
+ * - **下载中** → [FoxProgressDialog]（不可取消，进度确定/不确定两态）；
+ * - **出错** → [FoxDialog] 主钮「重试」；
+ * - **常态** → [FoxDialog] 主钮「立即更新」+ 次钮「稍后」（强制升级时不给次钮且不可取消）。
+ *
+ * 旧实现把三种态塞进同一个 AlertDialog 的 confirmButton/dismissButton 分支里，
+ * 圆角与按钮排布都是 M3 默认值，和全站 20dp 纸感容器对不上。
+ */
 @Composable
 fun UpdateDialog(
     updateInfo: AppUpdateInfo,
@@ -34,88 +30,43 @@ fun UpdateDialog(
         ?: "发现新版本 ${updateInfo.latestVersionName}"
     val upgradeContent = updateInfo.upgradeContent
 
-    AlertDialog(
-        onDismissRequest = {
-            if (!forceUpdate && !isDownloading) {
-                onDismiss()
-            }
-        },
-        title = {
-            Text(
-                text = title,
-                fontWeight = FontWeight.SemiBold,
+    when {
+        isDownloading -> {
+            FoxProgressDialog(
+                title = title,
+                text = downloadStatusText ?: "下载中 $downloadProgress%",
+                progress = if (downloadIndeterminate) null else downloadProgress / 100f,
+                // 下载中必须锁死，不允许返回键/点遮罩把弹窗关掉
+                onDismiss = null,
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                if (!upgradeContent.isNullOrBlank()) {
-                    Text(
-                        text = upgradeContent,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+        }
 
-                if (updateInfo.changelog.isNotEmpty()) {
-                    updateInfo.changelog.forEach { item ->
-                        Text(
-                            text = "• $item",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                        )
-                    }
-                }
+        !error.isNullOrBlank() -> {
+            FoxDialog(
+                title = title,
+                text = error,
+                confirmText = "重试",
+                dismissText = if (forceUpdate) null else "稍后",
+                cancelable = !forceUpdate,
+                onDismiss = onDismiss,
+                onConfirm = onRetry,
+            )
+        }
 
-                if (isDownloading) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (downloadIndeterminate) {
-                        FoxIndeterminateLinearProgress()
-                    } else {
-                        FoxLinearProgress(progress = { downloadProgress / 100f })
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = downloadStatusText ?: "下载中 $downloadProgress%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                if (!error.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+        else -> {
+            val parts = buildList {
+                if (!upgradeContent.isNullOrBlank()) add(upgradeContent)
+                updateInfo.changelog.forEach { add("• $it") }
             }
-        },
-        confirmButton = {
-            when {
-                !error.isNullOrBlank() -> {
-                    TextButton(onClick = onRetry) {
-                        Text("重试")
-                    }
-                }
-                isDownloading -> Unit
-                else -> {
-                    TextButton(onClick = onConfirmUpdate) {
-                        Text("立即更新")
-                    }
-                }
-            }
-        },
-        dismissButton = {
-            if (!forceUpdate && !isDownloading && error.isNullOrBlank()) {
-                TextButton(onClick = onDismiss) {
-                    Text("稍后")
-                }
-            }
-        },
-    )
+            FoxDialog(
+                title = title,
+                text = parts.joinToString("\n"),
+                confirmText = "立即更新",
+                dismissText = if (forceUpdate) null else "稍后",
+                cancelable = !forceUpdate,
+                onDismiss = onDismiss,
+                onConfirm = onConfirmUpdate,
+            )
+        }
+    }
 }

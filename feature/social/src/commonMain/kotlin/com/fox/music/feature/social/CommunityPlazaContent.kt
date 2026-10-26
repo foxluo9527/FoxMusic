@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -47,6 +46,7 @@ import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.model.social.Post
 import com.fox.music.core.model.social.PostMedia
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxSheet
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PostCommentInputBar
 import com.fox.music.core.ui.component.PostMediaPreviewDialog
@@ -367,7 +367,7 @@ private fun PlazaPostMenuBottomSheet(
     onPublishQueue: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    FoxSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {

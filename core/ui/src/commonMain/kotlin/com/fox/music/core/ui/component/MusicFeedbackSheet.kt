@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -35,7 +34,7 @@ fun MusicFeedbackSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var content by remember { mutableStateOf("") }
 
-    ModalBottomSheet(
+    FoxSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {

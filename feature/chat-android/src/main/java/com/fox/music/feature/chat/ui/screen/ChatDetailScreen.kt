@@ -71,6 +71,7 @@ import com.fox.music.core.model.chat.Message
 import com.fox.music.core.model.chat.MessageType
 import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.feature.chat.ui.component.ChatInputBar
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewDialog
 import com.fox.music.feature.chat.ui.component.ChatMediaPreviewType
@@ -819,20 +820,12 @@ private fun RecallConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("撤回消息") },
-        text = { Text("确定要撤回这条消息吗？对方未接收的消息将被成功撤回。") },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("确认")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        },
+    FoxDialog(
+        title = "撤回消息",
+        text = "确定要撤回这条消息吗？对方未接收的消息将被成功撤回。",
+        confirmText = "确认",
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
     )
 }
 
@@ -841,20 +834,13 @@ private fun DeleteConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("删除消息") },
-        text = { Text("确定要删除这条消息吗？删除后将无法恢复。") },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("删除")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        },
+    FoxDialog(
+        title = "删除消息",
+        text = "确定要删除这条消息吗？删除后将无法恢复。",
+        confirmText = "删除",
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+        destructive = true,
     )
 }
 

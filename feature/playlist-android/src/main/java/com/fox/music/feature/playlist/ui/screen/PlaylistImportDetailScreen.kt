@@ -25,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,9 +32,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
@@ -66,7 +62,11 @@ import com.fox.music.core.domain.repository.PlaylistImportDetail
 import com.fox.music.core.model.music.CandidatePlayType
 import com.fox.music.core.model.music.ProviderCandidate
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.FoxDialog
+import com.fox.music.core.ui.component.FoxDialogField
 import com.fox.music.core.ui.component.FoxLinearProgress
+import com.fox.music.core.ui.component.FoxMultiInputDialog
+import com.fox.music.core.ui.component.FoxSheet
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PreviewLyricPanel
 import com.fox.music.feature.playlist.viewmodel.PlaylistImportDetailEffect
@@ -170,21 +170,17 @@ fun PlaylistImportDetailScreen(
     }
 
     if (showCancelConfirm) {
-        AlertDialog(
-            onDismissRequest = { showCancelConfirm = false },
-            title = { Text("取消剩余导入") },
-            text = { Text("将清除未完成曲目的导入记录，已导入的歌曲不受影响。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showCancelConfirm = false
-                        viewModel.sendIntent(PlaylistImportDetailIntent.CancelJob)
-                    },
-                ) { Text("确认取消") }
+        FoxDialog(
+            title = "取消剩余导入",
+            text = "将清除未完成曲目的导入记录，已导入的歌曲不受影响。",
+            confirmText = "确认取消",
+            dismissText = "再想想",
+            onDismiss = { showCancelConfirm = false },
+            onConfirm = {
+                showCancelConfirm = false
+                viewModel.sendIntent(PlaylistImportDetailIntent.CancelJob)
             },
-            dismissButton = {
-                TextButton(onClick = { showCancelConfirm = false }) { Text("再想想") }
-            },
+            destructive = true,
         )
     }
 
@@ -425,7 +421,7 @@ private fun SourcePickerSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showQueryEditor by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
+    FoxSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
@@ -621,41 +617,17 @@ private fun SourcePickerSheet(
     }
 
     if (showQueryEditor) {
-        AlertDialog(
-            onDismissRequest = { showQueryEditor = false },
-            title = { Text("搜索条件") },
-            text = {
-                var title by remember { mutableStateOf(state.query) }
-                var artist by remember { mutableStateOf(state.artistQuery) }
-                Column {
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        label = { Text("歌曲名称") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = artist,
-                        onValueChange = { artist = it },
-                        label = { Text("艺人（可留空）") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = {
-                            showQueryEditor = false
-                            onEditQuery(title.trim(), artist.trim())
-                        },
-                        enabled = title.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("重新搜索") }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showQueryEditor = false }) { Text("关闭") }
+        FoxMultiInputDialog(
+            title = "搜索条件",
+            confirmText = "重新搜索",
+            fields = listOf(
+                FoxDialogField(label = "歌曲名称", initialValue = state.query),
+                FoxDialogField(label = "艺人（可留空）", initialValue = state.artistQuery),
+            ),
+            onDismiss = { showQueryEditor = false },
+            onConfirm = { values ->
+                showQueryEditor = false
+                onEditQuery(values[0].trim(), values[1].trim())
             },
         )
     }

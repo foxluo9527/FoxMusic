@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +42,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.user.BlacklistUser
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.feature.profile.viewmodel.PrivacySettingsEffect
 import com.fox.music.feature.profile.viewmodel.PrivacySettingsIntent
@@ -170,23 +170,13 @@ fun PrivacySettingsScreen(
     }
 
     state.unblockTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = { viewModel.sendIntent(PrivacySettingsIntent.DismissUnblockDialog) },
-            title = { Text("解除黑名单") },
-            text = { Text("确定要将「${target.nickname ?: "用户"}」移出黑名单吗？") },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.sendIntent(PrivacySettingsIntent.ConfirmUnblock) },
-                    enabled = !state.isUnblocking,
-                ) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.sendIntent(PrivacySettingsIntent.DismissUnblockDialog) }) {
-                    Text("取消")
-                }
-            },
+        FoxDialog(
+            title = "解除黑名单",
+            text = "确定要将「${target.nickname ?: "用户"}」移出黑名单吗？",
+            confirmText = "确定",
+            onDismiss = { viewModel.sendIntent(PrivacySettingsIntent.DismissUnblockDialog) },
+            onConfirm = { viewModel.sendIntent(PrivacySettingsIntent.ConfirmUnblock) },
+            confirmEnabled = !state.isUnblocking,
         )
     }
 }

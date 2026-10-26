@@ -12,14 +12,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,12 +31,8 @@ fun PlaylistManageBottomSheet(
     onDelete: () -> Unit,
     onPlayAll: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
+    // 统一走 FoxSheet：22dp 顶圆角 + drag handle + 语义 surface 底
+    FoxSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,25 +119,24 @@ private fun PlaylistManageAction(
     }
 }
 
+/**
+ * 删除歌单确认 —— 走图标居中破坏性确认，取代原来手写的 AlertDialog
+ * （旧实现圆角/按钮排布全用 M3 默认值，与全站 20dp 纸感容器对不上）。
+ */
 @Composable
 fun DeletePlaylistConfirmDialog(
     playlistTitle: String,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("删除歌单") },
-        text = { Text("确定要删除「$playlistTitle」吗？此操作不可恢复。") },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("删除", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        },
+    FoxConfirmDialog(
+        title = "删除歌单？",
+        text = "「$playlistTitle」将被永久删除，此操作不可恢复。",
+        confirmText = "删除",
+        dismissText = "取消",
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+        destructive = true,
+        icon = Icons.Default.Delete,
     )
 }

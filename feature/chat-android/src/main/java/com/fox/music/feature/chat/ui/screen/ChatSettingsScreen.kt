@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.ui.component.CachedImage
+import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.feature.chat.viewmodel.ChatSettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,23 +85,16 @@ fun ChatSettingsScreen(
     }
 
     if (showClearHistoryDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearHistoryDialog = false },
-            title = { Text("清空聊天记录") },
-            text = { Text("确定要清空所有聊天记录并删除对话吗？此操作不可恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showClearHistoryDialog = false
-                    viewModel.clearChatHistory()
-                }) {
-                    Text("确认清空")
-                }
+        FoxDialog(
+            title = "清空聊天记录",
+            text = "确定要清空所有聊天记录并删除对话吗？此操作不可恢复。",
+            confirmText = "确认清空",
+            onDismiss = { showClearHistoryDialog = false },
+            onConfirm = {
+                showClearHistoryDialog = false
+                viewModel.clearChatHistory()
             },
-            dismissButton = {
-                TextButton(onClick = { showClearHistoryDialog = false }) {
-                    Text("取消")
-                }
-            },
+            destructive = true,
         )
     }
 

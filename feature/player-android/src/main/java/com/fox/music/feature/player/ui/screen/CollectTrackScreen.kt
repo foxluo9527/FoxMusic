@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fox.music.core.model.music.CandidatePlayType
 import com.fox.music.core.model.music.ProviderCandidate
+import com.fox.music.core.ui.component.FoxDualPrimaryDialog
 import com.fox.music.core.ui.component.LoadingIndicator
 import com.fox.music.core.ui.component.PlaylistPickerBottomSheet
 import com.fox.music.core.ui.component.PreviewLyricPanel
@@ -62,6 +63,13 @@ fun CollectTrackScreen(
     modifier: Modifier = Modifier,
     viewModel: CollectTrackViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    /**
+     * 收录成功后的额外动作。默认空实现＝留在本页（按钮变「已收录」）。
+     *
+     * 从搜索页「去收录」进来的流程（args.fromSearch=true）由导航层传入「返回搜索页」，
+     * 让用户提交完直接回到搜索结果看到新收录的歌，而不是停在音源搜索页。
+     */
+    onCollectSucceeded: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -76,7 +84,7 @@ fun CollectTrackScreen(
             when (effect) {
                 is CollectTrackEffect.ShowMessage ->
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
-                CollectTrackEffect.CollectSucceeded -> { /* 留在页面，按钮变为已收录 */ }
+                CollectTrackEffect.CollectSucceeded -> onCollectSucceeded()
             }
         }
     }
@@ -227,12 +235,14 @@ fun CollectTrackScreen(
                                 val resolved = state.resolvedUrls.containsKey(candidate.id) ||
                                     candidate.playType == CandidatePlayType.DIRECT
                                 val isPreviewing = state.previewCandidateId == candidate.id
+                                val isBuffering = isPreviewing && state.preview.isBuffering
                                 CandidateRow(
                                     candidate = candidate,
                                     selected = state.selectedCandidateId == candidate.id,
                                     resolved = resolved,
                                     isResolving = state.resolvingIds.contains(candidate.id),
                                     isPreviewing = isPreviewing && state.preview.isPlaying,
+                                    isBuffering = isBuffering,
                                     targetDurationMs = state.argsDurationMs.takeIf { it > 0 },
                                     onSelect = {
                                         viewModel.sendIntent(CollectTrackIntent.SelectCandidate(candidate))
@@ -266,6 +276,7 @@ fun CollectTrackScreen(
                     positionMs = state.preview.positionMs,
                     durationMs = state.preview.durationMs,
                     isPlaying = state.preview.isPlaying,
+                    isBuffering = state.preview.isBuffering,
                     lyrics = state.previewLyrics,
                     onPlayPause = {
                         viewModel.sendIntent(CollectTrackIntent.TogglePreviewPlayPause)
@@ -294,24 +305,14 @@ fun CollectTrackScreen(
 
     // 收录方式选择：平台 / 歌单
     if (state.showCollectChoice) {
-        AlertDialog(
-            onDismissRequest = { viewModel.sendIntent(CollectTrackIntent.DismissCollectChoice) },
-            title = { Text("收录到") },
-            text = { Text("选择收录到平台曲库，或加入你自己的歌单。") },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.sendIntent(CollectTrackIntent.CollectToPlatform) },
-                ) {
-                    Text("平台")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { viewModel.sendIntent(CollectTrackIntent.CollectToPlaylist) },
-                ) {
-                    Text("歌单")
-                }
-            },
+        FoxDualPrimaryDialog(
+            title = "收录到",
+            text = "选择收录到平台曲库，或加入你自己的歌单。",
+            firstText = "平台",
+            onFirst = { viewModel.sendIntent(CollectTrackIntent.CollectToPlatform) },
+            secondText = "歌单",
+            onSecond = { viewModel.sendIntent(CollectTrackIntent.CollectToPlaylist) },
+            onDismiss = { viewModel.sendIntent(CollectTrackIntent.DismissCollectChoice) },
         )
     }
 

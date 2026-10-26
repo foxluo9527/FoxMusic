@@ -33,7 +33,6 @@ import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.ModeComment
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -41,7 +40,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,6 +73,7 @@ import com.fox.music.core.model.user.User
 import com.fox.music.core.ui.component.CachedImage
 import com.fox.music.core.ui.component.CommentMoreBottomSheet
 import com.fox.music.core.ui.component.ErrorView
+import com.fox.music.core.ui.component.FoxDialog
 import com.fox.music.core.ui.component.FoxEditorialCircleButton
 import com.fox.music.core.ui.component.FoxEditorialSectionLabel
 import com.fox.music.core.ui.component.LoadingIndicator
@@ -214,24 +213,17 @@ fun PostDetailContent(
     }
 
     if (showDeleteCommentDialog && commentForSheet != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteCommentDialog = false },
-            title = { Text("删除评论") },
-            text = { Text("确定要删除这条评论吗？") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteCommentDialog = false
-                    showCommentMoreSheet = false
-                    onIntent(PostDetailIntent.DeleteComment(commentForSheet.id))
-                }) {
-                    Text("删除")
-                }
+        FoxDialog(
+            title = "删除评论",
+            text = "确定要删除这条评论吗？",
+            confirmText = "删除",
+            onDismiss = { showDeleteCommentDialog = false },
+            onConfirm = {
+                showDeleteCommentDialog = false
+                showCommentMoreSheet = false
+                onIntent(PostDetailIntent.DeleteComment(commentForSheet.id))
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteCommentDialog = false }) {
-                    Text("取消")
-                }
-            },
+            destructive = true,
         )
     }
 
