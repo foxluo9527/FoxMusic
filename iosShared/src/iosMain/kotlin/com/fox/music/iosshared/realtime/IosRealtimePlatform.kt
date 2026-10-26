@@ -105,6 +105,11 @@ class IosUserPreferencesRepository : UserPreferencesRepository {
         return Result.Success(Unit)
     }
 
+    override suspend fun updateThemeIntensity(intensity: Float): Result<Unit> {
+        _prefs.value = _prefs.value.copy(themeIntensity = intensity)
+        return Result.Success(Unit)
+    }
+
     override suspend fun updateAutoPlay(enabled: Boolean): Result<Unit> {
         _prefs.value = _prefs.value.copy(autoPlay = enabled)
         return Result.Success(Unit)

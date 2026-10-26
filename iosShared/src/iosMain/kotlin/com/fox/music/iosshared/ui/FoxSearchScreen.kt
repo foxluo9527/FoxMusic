@@ -162,6 +162,8 @@ object FoxSearchScreen {
         var hotKeywords by remember { mutableStateOf(emptyList<HotKeyword>()) }
         var postTag by remember { mutableStateOf<String?>(deepTag) }
         var postLikeOverrides by remember { mutableStateOf(emptyMap<Long, Pair<Boolean, Int>>()) }
+        // 下拉/重试语义的刷新计数：并进 remember 键，committed 未变时也能真正重建分页
+        var refreshTick by remember { mutableStateOf(0) }
 
         LaunchedEffect(Unit) {
             hotKeywords = try {
@@ -172,17 +174,17 @@ object FoxSearchScreen {
         }
 
         // 结果分页：随 committed / platform 重建（未搜索时 query 为空 → 空页）
-        val musicFlow = remember(committed, platform) {
+        val musicFlow = remember(committed, platform, refreshTick) {
             Pager(PagingConfig(pageSize = 20, initialLoadSize = 20)) {
                 SearchMusicPagingSource(api, committed, platform)
             }.flow.cachedIn(scope)
         }
-        val artistFlow = remember(committed) {
+        val artistFlow = remember(committed, refreshTick) {
             Pager(PagingConfig(pageSize = 20, initialLoadSize = 20)) {
                 SearchArtistPagingSource(api, committed)
             }.flow.cachedIn(scope)
         }
-        val albumFlow = remember(committed) {
+        val albumFlow = remember(committed, refreshTick) {
             Pager(PagingConfig(pageSize = 20, initialLoadSize = 20)) {
                 SearchAlbumPagingSource(api, committed)
             }.flow.cachedIn(scope)
@@ -190,7 +192,7 @@ object FoxSearchScreen {
         // 帖子结果（与 Android SearchViewModel.performSearch 同口径）：
         // 标签模式下 keyword 必须为 null（query 里的标签仅用于搜索框回显），
         // 否则后端 tag AND keyword 叠加过滤会返回空；标签流默认 sort=hot。
-        val postFlow = remember(committed, postTag) {
+        val postFlow = remember(committed, postTag, refreshTick) {
             if (committed.isBlank() && postTag.isNullOrBlank()) {
                 Pager(PagingConfig(pageSize = 20, initialLoadSize = 20)) {
                     SearchPostEmptyPagingSource()
@@ -264,6 +266,7 @@ object FoxSearchScreen {
                             is SearchIntent.ClearHistory -> Unit // 历史需登录，暂不接
                             is SearchIntent.DeleteHistory -> Unit // 历史需登录，暂不接
                             is SearchIntent.RefreshHotKeywords -> Unit
+                            is SearchIntent.RefreshSearch -> refreshTick++
                             is SearchIntent.ClearPostTag -> postTag = null
                             is SearchIntent.FilterPostTag -> postTag = intent.tag
                             is SearchIntent.TogglePostLike -> togglePostLike(
