@@ -19,6 +19,7 @@ import com.fox.music.core.data.repository.PostDraftRepositoryImpl
 import com.fox.music.core.data.repository.PostPublishRepositoryImpl
 import com.fox.music.core.data.repository.PlaylistRepositoryImpl
 import com.fox.music.core.data.repository.ReportRepositoryImpl
+import com.fox.music.core.data.lyric.OkHttpOpenLyricHttp
 import com.fox.music.core.data.repository.SearchRepositoryImpl
 import com.fox.music.core.data.repository.SocialRepositoryImpl
 import com.fox.music.core.data.repository.UploadRepositoryImpl
@@ -43,6 +44,7 @@ import com.fox.music.core.domain.repository.PostPublishRepository
 import com.fox.music.core.domain.repository.PlaylistRepository
 import com.fox.music.core.domain.repository.RecommendedMusicCacheManager
 import com.fox.music.core.domain.repository.ReportRepository
+import com.fox.music.core.domain.lyric.OpenLyricHttp
 import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.repository.SocialRepository
 import com.fox.music.core.domain.repository.UploadRepository
@@ -99,6 +101,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindSearchRepository(impl: SearchRepositoryImpl): SearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindOpenLyricHttp(impl: OkHttpOpenLyricHttp): OpenLyricHttp
 
     @Binds
     @Singleton

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import FoxShared
 
 /// 空状态占位（本项目 deployment target 是 iOS 16，
@@ -978,8 +979,8 @@ private struct LyricCandidateRoute: Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-/// 歌词纠正：搜同名歌曲 → 点候选**先预览全文** → 右上角确认才替换当前歌词。
-/// 与 Android `CustomLyricSelectorSheet` 同一口径（第三方平台 netease + 标题完全匹配）。
+/// 歌词纠正：多来源少量候选 → 点候选**先预览全文** → 右上角确认才替换当前歌词。
+/// 也可以粘贴文本或选择本地 .lrc，走同一条「使用该歌词」替换路径。
 private struct LyricCorrectSheet: View {
     @ObservedObject private var player = PlayerModel.shared
     @Environment(\.dismiss) private var dismiss
@@ -1001,7 +1002,7 @@ private struct LyricCorrectSheet: View {
                     TextField("搜索歌曲名", text: $keyword)
                         .textFieldStyle(.plain)
                         .submitLabel(.search)
-                        .onSubmit { search(reset: true) }
+                        .onSubmit { search() }
                     if !keyword.isEmpty {
                         Button {
                             keyword = ""
@@ -1024,11 +1025,21 @@ private struct LyricCorrectSheet: View {
                     onApplied()
                 }
             }
+            .navigationDestination(for: CustomLyricRoute.self) { _ in
+                CustomLyricEditorPage(durationMs: player.current?.durationMillis ?? 0) { lrc in
+                    player.applyLyrics(lyrics: lrc, translation: nil)
+                    onApplied()
+                }
+            }
             .navigationTitle("歌词纠正")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("关闭") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("自定义") { path.append(CustomLyricRoute()) }
+                        .accessibilityIdentifier("lyricCorrect.custom")
                 }
             }
         }
@@ -1037,7 +1048,7 @@ private struct LyricCorrectSheet: View {
         .onAppear {
             if !didSearch, let song = player.current {
                 keyword = song.title
-                search(reset: true)
+                search()
             }
         }
     }
@@ -1065,6 +1076,8 @@ private struct LyricCorrectSheet: View {
                                 .foregroundStyle(.primary)
                                 .lineLimit(1)
                             HStack(spacing: 6) {
+                                Text(LyricCandidateRanker.shared.sourceLabel(raw: item.source))
+                                Text("·")
                                 Text(item.artist)
                                     .lineLimit(1)
                                 Text("·")
@@ -1076,9 +1089,13 @@ private struct LyricCorrectSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .accessibilityIdentifier("lyricCorrect.result.\(item.id)")
-                    .task {
-                        if item.id == model.results.last?.id { search(reset: false) }
-                    }
+                }
+                if let note = model.message, !model.results.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .listRowSeparator(.hidden)
                 }
                 if model.isLoading {
                     HStack { Spacer(); ProgressView(); Spacer() }
@@ -1088,12 +1105,148 @@ private struct LyricCorrectSheet: View {
         }
     }
 
-    private func search(reset: Bool) {
+    private func search() {
         let text = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         didSearch = true
-        model.search(keyword: text, title: player.current?.title ?? text, reset: reset)
+        let song = player.current
+        let sameSong = text == song?.title
+        model.search(
+            keyword: text,
+            artist: sameSong ? (song?.artist ?? "") : "",
+            durationMs: sameSong ? (song?.durationMillis ?? 0) : 0
+        )
     }
+}
+
+private struct CustomLyricRoute: Hashable {}
+
+/// 自定义歌词：粘贴纯文本 / LRC，或选择本地 .lrc。确认后走播放器同一条替换路径。
+private struct CustomLyricEditorPage: View {
+    let durationMs: Int64
+    let onUse: (String) -> Void
+    @State private var text = ""
+    @State private var fileName: String?
+    @State private var errorMessage: String?
+    @State private var importing = false
+
+    private var lrcType: UTType { UTType(filenameExtension: "lrc") ?? .plainText }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("粘贴纯文本或 LRC。纯文本会按歌曲时长铺开，方便在歌词页滚动查看。选择可用的 .lrc 会直接替换。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: Binding(
+                get: { text },
+                set: { newValue in
+                    text = newValue
+                    errorMessage = nil
+                }
+            ))
+                .font(.system(size: 15))
+                .frame(minHeight: 220)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            if let fileName, !fileName.isEmpty {
+                Text("已选择：\(fileName)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
+            HStack(spacing: 12) {
+                Button("选择 .lrc 文件") { importing = true }
+                    .buttonStyle(.bordered)
+                Button("使用此歌词") { applyDraft() }
+                    .buttonStyle(.borderedProminent)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .navigationTitle("自定义歌词")
+        .navigationBarTitleDisplayMode(.inline)
+        .fileImporter(
+            isPresented: $importing,
+            allowedContentTypes: [lrcType, .plainText, .text, .utf8PlainText],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .failure:
+                errorMessage = "读取歌词文件失败"
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                loadFile(url)
+            }
+        }
+        .accessibilityIdentifier("lyricCorrect.customEditor")
+    }
+
+    private func applyDraft() {
+        let prepared = LyricTextNormalizer.shared.prepare(raw: text, durationMs: durationMs)
+        if prepared.ok {
+            onUse(prepared.lrc)
+        } else {
+            errorMessage = prepared.message
+        }
+    }
+
+    private func loadFile(_ url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            if data.isEmpty {
+                errorMessage = "歌词文件是空的"
+                return
+            }
+            if data.count > 512 * 1024 {
+                errorMessage = "歌词文件过大"
+                return
+            }
+            guard let decoded = decodeLyricData(data) else {
+                errorMessage = "无法读取歌词文件，请选择 .lrc 或文本文件"
+                return
+            }
+            let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                errorMessage = "歌词内容为空"
+                return
+            }
+            if LyricTextNormalizer.shared.looksLikeBinary(text: trimmed) {
+                errorMessage = "无法读取歌词文件，请选择 .lrc 或文本文件"
+                return
+            }
+            text = decoded
+            fileName = url.lastPathComponent
+            let prepared = LyricTextNormalizer.shared.prepare(raw: decoded, durationMs: durationMs)
+            if prepared.ok {
+                onUse(prepared.lrc)
+            } else {
+                errorMessage = prepared.message
+            }
+        } catch {
+            errorMessage = "读取歌词文件失败"
+        }
+    }
+}
+
+private func decodeLyricData(_ data: Data) -> String? {
+    if let utf8 = String(data: data, encoding: .utf8), !utf8.contains("\u{FFFD}") {
+        return utf8
+    }
+    let gbk = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
+        CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)
+    ))
+    return String(data: data, encoding: gbk) ?? String(data: data, encoding: .utf8)
 }
 
 /// 歌词预览页：展示候选歌词全文（原文 + 翻译），右上角"使用该歌词"确认后才应用。
@@ -1166,40 +1319,28 @@ private struct LyricPreviewPage: View {
 final class LyricSearchModel: ObservableObject {
     @Published private(set) var results: [FoxLyricCandidate] = []
     @Published private(set) var isLoading = false
-    @Published private(set) var hasMore = false
     @Published private(set) var message: String?
 
-    private var page = 1
-
-    func search(keyword: String, title: String, reset: Bool) {
-        if reset {
-            page = 1
-            results = []
-            message = nil
-        } else {
-            guard hasMore, !isLoading else { return }
-            page += 1
-        }
+    func search(keyword: String, artist: String, durationMs: Int64) {
+        results = []
+        message = nil
         isLoading = true
-        let targetPage = page
         FoxPlayerApi.shared.searchLyrics(
             keyword: keyword,
-            targetTitle: title,
-            page: Int32(targetPage),
-            onResult: { [weak self] list, more in
+            artist: artist,
+            durationMs: durationMs,
+            onResult: { [weak self] list, note in
                 guard let self else { return }
-                if targetPage == 1 {
-                    self.results = list
-                } else {
-                    self.results.append(contentsOf: list)
-                }
-                self.hasMore = more.boolValue
+                self.results = list
                 self.isLoading = false
-                self.message = self.results.isEmpty ? "没找到更合适的歌词" : nil
+                if list.isEmpty {
+                    self.message = note ?? "没找到更合适的歌词"
+                } else {
+                    self.message = note
+                }
             },
             onError: { [weak self] msg in
                 self?.isLoading = false
-                self?.hasMore = false
                 self?.message = msg
             }
         )

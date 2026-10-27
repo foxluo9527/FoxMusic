@@ -1,6 +1,8 @@
 package com.fox.music.feature.player.ui.component
 
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -12,10 +14,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,8 +25,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -33,8 +37,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,35 +53,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.paging.LoadState
-import androidx.paging.compose.collectAsLazyPagingItems
+import com.fox.music.core.model.music.LyricCandidateRanker
+import com.fox.music.core.model.music.LyricTextNormalizer
 import com.fox.music.core.model.music.LyricsParser
 import com.fox.music.core.model.music.PlayerState
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.core.ui.component.FoxSheet
 import com.fox.music.feature.player.lyric.data.CustomLyricItem
 import com.fox.music.feature.player.lyric.data.LyricStyle
+import com.fox.music.feature.player.lyric.readLyricFile
+import com.fox.music.feature.player.lyric.LyricFileRead
 import com.fox.music.feature.player.viewmodel.CustomLyricSelectorEffect
 import com.fox.music.feature.player.viewmodel.CustomLyricSelectorIntent
 import com.fox.music.feature.player.viewmodel.CustomLyricSelectorState
 import com.fox.music.feature.player.viewmodel.CustomLyricSelectorViewModel
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-/** 歌词来源展示名（客户端 λ 协定：netease/lrclib/lyricsovh） */
-private fun sourceLabel(raw: String?): String = when (raw?.lowercase()) {
-    "netease" -> "网易云官方"
-    "lrclib" -> "LRCLIB"
-    "lyricsovh" -> "lyrics.ovh"
-    else -> raw ?: "未知来源"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,6 +104,18 @@ fun CustomLyricSelectorSheet(
 
     val state by viewModel.uiState.collectAsState()
     val playerState by musicController.playerState.collectAsState(PlayerState())
+    val context = LocalContext.current
+    val lrcPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        when (val read = readLyricFile(context, uri)) {
+            is LyricFileRead.Ok -> viewModel.sendIntent(
+                CustomLyricSelectorIntent.LoadCustomFile(read.name, read.text)
+            )
+            is LyricFileRead.Failed -> viewModel.sendIntent(
+                CustomLyricSelectorIntent.CustomFileError(read.message)
+            )
+        }
+    }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val backProgress = remember { Animatable(0f) }
@@ -162,7 +172,20 @@ fun CustomLyricSelectorSheet(
                 viewModel.sendIntent(
                     CustomLyricSelectorIntent.ApplyLyrics(music, lyrics, lyricsTrans)
                 )
-            }
+            },
+            onShowCustom = { show ->
+                viewModel.sendIntent(CustomLyricSelectorIntent.ShowCustom(show))
+            },
+            onCustomDraft = { text ->
+                viewModel.sendIntent(CustomLyricSelectorIntent.UpdateCustomDraft(text))
+            },
+            onPickLrc = {
+                lrcPicker.launch(arrayOf("text/plain", "application/octet-stream", "*/*"))
+            },
+            onApplyCustom = {
+                viewModel.sendIntent(CustomLyricSelectorIntent.ApplyCustom(state.customText))
+            },
+            onRetry = { viewModel.search(searchKeyword, musicTitle, artistName) },
         )
     }
 }
@@ -173,28 +196,26 @@ private fun CustomLyricSelectorContent(
     style: LyricStyle,
     playerState: PlayerState,
     onApply: (com.fox.music.core.model.music.Music, String, String?) -> Unit,
+    onShowCustom: (Boolean) -> Unit,
+    onCustomDraft: (String) -> Unit,
+    onPickLrc: () -> Unit,
+    onApplyCustom: () -> Unit,
+    onRetry: () -> Unit,
 ) {
-    val pagingItems = state.pagingData.collectAsLazyPagingItems()
     val pagerScope = rememberCoroutineScope()
 
-    // 首页 = 服务端智能匹配（歌名+艺人+时长）的「最佳匹配」歌词，其后才是搜索列表
+    // 首页 = 服务端智能匹配（歌名+艺人+时长）的「最佳匹配」歌词，其后是各来源截断后的候选
     val best = state.bestMatched
     val bestOffset = if (best != null) 1 else 0
-    val itemCount = bestOffset + pagingItems.itemCount
-    val pagerState = rememberPagerState(pageCount = { itemCount })
+    val itemCount = bestOffset + state.candidates.size
+    val pagerState = rememberPagerState(pageCount = { itemCount.coerceAtLeast(1) })
 
     val currentPage = pagerState.currentPage
-    val hasPrev = currentPage > 0
+    val hasPrev = currentPage > 0 && itemCount > 0
     val hasNext = currentPage < itemCount - 1
     val activeItem: CustomLyricItem? = when {
         bestOffset == 1 && currentPage == 0 -> best
-        else -> {
-            // LazyPagingItems 越界访问会直接抛 IndexOutOfBoundsException("Index: X, Size: Y")，
-            // 不像普通 List 返回 null。best 未就绪 / 列表仍为空时 currentPage 会指向空列表，
-            // 必须先做边界保护（曾因缺此判断进入歌词纠正即崩溃）。
-            val listIndex = currentPage - bestOffset
-            if (listIndex in 0 until pagingItems.itemCount) pagingItems[listIndex] else null
-        }
+        else -> state.candidates.getOrNull(currentPage - bestOffset)
     }
     Box(
         Modifier
@@ -226,11 +247,21 @@ private fun CustomLyricSelectorContent(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Spacer(Modifier.height(8.dp))
+                LyricModeSwitch(showCustom = state.showCustom, onShowCustom = onShowCustom)
             }
 
-            when {
+            if (state.showCustom) {
+                CustomLyricEditor(
+                    state = state,
+                    modifier = Modifier.weight(1f),
+                    onDraft = onCustomDraft,
+                    onPickLrc = onPickLrc,
+                    onApply = onApplyCustom,
+                )
+            } else when {
                 // 列表还在加载时，若已拿到最佳匹配就先展示它（不空等列表）
-                pagingItems.loadState.refresh is LoadState.Loading && itemCount == 0 -> {
+                state.isSearching && itemCount == 0 -> {
                     Box(
                         Modifier
                             .weight(1f)
@@ -247,17 +278,36 @@ private fun CustomLyricSelectorContent(
                     }
                 }
 
-                itemCount == 0 && pagingItems.loadState.refresh is LoadState.NotLoading -> {
+                itemCount == 0 && !state.isSearching -> {
                     Box(
                         Modifier
                             .weight(1f)
                             .fillMaxWidth(), contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "未找到匹配歌词",
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            fontSize = 16.sp
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "未找到匹配歌词",
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                fontSize = 16.sp
+                            )
+                            if (!state.searchNote.isNullOrBlank()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    state.searchNote,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 24.dp),
+                                )
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "点击重试",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 14.sp,
+                                modifier = Modifier.clickable(onClick = onRetry),
+                            )
+                        }
                     }
                 }
 
@@ -272,9 +322,7 @@ private fun CustomLyricSelectorContent(
                             modifier = Modifier.fillMaxSize(),
                         ) { page ->
                             val item: CustomLyricItem? = if (bestOffset == 1 && page == 0) best else {
-                                // 同 activeItem：越界访问 LazyPagingItems 会抛异常，需边界保护
-                                val listIndex = page - bestOffset
-                                if (listIndex in 0 until pagingItems.itemCount) pagingItems[listIndex] else null
+                                state.candidates.getOrNull(page - bestOffset)
                             }
                             val isSelected = page == currentPage
                             val isBestMatched = bestOffset == 1 && page == 0
@@ -295,30 +343,7 @@ private fun CustomLyricSelectorContent(
                                             else Modifier
                                         )
                                 ) {
-                                    if (isBestMatched) {
-                                        Box(
-                                            Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 4.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Box(
-                                                Modifier
-                                                    .background(
-                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                                                        RoundedCornerShape(50)
-                                                    )
-                                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                                            ) {
-                                                Text(
-                                                    "最佳匹配 · ${sourceLabel(item?.music?.sourcePlatform)} · ${item?.lyricLineCount ?: 0} 行",
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            }
-                                        }
-                                    }
+                                    LyricSourceChip(item = item, isBestMatched = isBestMatched)
                                     BilingualLyricComponent(
                                         modifier = Modifier
                                             .fillMaxSize()
@@ -446,34 +471,195 @@ private fun CustomLyricSelectorContent(
                 }
             }
         }
-        if (pagingItems.loadState.append is LoadState.Loading) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            }
-        }
-
-        val refreshError = pagingItems.loadState.refresh as? LoadState.Error
-        val appendError = pagingItems.loadState.append as? LoadState.Error
-        val error = refreshError ?: appendError
-        if (error != null) {
+        if (!state.showCustom && itemCount > 0 && !state.searchNote.isNullOrBlank()) {
             Text(
-                "加载失败，点击重试",
+                state.searchNote,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        if (refreshError != null) pagingItems.refresh()
-                        else pagingItems.retry()
-                    }
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.error,
-                fontSize = 14.sp
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                fontSize = 11.sp,
             )
+        }
+    }
+}
+
+@Composable
+private fun LyricModeSwitch(
+    showCustom: Boolean,
+    onShowCustom: (Boolean) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ModeChip("匹配歌词", selected = !showCustom) { onShowCustom(false) }
+        ModeChip("自定义", selected = showCustom) { onShowCustom(true) }
+    }
+}
+
+@Composable
+private fun ModeChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                RoundedCornerShape(50),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    ) {
+        Text(
+            label,
+            color = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+        )
+    }
+}
+
+@Composable
+private fun LyricSourceChip(
+    item: CustomLyricItem,
+    isBestMatched: Boolean,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val syncNote = if (item.synced) "" else " · 纯文本"
+        val title = if (isBestMatched) {
+            "最佳匹配 · ${LyricCandidateRanker.sourceLabel(item.music.sourcePlatform)} · ${item.lyricLineCount} 行"
+        } else {
+            "${LyricCandidateRanker.sourceLabel(item.music.sourcePlatform)} · ${item.lyricLineCount} 行$syncNote"
+        }
+        Box(
+            Modifier
+                .background(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                    RoundedCornerShape(50),
+                )
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(
+                title,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        val sourcePage = item.attributionUrl
+        if (!sourcePage.isNullOrBlank()) {
+            Text(
+                sourcePage,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp, start = 24.dp, end = 24.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomLyricEditor(
+    state: CustomLyricSelectorState,
+    modifier: Modifier,
+    onDraft: (String) -> Unit,
+    onPickLrc: () -> Unit,
+    onApply: () -> Unit,
+) {
+    val preview = if (state.customText.isBlank()) {
+        null
+    } else {
+        LyricTextNormalizer.prepare(state.customText, state.currentDurationMs)
+    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            "粘贴纯文本或 LRC，也可以直接选本地 .lrc。读到可用的文件会立刻替换当前歌词。",
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = state.customText,
+            onValueChange = onDraft,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 180.dp),
+            placeholder = { Text("在这里粘贴歌词") },
+            minLines = 8,
+        )
+        if (!state.customFileName.isNullOrBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "已选择：${state.customFileName}",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        val message = state.customError ?: preview?.let { prepared ->
+            if (prepared.ok) {
+                val kind = if (prepared.synced) "LRC" else "纯文本，按时长铺开"
+                "可写入 ${prepared.lineCount} 行（$kind）"
+            } else {
+                prepared.message
+            }
+        }
+        if (!message.isNullOrBlank()) {
+            val isError = state.customError != null || preview?.ok == false
+            Text(
+                message,
+                color = if (isError) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier
+                    .height(36.dp)
+                    .background(
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        MaterialTheme.shapes.medium,
+                    )
+                    .clickable(onClick = onPickLrc)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("选择 .lrc 文件", fontSize = 14.sp)
+            }
+            Box(
+                Modifier
+                    .height(36.dp)
+                    .background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
+                    .clickable(onClick = onApply)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "使用此歌词",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
     }
 }

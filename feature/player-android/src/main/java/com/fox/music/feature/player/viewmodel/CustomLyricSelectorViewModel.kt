@@ -1,43 +1,63 @@
 package com.fox.music.feature.player.viewmodel
 
 import androidx.lifecycle.viewModelScope
-import androidx.paging.PagingData
-import androidx.paging.cachedIn
 import com.fox.music.core.common.mvi.MviViewModel
+import com.fox.music.core.domain.lyric.OpenLyricSources
+import com.fox.music.core.domain.repository.SearchRepository
 import com.fox.music.core.domain.usecase.FetchBestMatchedLyricUseCase
+import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Artist
+import com.fox.music.core.model.music.LyricCandidateRanker
+import com.fox.music.core.model.music.LyricHit
+import com.fox.music.core.model.music.LyricQuery
+import com.fox.music.core.model.music.LyricTextNormalizer
 import com.fox.music.core.model.music.LyricsParser
 import com.fox.music.core.model.music.Music
+import com.fox.music.core.model.music.ScoredLyricHit
 import com.fox.music.core.model.music.ScrapedLyric
 import com.fox.music.core.player.controller.MusicController
 import com.fox.music.feature.player.lyric.data.CustomLyricItem
-import com.fox.music.feature.player.lyric.usecase.SearchCustomLyricPagingUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 data class CustomLyricSelectorState(
     val searchKeyword: String = "",
     val currentMusicTitle: String = "",
     val currentMusicArtist: String = "",
-    val pagingData: Flow<PagingData<CustomLyricItem>> = emptyFlow(),
+    val currentDurationMs: Long = 0L,
+    val candidates: List<CustomLyricItem> = emptyList(),
+    val isSearching: Boolean = true,
+    val searchNote: String? = null,
     val currentPage: Int = 0,
     /**
      * 服务端智能匹配出的「最佳匹配」歌词（/api/music/lyrics/fetch）。
-     * 与列表项的区别：它是按 歌名+艺人+时长 算出来的最优解，
-     * 且带命中来源信息；列表项只是「标题全等」的模糊结果，可能张冠李戴。
+     * 列表是各来源按相似度截断后的少量候选，不再把网易云同名结果整页倒进来。
      */
     val bestMatched: CustomLyricItem? = null,
     val isMatchedLoading: Boolean = true,
+    val showCustom: Boolean = false,
+    val customText: String = "",
+    val customFileName: String? = null,
+    val customError: String? = null,
 ) : com.fox.music.core.common.mvi.UiState
 
 sealed interface CustomLyricSelectorIntent : com.fox.music.core.common.mvi.UiIntent {
     data class SelectPage(val page: Int) : CustomLyricSelectorIntent
     data class ApplyLyrics(val music: Music, val lyrics: String, val lyricsTrans: String?) :
         CustomLyricSelectorIntent
+    data class ShowCustom(val show: Boolean) : CustomLyricSelectorIntent
+    data class UpdateCustomDraft(val text: String) : CustomLyricSelectorIntent
+    data class LoadCustomFile(val name: String?, val text: String) : CustomLyricSelectorIntent
+    data class CustomFileError(val message: String) : CustomLyricSelectorIntent
+    data class ApplyCustom(val text: String) : CustomLyricSelectorIntent
     data object Dismiss : CustomLyricSelectorIntent
 }
 
@@ -48,32 +68,48 @@ sealed interface CustomLyricSelectorEffect : com.fox.music.core.common.mvi.UiEff
 
 @HiltViewModel
 class CustomLyricSelectorViewModel @Inject constructor(
-    private val searchCustomLyricPagingUseCase: SearchCustomLyricPagingUseCase,
+    private val searchRepository: SearchRepository,
     private val fetchBestMatchedLyricUseCase: FetchBestMatchedLyricUseCase,
+    private val openLyricSources: OpenLyricSources,
     private val musicController: MusicController,
 ) : MviViewModel<CustomLyricSelectorState, CustomLyricSelectorIntent, CustomLyricSelectorEffect>(
     CustomLyricSelectorState()
 ) {
 
     private var bestMatchedJob: Job? = null
+    private var searchJob: Job? = null
+    private val publishMutex = Mutex()
+    private var searchGeneration = 0
+    private var latestGroups = listOf<List<ScoredLyricHit>>()
+    private var latestFailed = listOf<String>()
 
     override fun handleIntent(intent: CustomLyricSelectorIntent) {
         when (intent) {
             is CustomLyricSelectorIntent.SelectPage -> {
                 updateState { copy(currentPage = intent.page) }
             }
-            is CustomLyricSelectorIntent.ApplyLyrics -> {
-                val currentMusicId = musicController.playerState.value.currentMusic?.id
-                if (currentMusicId != null) {
-                    musicController.updateMusicLyrics(
-                        currentMusicId,
-                        intent.lyrics,
-                        intent.lyricsTrans
+            is CustomLyricSelectorIntent.ApplyLyrics -> applyLyrics(intent.lyrics, intent.lyricsTrans)
+            is CustomLyricSelectorIntent.ShowCustom -> updateState {
+                copy(showCustom = intent.show, customError = null)
+            }
+            is CustomLyricSelectorIntent.UpdateCustomDraft -> updateState {
+                copy(customText = intent.text, customFileName = null, customError = null)
+            }
+            is CustomLyricSelectorIntent.LoadCustomFile -> {
+                updateState {
+                    copy(
+                        showCustom = true,
+                        customText = intent.text,
+                        customFileName = intent.name,
+                        customError = null,
                     )
                 }
-                sendEffect(CustomLyricSelectorEffect.ShowToast("歌词已更换"))
-                sendEffect(CustomLyricSelectorEffect.Dismiss)
+                applyPrepared(intent.text)
             }
+            is CustomLyricSelectorIntent.CustomFileError -> updateState {
+                copy(showCustom = true, customError = intent.message)
+            }
+            is CustomLyricSelectorIntent.ApplyCustom -> applyPrepared(intent.text)
             is CustomLyricSelectorIntent.Dismiss -> {
                 sendEffect(CustomLyricSelectorEffect.Dismiss)
             }
@@ -81,18 +117,48 @@ class CustomLyricSelectorViewModel @Inject constructor(
     }
 
     fun search(keyword: String, musicTitle: String, artistName: String) {
-        val flow = searchCustomLyricPagingUseCase(keyword, musicTitle)
-            .cachedIn(viewModelScope)
+        val durationMs = musicController.playerState.value.currentMusic?.duration
+            ?.takeIf { it > 0L } ?: 0L
+        searchJob?.cancel()
+        val generation = ++searchGeneration
         updateState {
             copy(
                 searchKeyword = keyword,
                 currentMusicTitle = musicTitle,
                 currentMusicArtist = artistName,
+                currentDurationMs = durationMs,
                 currentPage = 0,
-                pagingData = flow
+                candidates = emptyList(),
+                isSearching = true,
+                searchNote = null,
             )
         }
         fetchBestMatched(musicTitle, artistName)
+        val query = LyricQuery(
+            title = musicTitle.ifBlank { keyword },
+            artist = artistName,
+            durationMs = durationMs,
+        )
+        searchJob = viewModelScope.launch {
+            publishMutex.withLock {
+                if (generation != searchGeneration) return@withLock
+                latestGroups = emptyList()
+                latestFailed = emptyList()
+            }
+            if (generation != searchGeneration) return@launch
+            coroutineScope {
+                listOf(
+                    async { capture(generation, "网易云") { neteaseCandidates(query) } },
+                    async { capture(generation, "LRCLIB") { openLyricSources.lrclib(query) } },
+                    async { capture(generation, "Megalobiz") { openLyricSources.megalobiz(query) } },
+                    async { capture(generation, "lyrics.ovh") { openLyricSources.lyricsOvh(query) } },
+                ).awaitAll()
+            }
+            publishMutex.withLock {
+                if (generation != searchGeneration) return@withLock
+                publish(searching = false)
+            }
+        }
     }
 
     /**
@@ -111,7 +177,12 @@ class CustomLyricSelectorViewModel @Inject constructor(
             val durationMs = musicController.playerState.value.currentMusic?.duration
                 ?.takeIf { it > 0 }
             val item = runCatching { bestMatchedLyric(title, artist, durationMs) }.getOrNull()
+            if (!isActive) return@launch
             updateState { copy(bestMatched = item, isMatchedLoading = false) }
+            publishMutex.withLock {
+                if (!isActive) return@withLock
+                publish(searching = currentState.isSearching)
+            }
         }
     }
 
@@ -136,10 +207,91 @@ class CustomLyricSelectorViewModel @Inject constructor(
         return null
     }
 
+    private suspend fun capture(
+        generation: Int,
+        sourceName: String,
+        block: suspend () -> List<ScoredLyricHit>,
+    ) {
+        val result = runCatching { block() }
+        publishMutex.withLock {
+            if (generation != searchGeneration) return@withLock
+            result.fold(
+                onSuccess = { latestGroups = latestGroups + listOf(it) },
+                onFailure = { latestFailed = latestFailed + sourceName },
+            )
+            publish(searching = true)
+        }
+    }
+
+    private fun publish(searching: Boolean) {
+        val merged = LyricCandidateRanker.dropMatching(
+            LyricCandidateRanker.merge(latestGroups),
+            currentState.bestMatched?.lyrics,
+        )
+        updateState {
+            copy(
+                candidates = merged.map { it.toItem() },
+                isSearching = searching,
+                searchNote = latestFailed.takeIf { it.isNotEmpty() }
+                    ?.joinToString("、")
+                    ?.let { "部分来源暂不可用：$it" },
+            )
+        }
+    }
+
+    /**
+     * 网易云只取第一小页再按相似度留前 [LyricCandidateRanker.NETEASE_LIMIT] 条。
+     * 以前标题全等就继续翻页，同名歌会把列表撑得很长。
+     */
+    private suspend fun neteaseCandidates(query: LyricQuery): List<ScoredLyricHit> {
+        if (query.title.isBlank()) return emptyList()
+        val page = searchRepository.searchMusic(
+            keyword = query.title,
+            page = 1,
+            limit = LyricCandidateRanker.NETEASE_FETCH,
+            platform = "netease",
+        ).getOrThrow()
+        val hits = page.list.mapNotNull { music ->
+            val raw = music.lyrics?.trim().orEmpty()
+            if (raw.isEmpty()) return@mapNotNull null
+            val prepared = LyricTextNormalizer.prepare(raw, music.duration)
+            if (!prepared.ok) return@mapNotNull null
+            LyricHit(
+                source = "netease",
+                sourceId = music.sourceId,
+                title = music.title,
+                artist = music.artists.joinToString(" / ") { it.name },
+                album = music.album?.title,
+                durationMs = music.duration,
+                lyrics = prepared.lrc,
+                lyricsTrans = music.lyricsTrans?.takeIf { it.isNotBlank() },
+                synced = prepared.synced,
+            )
+        }
+        return LyricCandidateRanker.select(query, hits, LyricCandidateRanker.NETEASE_LIMIT)
+    }
+
+    private fun applyPrepared(raw: String) {
+        val prepared = LyricTextNormalizer.prepare(raw, currentState.currentDurationMs)
+        if (!prepared.ok) {
+            updateState { copy(showCustom = true, customError = prepared.message) }
+            return
+        }
+        applyLyrics(prepared.lrc, null)
+    }
+
+    private fun applyLyrics(lyrics: String, lyricsTrans: String?) {
+        val currentMusicId = musicController.playerState.value.currentMusic?.id
+        if (currentMusicId != null) {
+            musicController.updateMusicLyrics(currentMusicId, lyrics, lyricsTrans)
+        }
+        sendEffect(CustomLyricSelectorEffect.ShowToast("歌词已更换"))
+        sendEffect(CustomLyricSelectorEffect.Dismiss)
+    }
+
     private fun toLyricItem(lyric: ScrapedLyric): CustomLyricItem? {
         val text = lyric.lyrics
         if (text.isBlank() || lyric.instrumental) return null
-        // lyricLineCount=0 表示「有值但客户端解析不出时间轴」，UI 会提示不可选
         val lineCount = LyricsParser.parseLrc(text).size
         if (lineCount <= 0) return null
         val music = Music(
@@ -159,6 +311,32 @@ class CustomLyricSelectorViewModel @Inject constructor(
             lyrics = text,
             lyricsTrans = lyric.lyricsTrans?.takeIf { it.isNotBlank() },
             lyricLineCount = lineCount,
+        )
+    }
+
+    private fun ScoredLyricHit.toItem(): CustomLyricItem {
+        val music = Music(
+            id = 0L,
+            sourceId = hit.sourceId ?: "0",
+            title = hit.title,
+            sourcePlatform = hit.source,
+            url = "",
+            duration = hit.durationMs,
+            artists = listOfNotNull(
+                hit.artist.takeIf { it.isNotBlank() }?.let { Artist(id = 0L, name = it) }
+            ),
+            album = hit.album?.takeIf { it.isNotBlank() }?.let { Album(id = 0L, title = it) },
+            lyrics = hit.lyrics,
+            lyricsTrans = hit.lyricsTrans,
+        )
+        return CustomLyricItem(
+            music = music,
+            lyrics = hit.lyrics,
+            lyricsTrans = hit.lyricsTrans,
+            lyricLineCount = LyricsParser.parseLrc(hit.lyrics).size,
+            matchScore = score,
+            attributionUrl = hit.attributionUrl,
+            synced = hit.synced,
         )
     }
 }

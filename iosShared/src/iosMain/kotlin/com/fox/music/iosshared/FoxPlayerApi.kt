@@ -1,7 +1,19 @@
 package com.fox.music.iosshared
 
 import com.fox.music.core.common.util.MediaUrlResolver
+import com.fox.music.core.domain.lyric.OpenLyricHttp
+import com.fox.music.core.domain.lyric.OpenLyricResponse
+import com.fox.music.core.domain.lyric.OpenLyricSources
+import com.fox.music.core.model.music.LyricCandidateRanker
+import com.fox.music.core.model.music.LyricHit
+import com.fox.music.core.model.music.LyricQuery
+import com.fox.music.core.model.music.LyricTextNormalizer
 import com.fox.music.core.model.music.LyricsParser
+import com.fox.music.core.model.music.ScoredLyricHit
+import com.fox.music.core.network.model.MusicDto
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -18,6 +30,14 @@ object FoxPlayerApi {
 
     private val scope = foxMainScope()
     private val api = FoxMusicApi()
+    private val openLyrics by lazy {
+        OpenLyricSources(object : OpenLyricHttp {
+            override suspend fun getText(url: String, headers: Map<String, String>): OpenLyricResponse {
+                val (code, body) = api.getExternalText(url, headers)
+                return OpenLyricResponse(code, body)
+            }
+        })
+    }
 
     // ---------- 收藏 ----------
 
@@ -194,49 +214,89 @@ object FoxPlayerApi {
     // ---------- 歌词纠正（自定义歌词源）----------
 
     /**
-     * 搜"同名歌曲的歌词"作为当前歌的替代歌词源。
-     *
-     * 与 Android `CustomLyricSearchPagingSource` 完全同一口径：
-     * 走第三方平台（netease）搜关键词，只保留**标题完全一致**且带歌词的结果，
-     * 否则用户会拿到一堆不相关的歌。
+     * 歌词纠正候选：网易云只留相似度最高的前几条，再并上 LRCLIB / Megalobiz / lyrics.ovh。
+     * 每个来源截断后按歌词正文去重。[note] 非空表示有来源暂时失败。
      */
     fun searchLyrics(
         keyword: String,
-        targetTitle: String,
-        page: Int,
-        onResult: (List<FoxLyricCandidate>, Boolean) -> Unit,
+        artist: String,
+        durationMs: Long,
+        onResult: (List<FoxLyricCandidate>, String?) -> Unit,
         onError: (String) -> Unit,
     ) {
         scope.launch {
             try {
-                val normalized = targetTitle.trim().lowercase()
-                val list = api.searchThirdPartyMusic("netease", keyword, page, 20)
-                val matched = list
-                    .filter {
-                        it.title.trim().lowercase() == normalized &&
-                            !it.lyrics.isNullOrBlank()
-                    }
-                    .map { dto ->
-                        val lyric = dto.lyrics.orEmpty()
-                        FoxLyricCandidate(
-                            id = dto.id,
-                            title = dto.title,
-                            artist = dto.artists.joinToString(" / ") { it.name }.ifBlank { "未知艺术家" },
-                            lyrics = lyric,
-                            lyricsTrans = dto.lyricsTrans?.takeIf { it.isNotBlank() },
-                            lineCount = LyricsParser.parseLrc(lyric).size,
-                        )
-                    }
-                // 末条命中说明后面还有同名结果，可以继续翻页
-                val lastMatches = list.lastOrNull()
-                    ?.let { it.title.trim().lowercase() == normalized } ?: false
-                onResult(matched, lastMatches && matched.isNotEmpty())
+                val query = LyricQuery(
+                    title = keyword.trim(),
+                    artist = artist,
+                    durationMs = durationMs,
+                )
+                val failed = mutableListOf<String>()
+                val groups = mutableListOf<List<ScoredLyricHit>>()
+                suspend fun capture(name: String, block: suspend () -> List<ScoredLyricHit>) {
+                    runCatching { block() }
+                        .onSuccess { groups += listOf(it) }
+                        .onFailure { failed += name }
+                }
+                coroutineScope {
+                    listOf(
+                        async { capture("网易云") { neteaseCandidates(query) } },
+                        async { capture("LRCLIB") { openLyrics.lrclib(query) } },
+                        async { capture("Megalobiz") { openLyrics.megalobiz(query) } },
+                        async { capture("lyrics.ovh") { openLyrics.lyricsOvh(query) } },
+                    ).awaitAll()
+                }
+                val note = failed.takeIf { it.isNotEmpty() }
+                    ?.joinToString("、")
+                    ?.let { "部分来源暂不可用：$it" }
+                onResult(LyricCandidateRanker.merge(groups).map { it.toFoxCandidate() }, note)
             } catch (e: Exception) {
                 println("FoxPlayerApi: 搜歌词失败 ${e.message}")
                 onError(e.message ?: "搜索失败")
             }
         }
     }
+
+    private suspend fun neteaseCandidates(query: LyricQuery): List<ScoredLyricHit> {
+        if (query.title.isBlank()) return emptyList()
+        val hits = api.searchThirdPartyMusic(
+            platform = "netease",
+            keyword = query.title,
+            page = 1,
+            limit = LyricCandidateRanker.NETEASE_FETCH,
+        ).mapNotNull { it.toLyricHit() }
+        return LyricCandidateRanker.select(query, hits, LyricCandidateRanker.NETEASE_LIMIT)
+    }
+
+    private fun MusicDto.toLyricHit(): LyricHit? {
+        val raw = lyrics?.trim().orEmpty()
+        if (raw.isEmpty()) return null
+        val prepared = LyricTextNormalizer.prepare(raw, duration)
+        if (!prepared.ok) return null
+        return LyricHit(
+            source = "netease",
+            sourceId = sourceId ?: id,
+            title = title,
+            artist = artists.joinToString(" / ") { it.name },
+            album = album?.title,
+            durationMs = duration,
+            lyrics = prepared.lrc,
+            lyricsTrans = lyricsTrans?.takeIf { it.isNotBlank() },
+            synced = prepared.synced,
+        )
+    }
+
+    private fun ScoredLyricHit.toFoxCandidate(): FoxLyricCandidate = FoxLyricCandidate(
+        id = listOf(hit.source, hit.sourceId ?: hit.title, hit.artist).joinToString(":"),
+        title = hit.title.ifBlank { "未知歌曲" },
+        artist = hit.artist.ifBlank { "未知艺术家" },
+        lyrics = hit.lyrics,
+        lyricsTrans = hit.lyricsTrans,
+        lineCount = LyricsParser.parseLrc(hit.lyrics).size,
+        source = hit.source,
+        attributionUrl = hit.attributionUrl,
+        synced = hit.synced,
+    )
 
     // ---------- 播放上报（"最近在听"的数据来源）----------
 
@@ -286,6 +346,9 @@ data class FoxLyricCandidate(
     val lyrics: String,
     val lyricsTrans: String?,
     val lineCount: Int,
+    val source: String = "",
+    val attributionUrl: String? = null,
+    val synced: Boolean = true,
 )
 
 /** 昵称优先级与 Android 的 displayAuthorName 一致：nickname → username → 匿名。 */
