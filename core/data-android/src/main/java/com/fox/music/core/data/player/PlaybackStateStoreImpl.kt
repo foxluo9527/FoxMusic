@@ -4,12 +4,15 @@ import com.fox.music.core.common.player.PlaybackStateStore
 import com.fox.music.core.database.dao.PlaybackQueueDao
 import com.fox.music.core.database.entity.PlaybackQueueEntity
 import com.fox.music.core.datastore.FoxPreferencesDataStore
+import com.fox.music.core.model.music.LyricOverride
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlaybackSnapshot
 import com.fox.music.core.model.music.RepeatMode
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,6 +33,12 @@ class PlaybackStateStoreImpl @Inject constructor(
 
     @Volatile
     private var lastSavedQueueSignature: String? = null
+
+    @Volatile
+    private var lastLyricOverridesJson: String? = null
+
+    private val lyricOverridesSerializer =
+        MapSerializer(serializer<Long>(), LyricOverride.serializer())
 
     override suspend fun loadSnapshot(): PlaybackSnapshot? {
         var playlist = loadPlaylistFromDb()
@@ -55,6 +64,7 @@ class PlaybackStateStoreImpl @Inject constructor(
             positionMs = position,
             repeatMode = mode,
             playlistSource = source,
+            lyricOverrides = loadLyricOverrides(),
         ).takeIf { it.isValid }?.also {
             lastSavedQueueSignature = queueSignature(it.playlist)
         }
@@ -65,6 +75,7 @@ class PlaybackStateStoreImpl @Inject constructor(
             playbackQueueDao.clear()
             preferencesDataStore.clearPlaybackSnapshot()
             lastSavedQueueSignature = null
+            lastLyricOverridesJson = ""
             return
         }
         val cappedPlaylist = snapshot.playlist.take(MAX_PLAYLIST_SIZE)
@@ -93,6 +104,7 @@ class PlaybackStateStoreImpl @Inject constructor(
             capped.playlistSource?.let { json.encodeToString(PlaybackPlaylistSource.serializer(), it) },
         )
         saveRepeatMode(capped.repeatMode)
+        saveLyricOverrides(capped.lyricOverrides)
     }
 
     override suspend fun loadRepeatMode(): RepeatMode {
@@ -141,16 +153,40 @@ class PlaybackStateStoreImpl @Inject constructor(
         return playlist
     }
 
+    private suspend fun loadLyricOverrides(): Map<Long, LyricOverride> {
+        val raw = preferencesDataStore.getPlaybackLyricOverridesJson()?.takeIf { it.isNotBlank() }
+            ?: run {
+                lastLyricOverridesJson = ""
+                return emptyMap()
+            }
+        lastLyricOverridesJson = raw
+        return runCatching {
+            json.decodeFromString(lyricOverridesSerializer, raw)
+        }.getOrDefault(emptyMap())
+    }
+
+    private suspend fun saveLyricOverrides(overrides: Map<Long, LyricOverride>) {
+        val encoded = if (overrides.isEmpty()) {
+            ""
+        } else {
+            json.encodeToString(lyricOverridesSerializer, overrides)
+        }
+        if (encoded == lastLyricOverridesJson) return
+        preferencesDataStore.savePlaybackLyricOverridesJson(encoded.takeIf { it.isNotEmpty() })
+        lastLyricOverridesJson = encoded
+    }
+
     private fun queueSignature(playlist: List<Music>): String =
         playlist.joinToString(separator = "|") { music ->
             buildString {
                 append(music.id)
                 append(':')
                 append(music.url.hashCode())
+                // 歌词正文而不只是长度：同长度替换也要写回 Room，否则重进会读到旧歌词
                 append(':')
-                append(music.lyrics?.length ?: -1)
+                append(music.lyrics?.hashCode() ?: 0)
                 append(':')
-                append(music.lyricsTrans?.length ?: -1)
+                append(music.lyricsTrans?.hashCode() ?: 0)
                 append(':')
                 append(if (music.isFavorite) 1 else 0)
             }

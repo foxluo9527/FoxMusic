@@ -63,6 +63,7 @@ class FoxPreferencesDataStore @Inject constructor(
         val PLAYBACK_POSITION_MS = longPreferencesKey("playback_position_ms")
         val PLAYBACK_PLAYING_KEY = stringPreferencesKey("playback_playing_key")
         val PLAYBACK_PLAYLIST_SOURCE = stringPreferencesKey("playback_playlist_source")
+        val PLAYBACK_LYRIC_OVERRIDES = stringPreferencesKey("playback_lyric_overrides")
         val PLAZA_LAYOUT_MODE = stringPreferencesKey("plaza_layout_mode")
         /** 音流「听歌模式」：记住上次选择的场景 mood，冷启动沿用 */
         val STREAM_MOOD = stringPreferencesKey("stream_mood")
@@ -342,6 +343,20 @@ class FoxPreferencesDataStore @Inject constructor(
         }
     }
 
+    suspend fun getPlaybackLyricOverridesJson(): String? {
+        return context.dataStore.data.first()[PreferencesKeys.PLAYBACK_LYRIC_OVERRIDES]
+    }
+
+    suspend fun savePlaybackLyricOverridesJson(json: String?) {
+        context.dataStore.edit { prefs ->
+            if (json.isNullOrBlank()) {
+                prefs.remove(PreferencesKeys.PLAYBACK_LYRIC_OVERRIDES)
+            } else {
+                prefs[PreferencesKeys.PLAYBACK_LYRIC_OVERRIDES] = json
+            }
+        }
+    }
+
     suspend fun clearPlaybackSnapshot() {
         context.dataStore.edit { prefs ->
             prefs.remove(PreferencesKeys.PLAYBACK_SNAPSHOT)
@@ -349,6 +364,7 @@ class FoxPreferencesDataStore @Inject constructor(
             prefs.remove(PreferencesKeys.PLAYBACK_POSITION_MS)
             prefs.remove(PreferencesKeys.PLAYBACK_PLAYING_KEY)
             prefs.remove(PreferencesKeys.PLAYBACK_PLAYLIST_SOURCE)
+            prefs.remove(PreferencesKeys.PLAYBACK_LYRIC_OVERRIDES)
         }
     }
 

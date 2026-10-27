@@ -47,7 +47,15 @@ class LyricPrefetchCoordinator @Inject constructor(
                         inFlightMusicId = null
                         return@collect
                     }
-                    if (!music.lyrics.isNullOrBlank()) {
+                    if (!shouldApplyPrefetchedLyrics(
+                            hasOverride = musicController.hasLyricOverride(music.id),
+                            currentLyrics = music.lyrics,
+                        )
+                    ) {
+                        if (inFlightMusicId == music.id) {
+                            inFlightJob?.cancel()
+                            inFlightMusicId = null
+                        }
                         lastSuccessfulId = music.id
                         return@collect
                     }
@@ -75,10 +83,17 @@ class LyricPrefetchCoordinator @Inject constructor(
                 return@launch
             }
             withContext(Dispatchers.Main) {
-                // 切歌后结果过期则丢弃
-                val currentId = musicController.playerState.value.currentMusic?.id
-                if (currentId != music.id) return@withContext
-                musicController.updateMusicLyrics(
+                // 切歌后结果过期则丢弃。用户已应用覆盖、或期间已经有歌词时，不用曲库结果盖掉。
+                val current = musicController.playerState.value.currentMusic
+                if (current?.id != music.id) return@withContext
+                if (!shouldApplyPrefetchedLyrics(
+                        hasOverride = musicController.hasLyricOverride(music.id),
+                        currentLyrics = current.lyrics,
+                    )
+                ) {
+                    return@withContext
+                }
+                musicController.fillMusicLyricsIfAbsent(
                     musicId = music.id,
                     lyrics = lyrics.lyrics,
                     lyricsTrans = lyrics.lyricsTrans,

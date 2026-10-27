@@ -151,7 +151,9 @@ interface MusicController {
     fun updateCurrentMusicFavorite(isFavorite: Boolean)
 
     /**
-     * 将详情接口拉取到的歌词写回内存歌单与 UI
+     * 把歌词写回内存歌单与 UI，并记入本会话覆盖表。
+     * 之后列表合并、分页刷新、退出播放页再进，都继续显示这份歌词。
+     * 曲库同步成败不回滚这里。
      */
     fun updateMusicLyrics(musicId: Long, lyrics: String?, lyricsTrans: String?)
 

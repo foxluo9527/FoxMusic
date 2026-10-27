@@ -15,6 +15,7 @@ import com.fox.music.core.common.player.PlaybackStateStore
 import com.fox.music.core.common.util.MediaUrlResolver
 import com.fox.music.core.domain.repository.DownloadRepository
 import com.fox.music.core.model.download.DownloadStatus
+import com.fox.music.core.model.music.LyricOverride
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.PlaybackPlaylistSource
 import com.fox.music.core.model.music.PlaybackSourceKind
@@ -59,6 +60,14 @@ class MusicControllerImpl @Inject constructor(
      * 保证同一会话内改过音源的歌曲从新地址播放。
      */
     private val urlOverrides = ConcurrentHashMap<Long, String>()
+
+    /**
+     * 本会话用户应用的歌词（musicId → 歌词 + 翻译）。
+     * 退出播放页后，列表页会用分页里的曲库歌曲再调 updatePlaylist / setPlaylist，
+     * 那些对象仍是旧歌词。有覆盖时固定用覆盖，曲库同步失败也不撤回。
+     * 同时写入播放快照，进程被回收后重进同一队列仍能恢复。
+     */
+    private val lyricOverrides = ConcurrentHashMap<Long, LyricOverride>()
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
@@ -171,7 +180,11 @@ class MusicControllerImpl @Inject constructor(
         currentRepeatMode = savedMode
         applyRepeatModeToPlayer(savedMode)
 
+        val snapshot = playbackStateStore.loadSnapshot()
+        installLyricOverrides(snapshot?.lyricOverrides.orEmpty())
+
         if (shouldSkipRestoreForUserPlaylist()) {
+            reapplyLyricOverridesToPlaylist()
             applyUserPlaylistOnConnect()
             hasRestored = true
             return
@@ -179,14 +192,15 @@ class MusicControllerImpl @Inject constructor(
 
         isRestoring = true
         try {
-            val snapshot = playbackStateStore.loadSnapshot()
             if (shouldSkipRestoreForUserPlaylist()) {
+                reapplyLyricOverridesToPlaylist()
                 applyUserPlaylistOnConnect()
                 return
             }
             if (snapshot != null && snapshot.isValid) {
                 restoreFromSnapshot(snapshot)
             } else {
+                reapplyLyricOverridesToPlaylist()
                 updatePlayerState()
             }
         } finally {
@@ -211,9 +225,10 @@ class MusicControllerImpl @Inject constructor(
 
     private fun restoreFromSnapshot(snapshot: PlaybackSnapshot) {
         if (userPlaylistActive) return
+        installLyricOverrides(snapshot.lyricOverrides)
         playingKey = snapshot.playingKey
         playlistSource = snapshot.playlistSource
-        currentPlaylist = snapshot.playlist
+        currentPlaylist = snapshot.playlist.applyingLyricOverrides()
         currentRepeatMode = snapshot.repeatMode
         pendingAutoPlay = false
 
@@ -233,7 +248,7 @@ class MusicControllerImpl @Inject constructor(
 
         // 将当前曲目元数据写入 ExoPlayer → MediaSession，使系统（通知栏、蓝牙、锁屏）
         // 在冷启动未播放时即可看到音乐信息；不调用 prepare()，不加载音频。
-        val music = snapshot.playlist.getOrNull(safeIndex) ?: return
+        val music = currentPlaylist.getOrNull(safeIndex) ?: return
         controller?.run {
             playWhenReady = false
             setMediaItem(music.toMediaItem())
@@ -431,6 +446,7 @@ class MusicControllerImpl @Inject constructor(
             positionMs = position.coerceAtLeast(0L),
             repeatMode = currentRepeatMode,
             playlistSource = playlistSource,
+            lyricOverrides = lyricOverrides.toSortedMap(),
         )
     }
 
@@ -466,8 +482,8 @@ class MusicControllerImpl @Inject constructor(
         }
     }
 
-    private fun persistPlaybackState(positionOverrideMs: Long? = null) {
-        if (isApplyingPlaylist()) return
+    private fun persistPlaybackState(positionOverrideMs: Long? = null, force: Boolean = false) {
+        if (!force && isApplyingPlaylist()) return
         val snapshot = buildSnapshot(positionOverrideMs) ?: return
         lastPersistedPositionMs = snapshot.positionMs
         lastPersistTimeMs = System.currentTimeMillis()
@@ -532,7 +548,11 @@ class MusicControllerImpl @Inject constructor(
         }
         val exoIndex = player.currentMediaItemIndex
         val currentIndex = resolveUiIndex(exoIndex)
-        val currentMusic = currentPlaylist.getOrNull(currentIndex)
+        val playlistForUi = currentPlaylist.applyingLyricOverrides()
+        if (playlistForUi !== currentPlaylist) {
+            currentPlaylist = playlistForUi
+        }
+        val currentMusic = playlistForUi.getOrNull(currentIndex)
         val resolvedRepeatMode = if (userPlaylistActive) {
             currentRepeatMode
         } else {
@@ -585,16 +605,35 @@ class MusicControllerImpl @Inject constructor(
 
     override fun updateMusicLyrics(musicId: Long, lyrics: String?, lyricsTrans: String?) {
         if (lyrics.isNullOrBlank()) return
+        val resolvedTrans = lyricsTrans ?: lyricsTransOf(musicId)
+        lyricOverrides[musicId] = LyricOverride(lyrics = lyrics, lyricsTrans = resolvedTrans)
+        writeLyrics(musicId, lyrics, resolvedTrans)
+        // 应用歌词发生在切歌窗口内时也要落盘，退出播放页再进不能丢
+        persistPlaybackState(force = true)
+    }
+
+    /** 预取补全：已有歌词或已有覆盖时不写，也不记入覆盖表。 */
+    fun fillMusicLyricsIfAbsent(musicId: Long, lyrics: String?, lyricsTrans: String?) {
+        if (lyrics.isNullOrBlank()) return
+        if (lyricOverrides.containsKey(musicId)) return
+        if (!lyricsOf(musicId).isNullOrBlank()) return
+        writeLyrics(musicId, lyrics, lyricsTrans ?: lyricsTransOf(musicId))
+        persistPlaybackState(force = true)
+    }
+
+    fun hasLyricOverride(musicId: Long): Boolean = lyricOverrides.containsKey(musicId)
+
+    private fun writeLyrics(musicId: Long, lyrics: String, lyricsTrans: String?) {
         currentPlaylist = currentPlaylist.map { music ->
             if (music.id == musicId) {
-                music.copy(lyrics = lyrics, lyricsTrans = lyricsTrans ?: music.lyricsTrans)
+                music.copy(lyrics = lyrics, lyricsTrans = lyricsTrans)
             } else {
                 music
             }
         }
         val state = _playerState.value
         val updatedMusic = state.currentMusic?.takeIf { it.id == musicId }?.let {
-            it.copy(lyrics = lyrics, lyricsTrans = lyricsTrans ?: it.lyricsTrans)
+            it.copy(lyrics = lyrics, lyricsTrans = lyricsTrans)
         }
         if (updatedMusic != null) {
             _playerState.value = state.copy(
@@ -604,7 +643,56 @@ class MusicControllerImpl @Inject constructor(
         } else if (state.playlist !== currentPlaylist) {
             _playerState.value = state.copy(playlist = currentPlaylist)
         }
-        persistPlaybackState()
+    }
+
+    private fun lyricsOf(musicId: Long): String? =
+        currentPlaylist.firstOrNull { it.id == musicId }?.lyrics
+            ?: _playerState.value.currentMusic?.takeIf { it.id == musicId }?.lyrics
+
+    private fun lyricsTransOf(musicId: Long): String? =
+        currentPlaylist.firstOrNull { it.id == musicId }?.lyricsTrans
+            ?: _playerState.value.currentMusic?.takeIf { it.id == musicId }?.lyricsTrans
+
+    private fun installLyricOverrides(saved: Map<Long, LyricOverride>) {
+        if (saved.isEmpty()) return
+        saved.forEach { (id, override) ->
+            if (override.lyrics.isBlank()) return@forEach
+            // 内存已有的是本会话刚应用的，不用磁盘里更早的一份盖掉
+            lyricOverrides.putIfAbsent(id, override)
+        }
+    }
+
+    private fun reapplyLyricOverridesToPlaylist() {
+        if (lyricOverrides.isEmpty() || currentPlaylist.isEmpty()) return
+        val pinned = currentPlaylist.applyingLyricOverrides()
+        if (pinned === currentPlaylist) return
+        currentPlaylist = pinned
+        val state = _playerState.value
+        val currentId = state.currentMusic?.id
+        val current = currentId?.let { id -> pinned.firstOrNull { it.id == id } } ?: state.currentMusic
+        _playerState.value = state.copy(
+            currentMusic = current,
+            playlist = pinned,
+        )
+    }
+
+    private fun Music.applyingLyricOverride(): Music {
+        val override = lyricOverrides[id] ?: return this
+        if (override.lyrics.isBlank()) return this
+        if (lyrics == override.lyrics && lyricsTrans == override.lyricsTrans) return this
+        return copy(lyrics = override.lyrics, lyricsTrans = override.lyricsTrans)
+    }
+
+    private fun List<Music>.applyingLyricOverrides(): List<Music> {
+        if (lyricOverrides.isEmpty()) return this
+        var changed = false
+        val mapped = ArrayList<Music>(size)
+        for (music in this) {
+            val next = music.applyingLyricOverride()
+            if (next !== music) changed = true
+            mapped.add(next)
+        }
+        return if (changed) mapped else this
     }
 
     override fun updateMusicUrl(musicId: Long, url: String) {
@@ -959,7 +1047,7 @@ class MusicControllerImpl @Inject constructor(
             return
         }
         playingKey = key
-        currentPlaylist = musics
+        currentPlaylist = musics.applyingLyricOverrides()
         applyPlaylistToPlayer(
             startIndex = targetIndex,
             startPositionMs = if (keepPosition) state.position else 0L,
@@ -1019,16 +1107,15 @@ class MusicControllerImpl @Inject constructor(
     ): List<Music> {
         val existingById = existing.associateBy { it.id }
         return incoming.map { music ->
-            val previous = existingById[music.id] ?: return@map music
-            mergeMusicPreservingLyrics(music, previous)
+            mergeMusicPreservingLyrics(music, existingById[music.id])
         }
     }
 
-    private fun mergeMusicPreservingLyrics(incoming: Music, previous: Music): Music {
-        return incoming.copy(
-            lyrics = incoming.lyrics?.takeIf { it.isNotBlank() } ?: previous.lyrics,
-            lyricsTrans = incoming.lyricsTrans?.takeIf { it.isNotBlank() } ?: previous.lyricsTrans,
-            lyricsUrl = incoming.lyricsUrl?.takeIf { it.isNotBlank() } ?: previous.lyricsUrl,
+    private fun mergeMusicPreservingLyrics(incoming: Music, previous: Music?): Music {
+        return mergeMusicKeepingLyricOverride(
+            incoming = incoming,
+            previous = previous,
+            override = lyricOverrides[incoming.id],
         )
     }
 
@@ -1089,12 +1176,12 @@ class MusicControllerImpl @Inject constructor(
         streamClips.clear()
         // 一首歌可能返回多个高潮片段，音流口径只取第一个播放
         streamClips.putAll(clipsByMusic.mapValues { it.value.take(1) })
-        currentPlaylist = musics
-        val safeIndex = startIndex.coerceIn(0, musics.lastIndex)
-        userAnchorMusicId = musics[safeIndex].id
-        val firstClips = clipsByMusic[musics[safeIndex].id]
-        activeClip = firstClips?.firstOrNull() ?: fallbackClip(musics[safeIndex])
-        activeClipMusicId = musics[safeIndex].id
+        currentPlaylist = musics.applyingLyricOverrides()
+        val safeIndex = startIndex.coerceIn(0, currentPlaylist.lastIndex)
+        userAnchorMusicId = currentPlaylist[safeIndex].id
+        val firstClips = clipsByMusic[currentPlaylist[safeIndex].id]
+        activeClip = firstClips?.firstOrNull() ?: fallbackClip(currentPlaylist[safeIndex])
+        activeClipMusicId = currentPlaylist[safeIndex].id
         currentClipIndex = 0
         applyRepeatModeToPlayer(currentRepeatMode)
         applyTrackToPlayer(safeIndex, 0L, autoPlay = true)
@@ -1117,6 +1204,7 @@ class MusicControllerImpl @Inject constructor(
         // 同批内也可能重复（服务端补齐逻辑），故按顺序去重
         val seen = HashSet<Long>()
         val fresh = musics.filter { m -> m.id !in existing && seen.add(m.id) }
+            .applyingLyricOverrides()
         if (fresh.isEmpty()) return false
         // 与 startStreamQueue 同口径：一首歌只播第一个片段
         for (m in fresh) {
@@ -1285,8 +1373,9 @@ class MusicControllerImpl @Inject constructor(
     override fun addToQueue(music: Music) {
         if (currentPlaylist.isEmpty()) {
             userPlaylistActive = true
-            currentPlaylist = listOf(music)
-            userAnchorMusicId = music.id
+            val pinned = music.applyingLyricOverride()
+            currentPlaylist = listOf(pinned)
+            userAnchorMusicId = pinned.id
             publishOptimisticPlayerState(currentPlaylist, 0)
             applyTrackToPlayer(0, 0L, autoPlay = false)
             persistPlaybackState()
@@ -1295,7 +1384,7 @@ class MusicControllerImpl @Inject constructor(
         val uiIndex = resolveUiIndex(controller?.currentMediaItemIndex ?: 0)
         val insertIndex = (uiIndex + 1).coerceAtMost(currentPlaylist.size)
         val newPlaylist = currentPlaylist.toMutableList()
-        newPlaylist.add(insertIndex, music)
+        newPlaylist.add(insertIndex, music.applyingLyricOverride())
         currentPlaylist = newPlaylist
         _playerState.value = _playerState.value.copy(playlist = newPlaylist)
         if (!userPlaylistActive) {
@@ -1309,8 +1398,9 @@ class MusicControllerImpl @Inject constructor(
         if (musics.isEmpty()) return
         if (currentPlaylist.isEmpty()) {
             userPlaylistActive = true
-            currentPlaylist = musics.toList()
-            userAnchorMusicId = musics.first().id
+            val pinned = musics.applyingLyricOverrides()
+            currentPlaylist = pinned
+            userAnchorMusicId = pinned.first().id
             publishOptimisticPlayerState(currentPlaylist, 0)
             applyTrackToPlayer(0, 0L, autoPlay = false)
             persistPlaybackState()
@@ -1318,12 +1408,13 @@ class MusicControllerImpl @Inject constructor(
         }
         val uiIndex = resolveUiIndex(controller?.currentMediaItemIndex ?: 0)
         val insertIndex = (uiIndex + 1).coerceAtMost(currentPlaylist.size)
+        val pinnedIncoming = musics.applyingLyricOverrides()
         val newPlaylist = currentPlaylist.toMutableList()
-        newPlaylist.addAll(insertIndex, musics)
+        newPlaylist.addAll(insertIndex, pinnedIncoming)
         currentPlaylist = newPlaylist
         _playerState.value = _playerState.value.copy(playlist = newPlaylist)
         if (!userPlaylistActive) {
-            musics.forEachIndexed { index, music ->
+            pinnedIncoming.forEachIndexed { index, music ->
                 controller?.addMediaItem(insertIndex + index, music.toMediaItem())
             }
         }
