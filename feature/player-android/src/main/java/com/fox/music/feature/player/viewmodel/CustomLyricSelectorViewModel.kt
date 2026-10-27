@@ -16,6 +16,7 @@ import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.ScoredLyricHit
 import com.fox.music.core.model.music.ScrapedLyric
 import com.fox.music.core.player.controller.MusicController
+import com.fox.music.feature.player.lyric.LibraryLyricSyncCoordinator
 import com.fox.music.feature.player.lyric.data.CustomLyricItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -72,6 +73,7 @@ class CustomLyricSelectorViewModel @Inject constructor(
     private val fetchBestMatchedLyricUseCase: FetchBestMatchedLyricUseCase,
     private val openLyricSources: OpenLyricSources,
     private val musicController: MusicController,
+    private val libraryLyricSync: LibraryLyricSyncCoordinator,
 ) : MviViewModel<CustomLyricSelectorState, CustomLyricSelectorIntent, CustomLyricSelectorEffect>(
     CustomLyricSelectorState()
 ) {
@@ -281,9 +283,16 @@ class CustomLyricSelectorViewModel @Inject constructor(
     }
 
     private fun applyLyrics(lyrics: String, lyricsTrans: String?) {
-        val currentMusicId = musicController.playerState.value.currentMusic?.id
-        if (currentMusicId != null) {
-            musicController.updateMusicLyrics(currentMusicId, lyrics, lyricsTrans)
+        val current = musicController.playerState.value.currentMusic
+        if (current != null) {
+            musicController.updateMusicLyrics(current.id, lyrics, lyricsTrans)
+            // 本机先生效。管理员再异步写回曲库；非管理员在 use case 里直接跳过。
+            libraryLyricSync.enqueue(
+                musicId = current.id,
+                isThirdParty = current.isThirdParty,
+                lyrics = lyrics,
+                lyricsTrans = lyricsTrans,
+            )
         }
         sendEffect(CustomLyricSelectorEffect.ShowToast("歌词已更换"))
         sendEffect(CustomLyricSelectorEffect.Dismiss)

@@ -31,6 +31,14 @@ data class CreateAdminArtistRequest(
 )
 
 @Serializable
+data class UpdateAdminMusicLyricsRequest(
+    val lyrics: String,
+    /** 省略（null）时服务端保留库内翻译；空串清空。 */
+    @SerialName("lyrics_trans")
+    val lyricsTrans: String? = null,
+)
+
+@Serializable
 data class UploadByUrlRequest(
     val url: String,
     val filename: String? = null,

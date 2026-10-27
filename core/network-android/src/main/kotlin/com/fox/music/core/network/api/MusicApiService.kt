@@ -3,6 +3,7 @@ package com.fox.music.core.network.api
 import com.fox.music.core.network.model.ApiResponse
 import com.fox.music.core.network.model.CommentDto
 import com.fox.music.core.network.model.CreateAdminMusicRequest
+import com.fox.music.core.network.model.UpdateAdminMusicLyricsRequest
 import com.fox.music.core.network.model.DeleteHistoryRequest
 import com.fox.music.core.network.model.FindMusicDto
 import com.fox.music.core.network.model.FindOrCreateMusicDto
@@ -32,6 +33,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.HTTP
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -124,6 +126,16 @@ interface MusicApiService {
     @POST("api/admin/music")
     suspend fun createAdminMusic(
         @Body body: CreateAdminMusicRequest
+    ): ApiResponse<JsonElement?>
+
+    /**
+     * 管理员把歌词写回曲库。非管理员 403。
+     * [UpdateAdminMusicLyricsRequest.lyricsTrans] 为 null 时不序列化，服务端保留原翻译。
+     */
+    @PUT("api/admin/music/{id}/lyrics")
+    suspend fun updateAdminMusicLyrics(
+        @Path("id") id: Long,
+        @Body body: UpdateAdminMusicLyricsRequest,
     ): ApiResponse<JsonElement?>
 
     @GET("api/music/find")

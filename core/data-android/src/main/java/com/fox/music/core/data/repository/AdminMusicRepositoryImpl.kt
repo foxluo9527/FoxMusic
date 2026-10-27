@@ -6,11 +6,16 @@ import com.fox.music.core.data.mapper.toMusic
 import com.fox.music.core.data.mapper.toPagedData
 import com.fox.music.core.domain.repository.AdminMusicRepository
 import com.fox.music.core.domain.repository.CreateAdminMusicInput
+import com.fox.music.core.domain.repository.LibraryLyricsForbidden
 import com.fox.music.core.model.PagedData
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.network.api.MusicApiService
 import com.fox.music.core.network.model.CreateAdminArtistRequest
 import com.fox.music.core.network.model.CreateAdminMusicRequest
+import com.fox.music.core.network.model.UpdateAdminMusicLyricsRequest
+import com.fox.music.core.network.util.ErrorParser
+import kotlinx.coroutines.CancellationException
+import retrofit2.HttpException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -78,4 +83,32 @@ class AdminMusicRepositoryImpl @Inject constructor(
                 throw Exception(response.message.ifBlank { "创建音乐失败" })
             }
         }
+
+    override suspend fun updateMusicLyrics(
+        id: Long,
+        lyrics: String,
+        lyricsTrans: String?,
+    ): Result<Unit> = try {
+        val response = musicApi.updateAdminMusicLyrics(
+            id = id,
+            body = UpdateAdminMusicLyricsRequest(lyrics = lyrics, lyricsTrans = lyricsTrans),
+        )
+        if (response.isSuccess) {
+            Result.success(Unit)
+        } else {
+            val message = response.message.ifBlank { "曲库歌词同步失败" }
+            Result.error(Exception(message), message)
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: HttpException) {
+        val message = ErrorParser.parseError(e).ifBlank { "曲库歌词同步失败" }
+        if (e.code() == 403) {
+            Result.error(LibraryLyricsForbidden(), message.ifBlank { "无权限" })
+        } else {
+            Result.error(e, message)
+        }
+    } catch (e: Exception) {
+        Result.error(e, e.message ?: "曲库歌词同步失败")
+    }
 }

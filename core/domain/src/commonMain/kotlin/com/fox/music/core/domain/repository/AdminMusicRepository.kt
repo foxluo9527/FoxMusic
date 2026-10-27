@@ -36,4 +36,18 @@ interface AdminMusicRepository {
     suspend fun deleteAdminMusic(id: Long): Result<Unit>
 
     suspend fun createAdminMusic(input: CreateAdminMusicInput): Result<Music>
+
+    /**
+     * 把歌词写入曲库对应歌曲。
+     * [lyricsTrans] 为 null 时不改库内翻译。
+     * 非管理员由服务端拒绝，此时 [Result.Error.exception] 为 [LibraryLyricsForbidden]。
+     */
+    suspend fun updateMusicLyrics(
+        id: Long,
+        lyrics: String,
+        lyricsTrans: String? = null,
+    ): Result<Unit>
 }
+
+/** 服务端判定当前 token 不是管理员（HTTP 403）。 */
+class LibraryLyricsForbidden : Exception("无权限")

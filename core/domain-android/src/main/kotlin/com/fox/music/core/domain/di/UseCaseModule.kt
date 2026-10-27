@@ -85,6 +85,7 @@ import com.fox.music.core.domain.usecase.SaveSearchHistoryUseCase
 import com.fox.music.core.domain.usecase.SearchMusicUseCase
 import com.fox.music.core.domain.usecase.SearchProvidersByTrackUseCase
 import com.fox.music.core.domain.usecase.SearchProviderCandidatesUseCase
+import com.fox.music.core.domain.usecase.SyncLibraryLyricsUseCase
 import com.fox.music.core.domain.usecase.SubmitReportUseCase
 import com.fox.music.core.domain.usecase.SubmitMusicFeedbackUseCase
 import com.fox.music.core.domain.usecase.GetMyMusicFeedbacksUseCase
@@ -339,6 +340,12 @@ object UseCaseModule {
     @Provides
     fun provideReplaceMusicSourceUseCase(musicFeedbackRepository: MusicFeedbackRepository): ReplaceMusicSourceUseCase =
         ReplaceMusicSourceUseCase(musicFeedbackRepository)
+
+    @Provides
+    fun provideSyncLibraryLyricsUseCase(
+        getProfileUseCase: GetProfileUseCase,
+        adminMusicRepository: AdminMusicRepository,
+    ): SyncLibraryLyricsUseCase = SyncLibraryLyricsUseCase(getProfileUseCase, adminMusicRepository)
 
     @Provides
     fun provideToggleAlbumFavoriteUseCase(albumRepository: AlbumRepository): ToggleAlbumFavoriteUseCase = ToggleAlbumFavoriteUseCase(albumRepository)
