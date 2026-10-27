@@ -5,17 +5,26 @@ import com.fox.music.core.assistant.AssistantAction
 import com.fox.music.core.assistant.AssistantActionDispatcher
 import com.fox.music.core.assistant.AssistantActionTypes
 import com.fox.music.core.assistant.AssistantRepository
+import com.fox.music.core.assistant.AiConversationDetail
+import com.fox.music.core.assistant.AiConversationPage
+import com.fox.music.core.assistant.AiConversationSummary
 import com.fox.music.core.assistant.AiMessage
 import com.fox.music.core.assistant.DispatchResult
 import com.fox.music.core.assistant.autoExecute
 import com.fox.music.core.assistant.needsConfirmDialog
+import com.fox.music.core.common.cache.ListCacheKeys
+import com.fox.music.core.common.cache.TabPageCache
 import com.fox.music.core.common.mvi.MviViewModel
+import com.fox.music.core.domain.repository.UserPreferencesRepository
 import com.fox.music.feature.assistant.AssistantChatMessage
 import com.fox.music.feature.assistant.AssistantEffect
 import com.fox.music.feature.assistant.AssistantIntent
 import com.fox.music.feature.assistant.AssistantState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import java.time.LocalDate
 import javax.inject.Inject
 
 /**
@@ -36,10 +45,12 @@ import javax.inject.Inject
 class AssistantViewModel @Inject constructor(
     private val assistantRepository: AssistantRepository,
     private val assistantActionDispatcher: AssistantActionDispatcher,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) : MviViewModel<AssistantState, AssistantIntent, AssistantEffect>(AssistantState()) {
 
     /** 本地消息 id 序列（负数，与服务端 id 不撞） */
     private var localIdSeq = 0L
+    private val json = Json { ignoreUnknownKeys = true }
 
     private fun nextLocalId(): Long = --localIdSeq
 
@@ -104,6 +115,7 @@ class AssistantViewModel @Inject constructor(
                     )
                 }
                 runActions(result.actions)
+                persistCurrentConversation()
             } catch (e: Exception) {
                 updateState {
                     copy(
@@ -130,35 +142,42 @@ class AssistantViewModel @Inject constructor(
 
     private fun loadConversations() {
         viewModelScope.launch {
+            val owner = ownerId()
+            val cached = readConversations(owner)
+            if (cached != null) {
+                updateState { copy(conversations = cached.list, historyOpen = true) }
+            }
             try {
                 val page = assistantRepository.listConversations()
                 updateState { copy(conversations = page.list, historyOpen = true) }
+                writeConversations(owner, page)
             } catch (e: Exception) {
-                sendEffect(AssistantEffect.ShowMessage(e.message ?: "加载会话列表失败"))
+                if (cached == null && currentState.conversations.isEmpty()) {
+                    sendEffect(AssistantEffect.ShowMessage(e.message ?: "加载会话列表失败"))
+                }
             }
         }
     }
 
     private fun openConversation(conversationId: Long) {
         viewModelScope.launch {
+            val owner = ownerId()
+            val cached = readConversation(owner, conversationId)
+            if (cached != null) {
+                showConversation(cached)
+            }
             try {
                 val detail = assistantRepository.getConversation(conversationId)
-                updateState {
-                    copy(
-                        conversationId = detail.id,
-                        messages = detail.messages.map { ai: AiMessage ->
-                            AssistantChatMessage(
-                                id = ai.id,
-                                isUser = ai.isUser,
-                                content = ai.content ?: "",
-                                actions = ai.actions ?: emptyList(),
-                            )
-                        },
-                        historyOpen = false,
-                    )
-                }
+                showConversation(detail)
+                writeConversation(owner, detail)
+                writeConversations(
+                    owner,
+                    mergeSummary(readConversations(owner), detail),
+                )
             } catch (e: Exception) {
-                sendEffect(AssistantEffect.ShowMessage(e.message ?: "加载会话失败"))
+                if (cached == null) {
+                    sendEffect(AssistantEffect.ShowMessage(e.message ?: "加载会话失败"))
+                }
             }
         }
     }
@@ -168,6 +187,12 @@ class AssistantViewModel @Inject constructor(
             try {
                 assistantRepository.deleteConversation(conversationId)
                 updateState { copy(conversations = conversations.filterNot { it.id == conversationId }) }
+                val owner = ownerId()
+                TabPageCache.invalidate(conversationKey(owner, conversationId))
+                writeConversations(
+                    owner,
+                    AiConversationPage(list = currentState.conversations),
+                )
                 sendEffect(AssistantEffect.ShowMessage("已删除会话"))
             } catch (e: Exception) {
                 sendEffect(AssistantEffect.ShowMessage(e.message ?: "删除会话失败"))
@@ -235,5 +260,90 @@ class AssistantViewModel @Inject constructor(
                 "「${action.label.ifBlank { action.type }}」暂不支持"
         }
         sendEffect(AssistantEffect.ShowMessage(message))
+    }
+
+    private fun showConversation(detail: AiConversationDetail) {
+        updateState {
+            copy(
+                conversationId = detail.id,
+                messages = detail.messages.map { ai: AiMessage ->
+                    AssistantChatMessage(
+                        id = ai.id,
+                        isUser = ai.isUser,
+                        content = ai.content ?: "",
+                        actions = ai.actions ?: emptyList(),
+                    )
+                },
+                historyOpen = false,
+            )
+        }
+    }
+
+    private suspend fun persistCurrentConversation() {
+        val id = currentState.conversationId ?: return
+        val messages = currentState.messages.filter { !it.isSending && !it.failed }
+        val owner = ownerId()
+        val existing = readConversations(owner)?.list?.find { it.id == id }
+        val detail = AiConversationDetail(
+            id = id,
+            title = existing?.title ?: messages.firstOrNull { it.isUser }?.content?.take(40),
+            messageCount = messages.size,
+            createdAt = existing?.createdAt ?: LocalDate.now().toString(),
+            updatedAt = LocalDate.now().toString(),
+            messages = messages.map { msg ->
+                AiMessage(
+                    id = msg.id,
+                    role = if (msg.isUser) AiMessage.ROLE_USER else AiMessage.ROLE_ASSISTANT,
+                    content = msg.content,
+                    actions = msg.actions.takeIf { it.isNotEmpty() },
+                )
+            },
+        )
+        writeConversation(owner, detail)
+        writeConversations(owner, mergeSummary(readConversations(owner), detail))
+    }
+
+    private fun mergeSummary(
+        page: AiConversationPage?,
+        detail: AiConversationDetail,
+    ): AiConversationPage {
+        val summary = AiConversationSummary(
+            id = detail.id,
+            title = detail.title,
+            messageCount = detail.messageCount,
+            createdAt = detail.createdAt,
+            updatedAt = detail.updatedAt,
+        )
+        val rest = page?.list.orEmpty().filterNot { it.id == detail.id }
+        return AiConversationPage(list = listOf(summary) + rest, total = rest.size + 1)
+    }
+
+    private suspend fun ownerId(): Long? =
+        runCatching { userPreferencesRepository.userPreferences.first().userId }.getOrNull()
+
+    private fun listKey(owner: Long?) = ListCacheKeys.key(owner, "ai", "conversations")
+
+    private fun conversationKey(owner: Long?, id: Long) =
+        ListCacheKeys.key(owner, "ai", "conversation", id.toString())
+
+    private suspend fun readConversations(owner: Long?): AiConversationPage? {
+        val raw = TabPageCache.readRawAsync(listKey(owner)) ?: return null
+        return runCatching { json.decodeFromString(AiConversationPage.serializer(), raw) }.getOrNull()
+    }
+
+    private fun writeConversations(owner: Long?, page: AiConversationPage) {
+        TabPageCache.putRaw(listKey(owner), json.encodeToString(AiConversationPage.serializer(), page))
+    }
+
+    private suspend fun readConversation(owner: Long?, id: Long): AiConversationDetail? {
+        val raw = TabPageCache.readRawAsync(conversationKey(owner, id)) ?: return null
+        return runCatching { json.decodeFromString(AiConversationDetail.serializer(), raw) }.getOrNull()
+    }
+
+    private fun writeConversation(owner: Long?, detail: AiConversationDetail) {
+        TabPageCache.putRaw(
+            conversationKey(owner, detail.id),
+            json.encodeToString(AiConversationDetail.serializer(), detail),
+        )
     }
 }

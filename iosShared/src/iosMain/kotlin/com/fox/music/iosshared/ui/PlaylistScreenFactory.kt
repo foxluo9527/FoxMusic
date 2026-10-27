@@ -1,5 +1,7 @@
 package com.fox.music.iosshared.ui
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import kotlinx.coroutines.MainScope
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -15,6 +17,8 @@ import androidx.paging.PagingState
 import androidx.paging.cachedIn
 import com.fox.music.core.data.mapper.toPlaylist
 import com.fox.music.core.model.music.Playlist
+import com.fox.music.iosshared.FoxSceneCache
+import kotlinx.serialization.builtins.ListSerializer
 import com.fox.music.feature.playlist.ui.component.PlaylistListContent
 import com.fox.music.feature.playlist.viewmodel.PlaylistListState
 import com.fox.music.iosshared.FoxMusicApi
@@ -32,6 +36,15 @@ private class RecommendedPlaylistPagingSource(
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Playlist> = try {
         val page = params.key ?: 1
         val list = api.fetchRecommendedPlaylists(page, params.loadSize).map { it.toPlaylist() }
+        if (page == 1) {
+            FoxSceneCache.save(
+                ListSerializer(Playlist.serializer()),
+                list,
+                "playlists",
+                "recommend",
+                "p1",
+            )
+        }
         LoadResult.Page(
             data = list,
             prevKey = if (page == 1) null else page - 1,
@@ -74,10 +87,20 @@ object FoxPlaylistScreen {
         onPlaylistClick: (Playlist) -> Unit,
         onBackClick: () -> Unit = {},
     ): UIViewController = foxComposeViewController {
+        var cachedPlaylists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+        LaunchedEffect(Unit) {
+            cachedPlaylists = FoxSceneCache.load(
+                ListSerializer(Playlist.serializer()),
+                "playlists",
+                "recommend",
+                "p1",
+            ).orEmpty()
+        }
         val state = PlaylistListState(
             categories = emptyList(),
             selectedCategoryIndex = 0,
             playlists = playlistFlow,
+            cachedPlaylists = cachedPlaylists,
             isLoading = false,
             error = error,
         )

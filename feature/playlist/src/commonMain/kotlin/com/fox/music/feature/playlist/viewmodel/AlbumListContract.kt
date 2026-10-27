@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.flowOf
 
 data class AlbumListState(
     val albums: Flow<PagingData<Album>> = flowOf(PagingData.empty()),
+    /** 推荐专辑第一页的磁盘快照。分页还在加载或失败时先用它把格子铺上。 */
+    val cachedAlbums: List<Album> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
 ) : UiState

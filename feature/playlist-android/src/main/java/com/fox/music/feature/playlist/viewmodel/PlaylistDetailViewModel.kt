@@ -7,6 +7,8 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.blankj.utilcode.util.TimeUtils
+import com.fox.music.core.common.cache.ListCacheKeys
+import com.fox.music.core.common.cache.TabPageCache
 import com.fox.music.core.common.constants.AppConstants
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
@@ -39,6 +41,8 @@ import com.fox.music.core.model.music.DetailType
 import com.fox.music.core.model.music.Music
 import com.fox.music.core.model.music.Playlist
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +52,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
@@ -71,6 +76,12 @@ class PlaylistDetailViewModel @Inject constructor(
     private val recommendedMusicCacheManager: RecommendedMusicCacheManager,
     private val playlistImportProgressRepository: PlaylistImportProgressRepository,
 ) : MviViewModel<PlaylistDetailState, PlaylistDetailIntent, PlaylistDetailEffect>(PlaylistDetailState()) {
+
+    private val diskOwnerId = CompletableDeferred<Long?>()
+    private var latestTracks: List<Music>? = null
+
+    private val shouldCacheDetail: Boolean
+        get() = detailId > 0L && detailType in CACHED_DETAIL_TYPES
 
     /** 仅当前用户创建的歌单展示管理菜单 */
     val canManagePlaylist: Boolean
@@ -204,6 +215,7 @@ class PlaylistDetailViewModel @Inject constructor(
                                     artistRepository = artistRepository,
                                     artistId = detailId,
                                     knownTotalProvider = { knownTrackCount.get() },
+                                    onFirstPage = ::onTracksLoaded,
                                 )
                             },
                         ).flow
@@ -225,6 +237,7 @@ class PlaylistDetailViewModel @Inject constructor(
                                     detailId = detailId,
                                     detailType = detailType,
                                     knownTotalProvider = { knownTrackCount.get() },
+                                    onFirstPage = if (shouldCacheDetail) ::onTracksLoaded else null,
                                 )
                             },
                         ).flow
@@ -239,15 +252,18 @@ class PlaylistDetailViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            userPreferencesRepository.userPreferences.first().userId?.let { userId ->
-                updateState { copy(currentUserId = userId) }
+            val userId = runCatching {
+                userPreferencesRepository.userPreferences.first().userId
+            }.getOrNull()
+            if (!diskOwnerId.isCompleted) diskOwnerId.complete(userId)
+            if (userId != null) updateState { copy(currentUserId = userId) }
+            if (shouldCacheDetail) restoreDetailCache(userId)
+            if (detailId > 0L ||
+                detailType == DetailType.FAVORITE_MUSIC ||
+                detailType == DetailType.PLAY_HISTORY
+            ) {
+                sendIntent(PlaylistDetailIntent.LoadHeader)
             }
-        }
-        if (detailId > 0L ||
-            detailType == DetailType.FAVORITE_MUSIC ||
-            detailType == DetailType.PLAY_HISTORY
-        ) {
-            viewModelScope.launch { sendIntent(PlaylistDetailIntent.LoadHeader) }
         }
         if (detailType == DetailType.RECOMMEND) {
             viewModelScope.launch {
@@ -421,6 +437,9 @@ class PlaylistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             deletePlaylistUseCase(detailId)
                 .onSuccess {
+                    if (diskOwnerId.isCompleted) {
+                        TabPageCache.invalidate(detailCacheKey(diskOwnerId.getCompleted()))
+                    }
                     sendEffect(PlaylistDetailEffect.ShowToast("歌单已删除"))
                     sendEffect(PlaylistDetailEffect.NavigateBack)
                 }
@@ -439,30 +458,38 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     fun updateCurrentTrackList(list: List<Music>) {
-        currentTrackList = list
+        // 分页还没回来时会交来空列表，不能把磁盘快照里已经能播的队列清掉。
+        if (list.isNotEmpty() || latestTracks == null) {
+            currentTrackList = list
+        }
     }
 
     private fun loadHeader(isRefresh: Boolean = false) {
         viewModelScope.launch {
             updateState {
                 copy(
-                    isLoading = if (isRefresh && headerInfo != null) isLoading else true,
+                    isLoading = when {
+                        headerInfo != null || cachedTracks.isNotEmpty() -> false
+                        isRefresh -> isLoading
+                        else -> true
+                    },
                     error = null,
                 )
             }
             when(detailType) {
                 DetailType.ARTIST -> {
                     artistRepository.getArtistDetail(detailId).onSuccess { detail ->
+                        val header = HeaderInfo.fromArtist(detail)
                         updateKnownTrackCount(detail.artist.musicCount)
                         updateState {
                             copy(
-                                headerInfo = HeaderInfo.fromArtist(detail),
+                                headerInfo = header,
                                 isLoading = false,
                             )
                         }
+                        persistDetailHeader(header)
                     }.onError { _, msg ->
-                        updateKnownTrackCount(0)
-                        updateState { copy(isLoading = false, error = msg ?: "加载失败") }
+                        failHeader(msg)
                     }
                 }
                 DetailType.PLAYLIST -> {
@@ -473,9 +500,9 @@ class PlaylistDetailViewModel @Inject constructor(
                             maxOf(detail.playlist.trackCount, detail.tracks.total)
                         )
                         updateState {copy(headerInfo = headerInfo, isLoading = false)}
+                        persistDetailHeader(headerInfo)
                     }.onError {_, msg ->
-                        updateKnownTrackCount(0)
-                        updateState {copy(isLoading = false, error = msg ?: "加载失败")}
+                        failHeader(msg)
                     }
                 }
 
@@ -486,9 +513,9 @@ class PlaylistDetailViewModel @Inject constructor(
                             maxOf(detail.album.trackCount, detail.tracks.total)
                         )
                         updateState {copy(headerInfo = headerInfo, isLoading = false)}
+                        persistDetailHeader(headerInfo)
                     }.onError {_, msg ->
-                        updateKnownTrackCount(0)
-                        updateState {copy(isLoading = false, error = msg ?: "加载失败")}
+                        failHeader(msg)
                     }
                 }
 
@@ -499,9 +526,9 @@ class PlaylistDetailViewModel @Inject constructor(
                             maxOf(detail.playlist.trackCount, detail.tracks.total)
                         )
                         updateState {copy(headerInfo = headerInfo, isLoading = false)}
+                        persistDetailHeader(headerInfo)
                     }.onError {_, msg ->
-                        updateKnownTrackCount(0)
-                        updateState {copy(isLoading = false, error = msg ?: "加载失败")}
+                        failHeader(msg)
                     }
                 }
 
@@ -654,12 +681,14 @@ class PlaylistDetailViewModel @Inject constructor(
                 }
             }
             result.onSuccess {
+                val updated = currentHeader.copy(isFavorite = !currentHeader.isFavorite)
                 updateState {
                     copy(
-                        headerInfo = currentHeader.copy(isFavorite = !currentHeader.isFavorite),
+                        headerInfo = updated,
                         isFavoriteLoading = false,
                     )
                 }
+                persistDetailHeader(updated)
                 sendEffect(
                     PlaylistDetailEffect.ShowToast(
                         if (!currentHeader.isFavorite) "已收藏" else "已取消收藏"
@@ -670,5 +699,74 @@ class PlaylistDetailViewModel @Inject constructor(
                 sendEffect(PlaylistDetailEffect.ShowToast(msg ?: "操作失败"))
             }
         }
+    }
+
+    private suspend fun onTracksLoaded(items: List<Music>) {
+        if (!shouldCacheDetail) return
+        latestTracks = items
+        currentTrackList = items
+        updateState { copy(cachedTracks = items) }
+        val header = uiState.value.headerInfo ?: return
+        val owner = diskOwnerId.await()
+        val payload = withContext(Dispatchers.Default) {
+            DetailListSnapshot.from(header, items).encode()
+        }
+        TabPageCache.putRaw(detailCacheKey(owner), payload)
+    }
+
+    private suspend fun restoreDetailCache(owner: Long?) {
+        val snap = withContext(Dispatchers.IO) {
+            val raw = TabPageCache.readRaw(detailCacheKey(owner)) ?: return@withContext null
+            DetailListSnapshot.decode(raw)
+        } ?: return
+        if (snap.id != detailId) return
+        val header = snap.toHeader()
+        latestTracks = snap.tracks
+        if (snap.tracks.isNotEmpty()) currentTrackList = snap.tracks
+        updateKnownTrackCount(maxOf(header.trackCount, snap.tracks.size))
+        updateState {
+            copy(
+                headerInfo = header,
+                cachedTracks = snap.tracks,
+                isLoading = false,
+                error = null,
+            )
+        }
+    }
+
+    private fun persistDetailHeader(header: HeaderInfo) {
+        if (!shouldCacheDetail) return
+        viewModelScope.launch {
+            val owner = diskOwnerId.await()
+            val tracks = latestTracks ?: uiState.value.cachedTracks
+            val payload = withContext(Dispatchers.Default) {
+                DetailListSnapshot.from(header, tracks).encode()
+            }
+            TabPageCache.putRaw(detailCacheKey(owner), payload)
+        }
+    }
+
+    private fun failHeader(message: String?) {
+        if (knownTrackCount.get() <= 0) {
+            updateKnownTrackCount(0)
+        }
+        updateState {
+            copy(
+                isLoading = false,
+                error = if (headerInfo == null) message ?: "加载失败" else null,
+            )
+        }
+    }
+
+    private fun detailCacheKey(owner: Long?) =
+        ListCacheKeys.key(owner, "tracks", detailType.name, detailId.toString())
+
+    private companion object {
+        val CACHED_DETAIL_TYPES = setOf(
+            DetailType.PLAYLIST,
+            DetailType.RANK,
+            DetailType.ALBUM,
+            DetailType.ARTIST,
+        )
     }
 }

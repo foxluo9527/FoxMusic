@@ -14,6 +14,7 @@ class CollectionDetailPagingSource(
     private val detailId: Long,
     private val detailType: DetailType,
     private val knownTotalProvider: () -> Int = { 0 },
+    private val onFirstPage: (suspend (List<Music>) -> Unit)? = null,
 ) : PagingSource<Int, Music>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Music> {
@@ -29,6 +30,9 @@ class CollectionDetailPagingSource(
             val data = pagedData.list
             val prevKey = if (page > 1) page - 1 else null
             val nextKey = if (data.isNotEmpty() && pagedData.hasMore) page + 1 else null
+            if (page == 1) {
+                runCatching { onFirstPage?.invoke(data) }
+            }
 
             LoadResult.Page(
                 data = data,

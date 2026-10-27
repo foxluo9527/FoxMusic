@@ -16,6 +16,7 @@ class AlbumPagingSource(
     private val keyword: String? = "",
     private val artistId: Long? = null,
     private val sort: String? = "",
+    private val onFirstPage: (suspend (List<Album>) -> Unit)? = null,
 ): PagingSource<Int, Album>() {
     private val mapPageDataList = mutableMapOf<Int, List<Album>>()
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Album> {
@@ -41,6 +42,9 @@ class AlbumPagingSource(
                         }
                 }
                 mapPageDataList[page] = list
+                if (page == 1) {
+                    runCatching { onFirstPage?.invoke(list) }
+                }
                 LoadResult.Page(
                     data = list,
                     prevKey = prevKey,

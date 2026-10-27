@@ -11,7 +11,9 @@ import kotlinx.coroutines.flow.Flow
 class GetHotArtistPagingUseCase constructor(
     private val artistRepository: ArtistRepository,
 ) {
-    operator fun invoke(): Flow<PagingData<Artist>> {
+    operator fun invoke(
+        onFirstPage: (suspend (List<Artist>) -> Unit)? = null,
+    ): Flow<PagingData<Artist>> {
         return Pager(
             config = PagingConfig(
                 pageSize = 20,
@@ -22,6 +24,7 @@ class GetHotArtistPagingUseCase constructor(
                 ArtistPagingSource(
                     repo = artistRepository,
                     sort = "hot",
+                    onFirstPage = onFirstPage,
                 )
             },
         ).flow

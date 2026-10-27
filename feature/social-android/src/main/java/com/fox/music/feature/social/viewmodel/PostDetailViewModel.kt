@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import com.fox.music.core.common.cache.ListCacheKeys
+import com.fox.music.core.common.cache.TabPageCache
 import com.fox.music.core.common.mvi.MviViewModel
 import com.fox.music.core.common.mvi.UiEffect
 import com.fox.music.core.common.mvi.UiIntent
@@ -29,6 +31,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 // PostDetailState / PostDetailIntent / PostDetailEffect / PostDetailFeedTab 已下沉到
@@ -52,6 +55,7 @@ class PostDetailViewModel @Inject constructor(
 ) {
 
     private val postId: Long = savedStateHandle.get<Long>("postId") ?: 0L
+    private val json = Json { ignoreUnknownKeys = true }
     val commentsPagingFlow = getPostCommentsPagingUseCase(postId).cachedIn(viewModelScope)
     val likesPagingFlow = getPostLikesPagingUseCase(postId).cachedIn(viewModelScope)
 
@@ -117,6 +121,7 @@ class PostDetailViewModel @Inject constructor(
                             likesRefreshTrigger = likesRefreshTrigger + 1,
                         )
                     }
+                    writePost(currentState.currentUserId, newPost)
                 }
                 is Result.Error -> {
                     updateState { copy(isRefreshing = false) }
@@ -130,7 +135,20 @@ class PostDetailViewModel @Inject constructor(
     private fun load() {
         viewModelScope.launch {
             val userId = userPreferencesRepository.userPreferences.first().userId
-            updateState { copy(currentUserId = userId, isLoading = true) }
+            val cached = readPost(userId)
+            if (cached != null) {
+                val canViewLikes = userId != null && cached.userId == userId
+                updateState {
+                    copy(
+                        currentUserId = userId,
+                        post = cached,
+                        isLoading = false,
+                        feedTab = if (canViewLikes) feedTab else PostDetailFeedTab.COMMENTS,
+                    )
+                }
+            } else {
+                updateState { copy(currentUserId = userId, isLoading = true) }
+            }
             when (val result = getPostDetailUseCase(currentState.postId)) {
                 is Result.Success -> {
                     val newPost = result.data
@@ -142,14 +160,28 @@ class PostDetailViewModel @Inject constructor(
                             feedTab = if (canViewLikes) feedTab else PostDetailFeedTab.COMMENTS,
                         )
                     }
+                    writePost(userId, newPost)
                 }
                 is Result.Error -> {
                     updateState { copy(isLoading = false) }
-                    sendEffect(PostDetailEffect.ShowToast(result.exception.message ?: "加载失败"))
+                    if (cached == null && currentState.post == null) {
+                        sendEffect(PostDetailEffect.ShowToast(result.exception.message ?: "加载失败"))
+                    }
                 }
                 is Result.Loading -> Unit
             }
         }
+    }
+
+    private fun postKey(owner: Long?) = ListCacheKeys.key(owner, "post", postId.toString())
+
+    private suspend fun readPost(owner: Long?): Post? {
+        val raw = TabPageCache.readRawAsync(postKey(owner)) ?: return null
+        return runCatching { json.decodeFromString(Post.serializer(), raw) }.getOrNull()
+    }
+
+    private fun writePost(owner: Long?, post: Post) {
+        TabPageCache.putRaw(postKey(owner), json.encodeToString(Post.serializer(), post))
     }
 
     private fun sendComment() {
@@ -167,6 +199,9 @@ class PostDetailViewModel @Inject constructor(
                 is Result.Success -> {
                     val newComment = result.data
                     val isTopLevel = newComment.parentId == null
+                    val updatedPost = currentState.post?.copy(
+                        commentCount = (currentState.post?.commentCount ?: 0) + 1,
+                    )
                     updateState {
                         copy(
                             commentInput = "",
@@ -180,9 +215,10 @@ class PostDetailViewModel @Inject constructor(
                             },
                             repliesRefreshTrigger = repliesRefreshTrigger + 1,
                             commentsRefreshTrigger = commentsRefreshTrigger + 1,
-                            post = post?.copy(commentCount = (post?.commentCount ?: 0) + 1),
+                            post = updatedPost,
                         )
                     }
+                    updatedPost?.let { writePost(currentState.currentUserId, it) }
                     sendEffect(PostDetailEffect.CommentSent(newComment))
                 }
                 is Result.Error -> {
@@ -216,16 +252,18 @@ class PostDetailViewModel @Inject constructor(
             when (togglePostLikeUseCase(post.id)) {
                 is Result.Success -> {
                     val newLiked = !post.isLiked
+                    val updated = post.copy(
+                        isLiked = newLiked,
+                        likeCount = if (newLiked) post.likeCount + 1
+                        else (post.likeCount - 1).coerceAtLeast(0),
+                    )
                     updateState {
                         copy(
-                            post = post.copy(
-                                isLiked = newLiked,
-                                likeCount = if (newLiked) post.likeCount + 1
-                                else (post.likeCount - 1).coerceAtLeast(0),
-                            ),
+                            post = updated,
                             likesRefreshTrigger = likesRefreshTrigger + 1,
                         )
                     }
+                    writePost(currentState.currentUserId, updated)
                 }
                 else -> Unit
             }
@@ -239,9 +277,9 @@ class PostDetailViewModel @Inject constructor(
             when (val result = toggleMusicFavoriteUseCase(music.id)) {
                 is Result.Success -> {
                     val newFavorite = !music.isFavorite
-                    updateState {
-                        copy(post = post.copy(music = music.copy(isFavorite = newFavorite)))
-                    }
+                    val updated = post.copy(music = music.copy(isFavorite = newFavorite))
+                    updateState { copy(post = updated) }
+                    writePost(currentState.currentUserId, updated)
                     sendEffect(
                         PostDetailEffect.ShowToast(
                             if (newFavorite) "已收藏音乐" else "已取消收藏音乐",

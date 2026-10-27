@@ -17,6 +17,8 @@ import androidx.paging.cachedIn
 import com.fox.music.core.data.mapper.toArtist
 import com.fox.music.core.domain.util.ArtistGrouping
 import com.fox.music.core.model.music.Artist
+import com.fox.music.iosshared.FoxSceneCache
+import kotlinx.serialization.builtins.ListSerializer
 import com.fox.music.feature.discover.ArtistListContent
 import com.fox.music.feature.discover.ArtistListState
 import com.fox.music.feature.discover.HotArtistListContent
@@ -40,6 +42,15 @@ object FoxHotArtistListScreen {
         onAllArtistsClick: () -> Unit,
         onBack: () -> Unit,
     ): UIViewController = foxComposeViewController(pageOwnsTopBar = true) {
+        var cachedArtists by remember { mutableStateOf<List<Artist>>(emptyList()) }
+        LaunchedEffect(Unit) {
+            cachedArtists = FoxSceneCache.load(
+                ListSerializer(Artist.serializer()),
+                "artists",
+                "hot",
+                "p1",
+            ).orEmpty()
+        }
         val artistsPager = remember {
             Pager(PagingConfig(pageSize = 20, initialLoadSize = 20)) {
                 ArtistPagingSource(api, sort = "hot")
@@ -49,7 +60,7 @@ object FoxHotArtistListScreen {
         SharedTransitionLayout {
             AnimatedContent(targetState = true, label = "hot-artist-list") {
                 HotArtistListContent(
-                    state = HotArtistListState(artists = artistsPager),
+                    state = HotArtistListState(artists = artistsPager, cachedArtists = cachedArtists),
                     onIntent = {},
                     onArtistClick = onArtistClick,
                     onAllArtistsClick = onAllArtistsClick,
@@ -75,7 +86,21 @@ object FoxArtistListScreen {
         var state by remember { mutableStateOf(ArtistListState(isLoading = true)) }
 
         LaunchedEffect(Unit) {
-            state = state.copy(isLoading = true, error = null)
+            FoxSceneCache.load(ListSerializer(Artist.serializer()), "artists", "all")
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { cached ->
+                    val sections = ArtistGrouping.groupArtistsByInitial(cached)
+                    val (letters, indexMap) = ArtistGrouping.buildIndexMap(sections)
+                    state = ArtistListState(
+                        sections = sections,
+                        availableLetters = letters,
+                        indexMap = indexMap,
+                        isLoading = false,
+                    )
+                }
+            if (state.sections.isEmpty()) {
+                state = state.copy(isLoading = true, error = null)
+            }
             try {
                 val all = mutableListOf<Artist>()
                 var page = 1
@@ -91,6 +116,7 @@ object FoxArtistListScreen {
                     page++
                 }
                 val distinct = all.distinctBy { it.id }
+                FoxSceneCache.save(ListSerializer(Artist.serializer()), distinct, "artists", "all")
                 val sections = ArtistGrouping.groupArtistsByInitial(distinct)
                 val (letters, indexMap) = ArtistGrouping.buildIndexMap(sections)
                 state = ArtistListState(
@@ -101,7 +127,11 @@ object FoxArtistListScreen {
                 )
             } catch (e: Exception) {
                 println("FoxArtistListScreen: 全部歌手加载失败: ${e.message}")
-                state = state.copy(isLoading = false, error = e.message ?: "加载失败")
+                state = if (state.sections.isEmpty()) {
+                    state.copy(isLoading = false, error = e.message ?: "加载失败")
+                } else {
+                    state.copy(isLoading = false)
+                }
             }
         }
 
@@ -130,6 +160,9 @@ internal class ArtistPagingSource(
         val page = params.key ?: 1
         val paged = api.fetchArtistsPaged(page = page, limit = params.loadSize, sort = sort)
         val list = paged.list.map { it.toArtist() }
+        if (page == 1 && sort == "hot") {
+            FoxSceneCache.save(ListSerializer(Artist.serializer()), list, "artists", "hot", "p1")
+        }
         LoadResult.Page(
             data = list,
             prevKey = if (page == 1) null else page - 1,

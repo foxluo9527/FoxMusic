@@ -21,6 +21,8 @@ import com.fox.music.core.data.mapper.toPlaylistCategory
 import com.fox.music.core.model.music.Album
 import com.fox.music.core.model.music.Playlist
 import com.fox.music.core.model.music.PlaylistCategory
+import com.fox.music.iosshared.FoxSceneCache
+import kotlinx.serialization.builtins.ListSerializer
 import com.fox.music.feature.playlist.ui.component.PlaylistListContent
 import com.fox.music.feature.playlist.ui.screen.AlbumListContent
 import com.fox.music.feature.playlist.viewmodel.AlbumListState
@@ -52,6 +54,7 @@ object FoxPlaylistListScreen {
         var categories by remember { mutableStateOf(emptyList<PlaylistCategory>()) }
         var selectedCategoryIndex by remember { mutableStateOf(0) }
         var loadError by remember { mutableStateOf<String?>(null) }
+        var cachedPlaylists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
 
         val playlistsPager = remember(selectedCategoryIndex) {
             // 与 Android GetPlaylistsPagingUseCase 同配置：pageSize=20
@@ -65,11 +68,37 @@ object FoxPlaylistListScreen {
             }.flow.cachedIn(scope)
         }
 
+        LaunchedEffect(selectedCategoryIndex, categories) {
+            val categoryId = if (selectedCategoryIndex == 0) {
+                null
+            } else {
+                categories.getOrNull(selectedCategoryIndex - 1)?.id
+            }
+            cachedPlaylists = FoxSceneCache.load(
+                ListSerializer(Playlist.serializer()),
+                "playlists",
+                categoryId?.toString() ?: "recommend",
+                "p1",
+            ).orEmpty()
+        }
+
         LaunchedEffect(Unit) {
+            FoxSceneCache.load(
+                ListSerializer(PlaylistCategory.serializer()),
+                "playlist",
+                "categories",
+            )?.takeIf { it.isNotEmpty() }?.let { categories = it }
             try {
                 categories = api.fetchPlaylistCategories().map { it.toPlaylistCategory() }
+                FoxSceneCache.save(
+                    ListSerializer(PlaylistCategory.serializer()),
+                    categories,
+                    "playlist",
+                    "categories",
+                )
+                loadError = null
             } catch (e: Exception) {
-                loadError = e.message
+                if (categories.isEmpty()) loadError = e.message
             }
         }
 
@@ -80,6 +109,7 @@ object FoxPlaylistListScreen {
                         categories = categories,
                         selectedCategoryIndex = selectedCategoryIndex,
                         playlists = playlistsPager,
+                        cachedPlaylists = cachedPlaylists,
                         isLoading = categories.isEmpty() && loadError == null,
                         error = loadError,
                     ),
@@ -118,6 +148,15 @@ internal class PlaylistPagingSource(
         } else {
             api.fetchCategoryPlaylists(categoryId, page, params.loadSize).list
         }.map { it.toPlaylist() }
+        if (page == 1) {
+            FoxSceneCache.save(
+                ListSerializer(Playlist.serializer()),
+                list,
+                "playlists",
+                categoryId?.toString() ?: "recommend",
+                "p1",
+            )
+        }
         LoadResult.Page(
             data = list,
             prevKey = if (page == 1) null else page - 1,
@@ -148,6 +187,15 @@ object FoxAlbumListScreen {
         onAlbumClick: (Long) -> Unit,
         onBack: () -> Unit,
     ): UIViewController = foxComposeViewController(pageOwnsTopBar = true) {
+        var cachedAlbums by remember { mutableStateOf<List<Album>>(emptyList()) }
+        LaunchedEffect(Unit) {
+            cachedAlbums = FoxSceneCache.load(
+                ListSerializer(Album.serializer()),
+                "albums",
+                "recommend",
+                "p1",
+            ).orEmpty()
+        }
         // 与 Android GetAlbumListUseCase 同配置：pageSize=20
         val albumsPager = remember {
             Pager(PagingConfig(pageSize = 20, initialLoadSize = 20)) {
@@ -158,7 +206,7 @@ object FoxAlbumListScreen {
         SharedTransitionLayout {
             AnimatedContent(targetState = true, label = "album-list") {
                 AlbumListContent(
-                    state = AlbumListState(albums = albumsPager),
+                    state = AlbumListState(albums = albumsPager, cachedAlbums = cachedAlbums),
                     onIntent = { }, // Load 由分页自动触发
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedContentScope = this@AnimatedContent,
@@ -179,6 +227,15 @@ internal class AlbumListPagingSource(
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Album> = try {
         val page = params.key ?: 1
         val list = api.fetchAlbums(page, params.loadSize, sort = "recommend").map { it.toAlbum() }
+        if (page == 1) {
+            FoxSceneCache.save(
+                ListSerializer(Album.serializer()),
+                list,
+                "albums",
+                "recommend",
+                "p1",
+            )
+        }
         LoadResult.Page(
             data = list,
             prevKey = if (page == 1) null else page - 1,

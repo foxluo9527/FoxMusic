@@ -33,6 +33,7 @@ import com.fox.music.feature.social.PostDetailIntent
 import com.fox.music.feature.social.PostDetailState
 import com.fox.music.feature.social.applyLikeOverride
 import com.fox.music.iosshared.FoxFirstPageCache
+import com.fox.music.iosshared.FoxSceneCache
 import com.fox.music.iosshared.FoxIosBridge
 import com.fox.music.iosshared.FoxMusicApi
 import com.fox.music.iosshared.PlayableSong
@@ -410,14 +411,28 @@ internal class PostDetailPresenter(
 
     private fun load() {
         scope.launch {
-            _state.value = _state.value.copy(isLoading = true)
+            val cached = loadCachedPost()
+            if (cached != null) {
+                _state.value = _state.value.copy(
+                    post = cached,
+                    isLoading = false,
+                    feedTab = PostDetailFeedTab.COMMENTS,
+                )
+            } else {
+                _state.value = _state.value.copy(isLoading = true)
+            }
             val post = runCatching { api.fetchPostDetail(postId) }.getOrNull()?.toPost()
-            _state.value = _state.value.copy(
-                post = post,
-                isLoading = false,
-                feedTab = PostDetailFeedTab.COMMENTS,
-            )
-            if (post == null) onToast("帖子不存在")
+            if (post != null) {
+                _state.value = _state.value.copy(
+                    post = post,
+                    isLoading = false,
+                    feedTab = PostDetailFeedTab.COMMENTS,
+                )
+                savePost(post)
+            } else {
+                _state.value = _state.value.copy(isLoading = false)
+                if (cached == null && _state.value.post == null) onToast("帖子不存在")
+            }
         }
     }
 
@@ -434,7 +449,15 @@ internal class PostDetailPresenter(
                 commentsRefreshTrigger = _state.value.commentsRefreshTrigger + 1,
                 likesRefreshTrigger = _state.value.likesRefreshTrigger + 1,
             )
+            post?.let { savePost(it) }
         }
+    }
+
+    private suspend fun loadCachedPost(): Post? =
+        FoxSceneCache.load(Post.serializer(), "post", postId.toString())
+
+    private suspend fun savePost(post: Post) {
+        FoxSceneCache.save(Post.serializer(), post, "post", postId.toString())
     }
 
     private fun sendComment() {
@@ -444,17 +467,19 @@ internal class PostDetailPresenter(
             _state.value = _state.value.copy(isCommentSending = true)
             runCatching { api.postComment(postId, content, _state.value.replyParentId) }
                 .onSuccess {
+                    val updated = _state.value.post?.copy(
+                        commentCount = (_state.value.post?.commentCount ?: 0) + 1,
+                    )
                     _state.value = _state.value.copy(
                         commentInput = "",
                         replyParentId = null,
                         replyHint = null,
                         isCommentSending = false,
-                        post = _state.value.post?.copy(
-                            commentCount = (_state.value.post?.commentCount ?: 0) + 1,
-                        ),
+                        post = updated,
                         repliesRefreshTrigger = _state.value.repliesRefreshTrigger + 1,
                         commentsRefreshTrigger = _state.value.commentsRefreshTrigger + 1,
                     )
+                    updated?.let { savePost(it) }
                     onToast("评论成功")
                 }
                 .onFailure {
@@ -475,17 +500,19 @@ internal class PostDetailPresenter(
         scope.launch {
             runCatching { api.togglePostLike(post.id) }.onSuccess {
                 val newLiked = !post.isLiked
+                val updated = post.copy(
+                    isLiked = newLiked,
+                    likeCount = if (newLiked) {
+                        post.likeCount + 1
+                    } else {
+                        (post.likeCount - 1).coerceAtLeast(0)
+                    },
+                )
                 _state.value = _state.value.copy(
-                    post = post.copy(
-                        isLiked = newLiked,
-                        likeCount = if (newLiked) {
-                            post.likeCount + 1
-                        } else {
-                            (post.likeCount - 1).coerceAtLeast(0)
-                        },
-                    ),
+                    post = updated,
                     likesRefreshTrigger = _state.value.likesRefreshTrigger + 1,
                 )
+                savePost(updated)
             }.onFailure { onToast(it.message ?: "操作失败") }
         }
     }

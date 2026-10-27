@@ -14,6 +14,8 @@ import com.fox.music.core.model.music.Playlist
 data class PlaylistDetailState(
     val headerInfo: HeaderInfo? = null,
     val currentUserId: Long? = null,
+    /** 曲目分页尚未返回时先展示的磁盘快照。 */
+    val cachedTracks: List<Music> = emptyList(),
     val isLoading: Boolean = false,
     val isFavoriteLoading: Boolean = false,
     val error: String? = null,

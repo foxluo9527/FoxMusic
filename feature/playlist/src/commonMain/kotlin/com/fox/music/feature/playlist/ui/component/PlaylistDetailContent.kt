@@ -483,7 +483,9 @@ private fun CollectionDetailContent(
                             state.detailType != DetailType.FAVORITE_MUSIC &&
                             state.detailType != DetailType.PLAY_HISTORY &&
                             state.detailType != DetailType.ARTIST,
-                    trackCount = headerInfo.trackCount.takeIf { it > 0 } ?: pagingItems.itemCount,
+                    trackCount = headerInfo.trackCount.takeIf { it > 0 }
+                        ?: pagingItems.itemCount.takeIf { it > 0 }
+                        ?: state.cachedTracks.size,
                     isFavorite = headerInfo.isFavorite,
                     isFavoriteLoading = state.isFavoriteLoading,
                     onPlayAll = onPlayAll,
@@ -598,7 +600,31 @@ private fun CollectionDetailContent(
             }
         }
 
-        // 歌曲列表
+        // 歌曲列表。分页第一页还没回来时先铺磁盘快照，成功后再换成网络结果。
+        val refreshState = pagingItems.loadState.refresh
+        val showCachedTracks = pagingItems.itemCount == 0 &&
+            state.cachedTracks.isNotEmpty() &&
+            refreshState !is LoadState.NotLoading
+        if (showCachedTracks) {
+            items(
+                items = state.cachedTracks,
+                key = { music -> "cached_music_${music.id}" },
+            ) { music ->
+                MusicListItem(
+                    music = music,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    modifier = Modifier.padding(horizontal = if (!state.isSelectionMode) 16.dp else 8.dp),
+                    onClick = { onMusicClick(music) },
+                    onMoreClick = { onMusicMoreClick(music) },
+                    isSelectionMode = state.isSelectionMode,
+                    isSelected = music.id in state.selectedMusicIds,
+                    onLongClick = { onEnterSelectionMode(music.id) },
+                    onSelectionToggle = { onToggleSelection(music.id) },
+                    isNowPlaying = music.id == nowPlayingId,
+                )
+            }
+        }
         items(
             count = pagingItems.itemCount,
             key = { index ->
@@ -648,6 +674,7 @@ private fun CollectionDetailContent(
         when {
             pagingItems.loadState.refresh is LoadState.Loading &&
                     pagingItems.itemCount == 0 &&
+                    state.cachedTracks.isEmpty() &&
                     !suppressRefreshIndicator -> {
                 item {
                     Box(
@@ -674,7 +701,9 @@ private fun CollectionDetailContent(
                 }
             }
 
-            pagingItems.loadState.refresh is LoadState.Error -> {
+            pagingItems.loadState.refresh is LoadState.Error &&
+                    pagingItems.itemCount == 0 &&
+                    state.cachedTracks.isEmpty() -> {
                 item {
                     val error = (pagingItems.loadState.refresh as LoadState.Error).error
                     ErrorView(

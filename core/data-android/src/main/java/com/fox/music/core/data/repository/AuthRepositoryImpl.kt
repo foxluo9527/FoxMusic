@@ -1,5 +1,7 @@
 package com.fox.music.core.data.repository
 
+import com.fox.music.core.common.cache.ListCacheKeys
+import com.fox.music.core.common.cache.TabPageCache
 import com.fox.music.core.common.result.Result
 import com.fox.music.core.common.result.suspendRunCatchingWithParser
 import com.fox.music.core.data.cache.SearchMusicResultCache
@@ -14,6 +16,7 @@ import com.fox.music.core.network.model.ForgotPasswordRequest
 import com.fox.music.core.network.model.ResetPasswordRequest
 import com.fox.music.core.common.session.TokenManager
 import com.fox.music.core.network.util.ErrorParser
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -69,10 +72,12 @@ class AuthRepositoryImpl @Inject constructor(
                 Unit
             } finally {
                 // 登出应始终结束本地会话，远端通知失败不应让用户卡在已登录状态。
+                val ownerId = runCatching { dataStore.userId.first()?.toLongOrNull() }.getOrNull()
                 tokenManager.clearTokens()
                 dataStore.clearUserInfo()
                 searchMusicResultCache.clear()
                 recommendedMusicCacheManager.clear()
+                ownerId?.let { TabPageCache.invalidateByPrefix(ListCacheKeys.ownerPrefix(it)) }
             }
         }
 

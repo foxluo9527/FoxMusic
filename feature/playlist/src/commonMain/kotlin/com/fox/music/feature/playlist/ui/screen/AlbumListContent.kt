@@ -60,6 +60,11 @@ fun AlbumListContent(
     onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
 ) {
     val albumPagingItems = state.albums.collectAsLazyPagingItems()
+    val refresh = albumPagingItems.loadState.refresh
+    val showCached = albumPagingItems.itemCount == 0 &&
+        state.cachedAlbums.isNotEmpty() &&
+        refresh !is LoadState.NotLoading
+    val visibleCount = if (showCached) state.cachedAlbums.size else albumPagingItems.itemCount
     val gridState = rememberLazyGridState(
         initialFirstVisibleItemIndex = initialFirstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = initialFirstVisibleItemScrollOffset,
@@ -79,20 +84,20 @@ fun AlbumListContent(
         )
 
         when {
-            albumPagingItems.loadState.refresh == LoadState.Loading -> {
+            visibleCount == 0 && refresh is LoadState.Loading -> {
                 LoadingIndicator(useLottie = false)
             }
 
-            albumPagingItems.loadState.refresh is LoadState.Error -> {
+            visibleCount == 0 && refresh is LoadState.Error -> {
                 ErrorView(
                     modifier = Modifier.fillMaxSize(),
-                    message = (albumPagingItems.loadState.refresh as LoadState.Error).error.message
+                    message = (refresh as LoadState.Error).error.message
                         ?: "加载失败",
                     onRetry = { onIntent(AlbumListIntent.Load) }
                 )
             }
 
-            albumPagingItems.loadState.refresh is LoadState.NotLoading && albumPagingItems.itemCount == 0 -> {
+            visibleCount == 0 -> {
                 ErrorView(
                     showIcon = false,
                     modifier = Modifier.fillMaxSize(),
@@ -112,11 +117,18 @@ fun AlbumListContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(
-                            count = albumPagingItems.itemCount,
-                            key = { index -> albumPagingItems[index]?.id ?: index },
+                            count = visibleCount,
+                            key = { index ->
+                                if (showCached) state.cachedAlbums[index].id else albumPagingItems[index]?.id ?: index
+                            },
                             contentType = { "album_item" }
                         ) { index ->
-                            albumPagingItems[index]?.let { album ->
+                            val album = if (showCached) {
+                                state.cachedAlbums[index]
+                            } else {
+                                albumPagingItems[index]
+                            }
+                            album?.let { album ->
                             AlbumGridItem(
                                 album = album,
                                 sharedTransitionScope = sharedTransitionScope,

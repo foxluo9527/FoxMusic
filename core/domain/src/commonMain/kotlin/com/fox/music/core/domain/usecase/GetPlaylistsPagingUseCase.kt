@@ -11,7 +11,10 @@ import kotlinx.coroutines.flow.Flow
 class GetPlaylistsPagingUseCase constructor(
     private val playlistRepository: PlaylistRepository
 ) {
-    operator fun invoke(categoryId: Long? = null): Flow<PagingData<Playlist>> {
+    operator fun invoke(
+        categoryId: Long? = null,
+        onFirstPage: (suspend (List<Playlist>) -> Unit)? = null,
+    ): Flow<PagingData<Playlist>> {
         return Pager(
             config = PagingConfig(
                 pageSize = 20,
@@ -21,7 +24,8 @@ class GetPlaylistsPagingUseCase constructor(
             pagingSourceFactory = {
                 PlaylistPagingSource(
                     repo = playlistRepository,
-                    categoryId = categoryId
+                    categoryId = categoryId,
+                    onFirstPage = onFirstPage,
                 )
             }
         ).flow

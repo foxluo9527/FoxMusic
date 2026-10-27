@@ -102,6 +102,15 @@ object FoxFirstPageCache {
             println("FoxFirstPageCache: save($key) 失败: ${it.message}")
         }
     }
+
+    /** 删掉一条快照（会话删除等）。文件不存在也算成功。 */
+    @OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+    internal fun remove(key: String) {
+        runCatching {
+            val p = pathForKey(key) ?: return
+            NSFileManager.defaultManager.removeItemAtPath(p, null)
+        }
+    }
 }
 
 /** 首页第一页快照（DTO，全部可序列化）。 */

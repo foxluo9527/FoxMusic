@@ -25,12 +25,15 @@ class GetAlbumListUseCase constructor(
         keyword: String? = null,
         artistId: Long? = null,
         sort: String? = null,
+        onFirstPage: (suspend (List<Album>) -> Unit)? = null,
     ) = Pager(
         config = PagingConfig(
             pageSize = limit,
             prefetchDistance = 20,
             initialLoadSize = limit
         ),
-        pagingSourceFactory = {AlbumPagingSource(albumRepository, keyword, artistId, sort)}
+        pagingSourceFactory = {
+            AlbumPagingSource(albumRepository, keyword, artistId, sort, onFirstPage)
+        }
     )
 }

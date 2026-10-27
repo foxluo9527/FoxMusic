@@ -71,6 +71,11 @@ fun HotArtistListContent(
     onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
 ) {
     val artistPagingItems = state.artists.collectAsLazyPagingItems()
+    val refresh = artistPagingItems.loadState.refresh
+    val showCached = artistPagingItems.itemCount == 0 &&
+        state.cachedArtists.isNotEmpty() &&
+        refresh !is LoadState.NotLoading
+    val visibleCount = if (showCached) state.cachedArtists.size else artistPagingItems.itemCount
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val gridState = rememberLazyGridState(
         initialFirstVisibleItemIndex = initialFirstVisibleItemIndex,
@@ -91,20 +96,20 @@ fun HotArtistListContent(
         )
 
         when {
-            artistPagingItems.loadState.refresh == LoadState.Loading -> {
+            visibleCount == 0 && refresh is LoadState.Loading -> {
                 LoadingIndicator(useLottie = false)
             }
 
-            artistPagingItems.loadState.refresh is LoadState.Error -> {
+            visibleCount == 0 && refresh is LoadState.Error -> {
                 ErrorView(
                     modifier = Modifier.fillMaxSize(),
-                    message = (artistPagingItems.loadState.refresh as LoadState.Error).error.message
+                    message = (refresh as LoadState.Error).error.message
                         ?: "加载失败",
                     onRetry = { artistPagingItems.retry() },
                 )
             }
 
-            artistPagingItems.loadState.refresh is LoadState.NotLoading && artistPagingItems.itemCount == 0 -> {
+            visibleCount == 0 -> {
                 ErrorView(
                     modifier = Modifier.fillMaxSize(),
                     message = "暂无热门歌手",
@@ -138,15 +143,23 @@ fun HotArtistListContent(
                     }
 
                     items(
-                        count = artistPagingItems.itemCount,
+                        count = visibleCount,
                         key = { index ->
-                            artistPagingItems.peek(index)?.let { artist ->
-                                "hot_artist_${artist.id}_$index"
-                            } ?: "hot_artist_loading_$index"
+                            val artist = if (showCached) {
+                                state.cachedArtists[index]
+                            } else {
+                                artistPagingItems.peek(index)
+                            }
+                            artist?.let { "hot_artist_${it.id}_$index" } ?: "hot_artist_loading_$index"
                         },
                         contentType = { "hot_artist_item" },
                     ) { index ->
-                        artistPagingItems[index]?.let { artist ->
+                        val artist = if (showCached) {
+                            state.cachedArtists[index]
+                        } else {
+                            artistPagingItems[index]
+                        }
+                        artist?.let { artist ->
                             HotArtistGridItem(
                                 artist = artist,
                                 onClick = { onArtistClick(artist.id) },

@@ -48,9 +48,11 @@ import com.fox.music.feature.home.HomeContent
 import com.fox.music.feature.home.HomeIntent
 import com.fox.music.feature.home.HomeState
 import com.fox.music.feature.playlist.ui.component.PlaylistDetailContent
+import com.fox.music.feature.playlist.viewmodel.DetailListSnapshot
 import com.fox.music.feature.playlist.viewmodel.HeaderInfo
 import com.fox.music.feature.playlist.viewmodel.PlaylistDetailState
 import com.fox.music.iosshared.FoxAuthStore
+import com.fox.music.iosshared.FoxSceneCache
 import com.fox.music.iosshared.FoxIosBridge
 import com.fox.music.iosshared.FoxFirstPageCache
 import com.fox.music.iosshared.FoxMusicTopListCache
@@ -467,6 +469,7 @@ object FoxPlaylistDetailScreen {
             else -> DetailType.PLAYLIST
         }
         var header by remember { mutableStateOf<HeaderInfo?>(null) }
+        var cachedTracks by remember { mutableStateOf<List<Music>>(emptyList()) }
         var error by remember { mutableStateOf<String?>(null) }
         // 仅自己的歌单显示管理菜单（编辑/删除），与 Android isOwner 同语义
         var isOwner by remember(playlistId) { mutableStateOf(false) }
@@ -521,6 +524,32 @@ object FoxPlaylistDetailScreen {
                 FoxDiscoverScreen.applyTopList(items)
             }
             onTopListLoaded?.invoke(sort, items.mapNotNull { FoxIosBridge.playableSong(it) })
+        }
+
+        val cachesTracks = type == DetailType.PLAYLIST || type == DetailType.RANK || type == DetailType.ALBUM
+        LaunchedEffect(playlistId, type) {
+            if (!cachesTracks) return@LaunchedEffect
+            val snap = FoxSceneCache.load(
+                DetailListSnapshot.serializer(),
+                "tracks",
+                type.name,
+                playlistId.toString(),
+            ) ?: return@LaunchedEffect
+            if (header == null) header = snap.toHeader()
+            cachedTracks = snap.tracks
+        }
+
+        LaunchedEffect(header, pagingItems.itemSnapshotList.items) {
+            val currentHeader = header ?: return@LaunchedEffect
+            val items = pagingItems.itemSnapshotList.items
+            if (!cachesTracks || items.isEmpty()) return@LaunchedEffect
+            FoxSceneCache.save(
+                DetailListSnapshot.serializer(),
+                DetailListSnapshot.from(currentHeader, items),
+                "tracks",
+                type.name,
+                playlistId.toString(),
+            )
         }
 
         LaunchedEffect(playlistId, type, revision) {
@@ -650,8 +679,9 @@ object FoxPlaylistDetailScreen {
                 PlaylistDetailContent(
                     state = PlaylistDetailState(
                         headerInfo = header,
+                        cachedTracks = cachedTracks,
                         detailType = type,
-                        isLoading = header == null && error == null,
+                        isLoading = header == null && error == null && cachedTracks.isEmpty(),
                         error = error,
                     ),
                     pagingItems = pagingItems,
@@ -663,12 +693,13 @@ object FoxPlaylistDetailScreen {
                     animatedContentScope = this@AnimatedContent,
                     onMusicClick = { music ->
                         // 点某一首：整份已加载曲目当队列，并定位到点中的那首
-                        val (songs, index) = queueOf(pagingItems.itemSnapshotList.items, music)
+                        val loaded = pagingItems.itemSnapshotList.items.ifEmpty { cachedTracks }
+                        val (songs, index) = queueOf(loaded, music)
                         onMusicClickFromList(songs, index)
                     },
                     onPlayAll = {
-                        val firstPage = pagingItems.itemSnapshotList.items
-                        onPlayAll(firstPage.mapNotNull { FoxIosBridge.playableSong(it) })
+                        val loaded = pagingItems.itemSnapshotList.items.ifEmpty { cachedTracks }
+                        onPlayAll(loaded.mapNotNull { FoxIosBridge.playableSong(it) })
                     },
                     onToggleFavorite = {}, // 需登录，后续批次接入
                     onMusicMoreClick = onMusicMoreClick,
@@ -816,10 +847,22 @@ object FoxArtistDetailScreen {
         var error by remember { mutableStateOf<String?>(null) }
 
         LaunchedEffect(artistId) {
+            FoxSceneCache.load(ArtistDetail.serializer(), "artist", "detail", artistId.toString())
+                ?.let { detail = it }
             try {
-                detail = api.fetchArtistDetail(artistId)?.toArtistDetail()
+                val fresh = api.fetchArtistDetail(artistId)?.toArtistDetail()
+                if (fresh != null) {
+                    detail = fresh
+                    FoxSceneCache.save(
+                        ArtistDetail.serializer(),
+                        fresh,
+                        "artist",
+                        "detail",
+                        artistId.toString(),
+                    )
+                }
             } catch (e: Exception) {
-                error = e.message
+                if (detail == null) error = e.message
             }
         }
 

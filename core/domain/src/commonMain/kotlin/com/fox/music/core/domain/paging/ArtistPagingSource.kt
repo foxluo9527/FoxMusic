@@ -9,6 +9,7 @@ class ArtistPagingSource(
     private val repo: ArtistRepository,
     private val keyword: String? = null,
     private val sort: String? = null,
+    private val onFirstPage: (suspend (List<Artist>) -> Unit)? = null,
 ) : PagingSource<Int, Artist>() {
 
     private val seenIds = mutableSetOf<Long>()
@@ -28,6 +29,9 @@ class ArtistPagingSource(
             val data = (pagedData?.list ?: emptyList()).filter { seenIds.add(it.id) }
             val prevKey = if (page > 1) page - 1 else null
             val nextKey = if (data.isNotEmpty() && (pagedData?.hasMore == true)) page + 1 else null
+            if (page == 1) {
+                runCatching { onFirstPage?.invoke(data) }
+            }
 
             LoadResult.Page(
                 data = data,

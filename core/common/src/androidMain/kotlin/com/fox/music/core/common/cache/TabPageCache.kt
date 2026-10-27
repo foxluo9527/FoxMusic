@@ -105,21 +105,79 @@ object TabPageCache {
         key: String,
         create: () -> T,
         transform: (T) -> T,
+        ttlMs: Long = DEFAULT_TTL_MS,
     ) {
         synchronized(lock) {
             val current = entries[key]
                 ?.takeIf { it.expiresAtMs >= System.currentTimeMillis() }
                 ?.value as? T
             val next = if (current == null) create() else transform(current)
-            val expiresAtMs = System.currentTimeMillis() + DEFAULT_TTL_MS
+            val expiresAtMs = System.currentTimeMillis() + ttlMs
             entries[key] = Entry(next, expiresAtMs)
             writeDisk(key, next, expiresAtMs)
         }
     }
 
+    /**
+     * 写入一份已经编好的 JSON（列表页、帖子详情、AI 会话等动态 key）。
+     * 不需要预先 [register] codec；内存与磁盘都走同一份信封。
+     */
+    fun putRaw(key: String, payload: String, ttlMs: Long = ListCacheKeys.LIST_TTL_MS) {
+        val expiresAtMs = System.currentTimeMillis() + ttlMs
+        synchronized(lock) {
+            entries[key] = Entry(payload, expiresAtMs)
+        }
+        writeRawDisk(key, payload, expiresAtMs)
+    }
+
+    /** 读取 [putRaw] 写入的 payload。过期或损坏返回 null。 */
+    fun readRaw(key: String): String? {
+        synchronized(lock) {
+            val entry = entries[key]
+            if (entry != null) {
+                if (entry.expiresAtMs < System.currentTimeMillis()) {
+                    entries.remove(key)
+                } else {
+                    return entry.value as? String
+                }
+            }
+        }
+        val dir = diskDir() ?: return null
+        val envelope = runCatching { SnapshotFiles.read(dir, key) }.getOrNull() ?: return null
+        synchronized(lock) {
+            entries[key] = Entry(envelope.payload, envelope.expiresAtMs)
+        }
+        return envelope.payload
+    }
+
+    suspend fun readRawAsync(key: String): String? =
+        kotlinx.coroutines.withContext(Dispatchers.IO) { readRaw(key) }
+
     fun invalidate(key: String) {
         synchronized(lock) { entries.remove(key) }
-        diskScope.launch { runCatching { diskFile(key)?.delete() } }
+        diskScope.launch {
+            runCatching {
+                val dir = diskDir() ?: return@runCatching
+                SnapshotFiles.file(dir, key).delete()
+            }
+        }
+    }
+
+    /** 删掉某个账号前缀下的列表快照（登出时清掉 AI 会话、帖子、带收藏态的列表）。 */
+    fun invalidateByPrefix(prefix: String) {
+        if (prefix.isBlank()) return
+        synchronized(lock) {
+            entries.keys.filter { it.startsWith(prefix) }.toList().forEach { entries.remove(it) }
+        }
+        diskScope.launch {
+            runCatching {
+                val dir = diskDir() ?: return@runCatching
+                dir.listFiles()?.forEach { file ->
+                    val name = file.name.removeSuffix(".tmp").removeSuffix(".json")
+                    if (name.startsWith(prefix)) file.delete()
+                }
+            }
+        }
     }
 
     fun clear() {
@@ -131,42 +189,32 @@ object TabPageCache {
 
     // ---- 磁盘层 ----
 
-    private fun diskFile(key: String): File? {
+    private fun diskDir(): File? {
         val ctx = appContext ?: return null
-        return File(File(ctx.cacheDir, DISK_DIR).apply { mkdirs() }, "$key.json")
+        return File(ctx.cacheDir, DISK_DIR).apply { mkdirs() }
     }
 
     private fun writeDisk(key: String, value: Any, expiresAtMs: Long) {
         val codec = codecs[key] ?: return
-        val file = diskFile(key) ?: return
         val payload = runCatching { codec.encode(value) }.getOrNull() ?: return
+        writeRawDisk(key, payload, expiresAtMs)
+    }
+
+    private fun writeRawDisk(key: String, payload: String, expiresAtMs: Long) {
+        val dir = diskDir() ?: return
         diskScope.launch {
-            runCatching {
-                val tmp = File(file.parentFile, "${file.name}.tmp")
-                tmp.writeText("$expiresAtMs\n$payload")
-                if (file.exists()) file.delete()
-                tmp.renameTo(file)
-            }
+            runCatching { SnapshotFiles.write(dir, key, expiresAtMs, payload) }
         }
     }
 
     private fun readDisk(key: String): Any? {
         val codec = codecs[key] ?: return null
-        val file = diskFile(key) ?: return null
+        val dir = diskDir() ?: return null
         return runCatching {
-            if (!file.exists()) return null
-            val raw = file.readText()
-            val nl = raw.indexOf('\n')
-            if (nl <= 0) return null
-            val expiresAtMs = raw.substring(0, nl).trim().toLongOrNull() ?: return null
-            if (expiresAtMs < System.currentTimeMillis()) {
-                file.delete()
-                return null
-            }
-            val payload = raw.substring(nl + 1)
-            val value = codec.decode(payload) ?: return null
+            val envelope = SnapshotFiles.read(dir, key) ?: return null
+            val value = codec.decode(envelope.payload) ?: return null
             // 回填内存，后续同进程内读取不再碰盘
-            synchronized(lock) { entries[key] = Entry(value, expiresAtMs) }
+            synchronized(lock) { entries[key] = Entry(value, envelope.expiresAtMs) }
             value
         }.getOrNull()
     }

@@ -1,6 +1,7 @@
 package com.fox.music.feature.discover
 
 import androidx.lifecycle.viewModelScope
+import com.fox.music.core.common.cache.ListCacheKeys
 import com.fox.music.core.common.cache.TabPageCache
 import com.fox.music.core.common.cache.TabPageKeys
 import com.fox.music.core.common.mvi.MviViewModel
@@ -43,6 +44,7 @@ class DiscoverViewModel @Inject constructor(
                     updateState { copy(newMusic = items) }
                     TabPageCache.update(
                         key = TabPageKeys.DISCOVER,
+                        ttlMs = ListCacheKeys.LIST_TTL_MS,
                         create = {
                             DiscoverPageSnapshot(
                                 hotKeywords = currentState.hotKeywords,
@@ -151,6 +153,7 @@ class DiscoverViewModel @Inject constructor(
             // 落快照：下次进发现页先渲染这一份
             TabPageCache.put(
                 key = TabPageKeys.DISCOVER,
+                ttlMs = ListCacheKeys.LIST_TTL_MS,
                 value = DiscoverPageSnapshot(
                     hotKeywords = currentState.hotKeywords,
                     ranks = currentState.ranks,

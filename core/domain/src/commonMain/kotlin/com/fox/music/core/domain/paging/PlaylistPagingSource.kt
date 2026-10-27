@@ -8,6 +8,7 @@ import com.fox.music.core.model.music.Playlist
 class PlaylistPagingSource(
     private val repo: PlaylistRepository,
     private val categoryId: Long? = null, // null 表示加载推荐歌单
+    private val onFirstPage: (suspend (List<Playlist>) -> Unit)? = null,
 ): PagingSource<Int, Playlist>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Playlist> {
@@ -27,6 +28,9 @@ class PlaylistPagingSource(
             val data = pagedData?.list ?: emptyList()
             val prevKey = if (page > 1) page - 1 else null
             val nextKey = if (data.isNotEmpty() && (pagedData?.hasMore == true)) page + 1 else null
+            if (page == 1) {
+                runCatching { onFirstPage?.invoke(data) }
+            }
 
             LoadResult.Page(
                 data = data,

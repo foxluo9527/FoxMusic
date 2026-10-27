@@ -5,6 +5,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.fox.music.core.assistant.AiConversationDetail
+import com.fox.music.core.assistant.AiConversationPage
+import com.fox.music.core.assistant.AiConversationSummary
 import com.fox.music.core.assistant.AiMessage
 import com.fox.music.core.assistant.AssistantAction
 import com.fox.music.core.assistant.AssistantActionTypes
@@ -13,6 +16,7 @@ import com.fox.music.core.assistant.needsConfirmDialog
 import com.fox.music.feature.assistant.AssistantChatMessage
 import com.fox.music.feature.assistant.AssistantState
 import com.fox.music.feature.assistant.ui.AssistantContent
+import com.fox.music.iosshared.FoxSceneCache
 import com.fox.music.iosshared.PlayableSong
 import com.fox.music.iosshared.assistant.AssistantDispatcherIos
 import com.fox.music.iosshared.assistant.AssistantPlayback
@@ -20,6 +24,8 @@ import com.fox.music.iosshared.assistant.FoxAssistantApi
 import com.fox.music.iosshared.foxComposeViewController
 import com.fox.music.iosshared.foxMainScope
 import kotlinx.coroutines.launch
+import platform.Foundation.NSDate
+import platform.Foundation.NSDateFormatter
 import platform.UIKit.UIViewController
 
 /**
@@ -80,6 +86,7 @@ object FoxAssistantScreen {
                         ),
                         isSending = false,
                     )
+                    persistAssistantState(state)
                 } catch (e: Exception) {
                     state = state.copy(
                         messages = state.messages.map { msg ->
@@ -132,33 +139,33 @@ object FoxAssistantScreen {
 
         fun loadConversations() {
             scope.launch {
+                val cached = loadCachedConversations()
+                if (cached != null) {
+                    state = state.copy(conversations = cached.list, historyOpen = true)
+                }
                 try {
                     val page = api.listConversations()
                     state = state.copy(conversations = page.list, historyOpen = true)
+                    saveConversations(page)
                 } catch (e: Exception) {
-                    onMessage(e.message ?: "加载会话列表失败")
+                    if (cached == null && state.conversations.isEmpty()) {
+                        onMessage(e.message ?: "加载会话列表失败")
+                    }
                 }
             }
         }
 
         fun openConversation(id: Long) {
             scope.launch {
+                val cached = loadCachedConversation(id)
+                if (cached != null) state = state.withConversation(cached)
                 try {
                     val detail = api.getConversation(id)
-                    state = state.copy(
-                        conversationId = detail.id,
-                        messages = detail.messages.map { ai: AiMessage ->
-                            AssistantChatMessage(
-                                id = ai.id,
-                                isUser = ai.isUser,
-                                content = ai.content ?: "",
-                                actions = ai.actions ?: emptyList(),
-                            )
-                        },
-                        historyOpen = false,
-                    )
+                    state = state.withConversation(detail)
+                    saveConversation(detail)
+                    saveConversations(mergeAssistantSummary(loadCachedConversations(), detail))
                 } catch (e: Exception) {
-                    onMessage(e.message ?: "加载会话失败")
+                    if (cached == null) onMessage(e.message ?: "加载会话失败")
                 }
             }
         }
@@ -168,6 +175,8 @@ object FoxAssistantScreen {
                 try {
                     api.deleteConversation(id)
                     state = state.copy(conversations = state.conversations.filterNot { it.id == id })
+                    FoxSceneCache.remove("ai", "conversation", id.toString())
+                    saveConversations(AiConversationPage(list = state.conversations))
                     onMessage("已删除会话")
                 } catch (e: Exception) {
                     onMessage(e.message ?: "删除会话失败")
@@ -204,5 +213,85 @@ object FoxAssistantScreen {
             onToggleHistory = { state = state.copy(historyOpen = !state.historyOpen) },
             onBack = onBack,
         )
+    }
+
+    /** 发送成功后把当前会话写回磁盘，并同步历史列表摘要。 */
+    private suspend fun persistAssistantState(state: AssistantState) {
+        val id = state.conversationId ?: return
+        val messages = state.messages.filter { !it.isSending && !it.failed }
+        val existing = loadCachedConversations()?.list?.find { it.id == id }
+        val today = assistantToday()
+        val detail = AiConversationDetail(
+            id = id,
+            title = existing?.title ?: messages.firstOrNull { it.isUser }?.content?.take(40),
+            messageCount = messages.size,
+            createdAt = existing?.createdAt ?: today,
+            updatedAt = today,
+            messages = messages.map { msg ->
+                AiMessage(
+                    id = msg.id,
+                    role = if (msg.isUser) AiMessage.ROLE_USER else AiMessage.ROLE_ASSISTANT,
+                    content = msg.content,
+                    actions = msg.actions.takeIf { it.isNotEmpty() },
+                )
+            },
+        )
+        saveConversation(detail)
+        saveConversations(mergeAssistantSummary(loadCachedConversations(), detail))
+    }
+
+    private suspend fun loadCachedConversations(): AiConversationPage? =
+        FoxSceneCache.load(AiConversationPage.serializer(), "ai", "conversations")
+
+    private suspend fun saveConversations(page: AiConversationPage) {
+        FoxSceneCache.save(AiConversationPage.serializer(), page, "ai", "conversations")
+    }
+
+    private suspend fun loadCachedConversation(id: Long): AiConversationDetail? =
+        FoxSceneCache.load(AiConversationDetail.serializer(), "ai", "conversation", id.toString())
+
+    private suspend fun saveConversation(detail: AiConversationDetail) {
+        FoxSceneCache.save(
+            AiConversationDetail.serializer(),
+            detail,
+            "ai",
+            "conversation",
+            detail.id.toString(),
+        )
+    }
+
+    private fun mergeAssistantSummary(
+        page: AiConversationPage?,
+        detail: AiConversationDetail,
+    ): AiConversationPage {
+        val summary = AiConversationSummary(
+            id = detail.id,
+            title = detail.title,
+            messageCount = detail.messageCount,
+            createdAt = detail.createdAt,
+            updatedAt = detail.updatedAt,
+        )
+        val rest = page?.list.orEmpty().filterNot { it.id == detail.id }
+        return AiConversationPage(list = listOf(summary) + rest, total = rest.size + 1)
+    }
+
+    private fun AssistantState.withConversation(detail: AiConversationDetail): AssistantState =
+        copy(
+            conversationId = detail.id,
+            messages = detail.messages.map { ai ->
+                AssistantChatMessage(
+                    id = ai.id,
+                    isUser = ai.isUser,
+                    content = ai.content ?: "",
+                    actions = ai.actions ?: emptyList(),
+                )
+            },
+            historyOpen = false,
+        )
+
+    private fun assistantToday(): String {
+        val formatter = NSDateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.stringFromDate(NSDate())
     }
 }

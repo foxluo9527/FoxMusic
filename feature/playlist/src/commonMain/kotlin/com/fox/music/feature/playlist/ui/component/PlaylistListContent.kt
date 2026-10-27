@@ -72,6 +72,12 @@ fun PlaylistListContent(
     onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
 ) {
     val playlistPagingItems = state.playlists.collectAsLazyPagingItems()
+    val refresh = playlistPagingItems.loadState.refresh
+    // 分页第一页还没回来（或失败）时，用磁盘快照把格子铺上，避免空等。
+    val showCached = playlistPagingItems.itemCount == 0 &&
+        state.cachedPlaylists.isNotEmpty() &&
+        refresh !is LoadState.NotLoading
+    val visibleCount = if (showCached) state.cachedPlaylists.size else playlistPagingItems.itemCount
     val gridState = rememberLazyGridState(
         initialFirstVisibleItemIndex = initialFirstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = initialFirstVisibleItemScrollOffset,
@@ -125,20 +131,20 @@ fun PlaylistListContent(
 
         // Content
         when {
-            playlistPagingItems.loadState.refresh == LoadState.Loading -> {
+            visibleCount == 0 && refresh is LoadState.Loading -> {
                 LoadingIndicator(useLottie = false)
             }
 
-            playlistPagingItems.loadState.refresh is LoadState.Error -> {
+            visibleCount == 0 && refresh is LoadState.Error -> {
                 ErrorView(
                     modifier = Modifier.fillMaxSize(),
-                    message = (playlistPagingItems.loadState.refresh as LoadState.Error).error.message
+                    message = (refresh as LoadState.Error).error.message
                         ?: "加载失败",
                     onRetry = { onIntent(PlaylistListIntent.Load) }
                 )
             }
 
-            playlistPagingItems.loadState.refresh is LoadState.NotLoading && playlistPagingItems.itemCount == 0 -> {
+            visibleCount == 0 -> {
                 ErrorView(
                     showIcon = false,
                     modifier = Modifier.fillMaxSize(),
@@ -162,11 +168,18 @@ fun PlaylistListContent(
                         horizontalArrangement = Arrangement.spacedBy(13.dp),
                     ) {
                         items(
-                            count = playlistPagingItems.itemCount,
-                            key = { index -> playlistPagingItems[index]?.id ?: index },
+                            count = visibleCount,
+                            key = { index ->
+                                if (showCached) state.cachedPlaylists[index].id else playlistPagingItems[index]?.id ?: index
+                            },
                             contentType = { "playlist_item" }
                         ) { index ->
-                            playlistPagingItems[index]?.let { playlist ->
+                            val playlist = if (showCached) {
+                                state.cachedPlaylists[index]
+                            } else {
+                                playlistPagingItems[index]
+                            }
+                            playlist?.let { playlist ->
                                 PlaylistGridItem(
                                     playlist = playlist,
                                     sharedTransitionScope = sharedTransitionScope,
