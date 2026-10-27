@@ -38,6 +38,10 @@ kotlin {
             api(libs.paging.common)
         }
 
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+
         androidMain.dependencies {
             // 这两条本模块自身用不到（模块内 0 处 Paging 符号），但与改造前保持一致：
             // core:domain 的 28 个文件靠这里的 api 透传拿到 androidx.paging，

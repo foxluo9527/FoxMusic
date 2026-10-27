@@ -76,6 +76,7 @@ import com.fox.music.core.network.model.UserHomeProfileDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.darwin.Darwin
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
@@ -181,6 +182,27 @@ class FoxMusicApi {
         coerceInputValues = true
         encodeDefaults = true
         explicitNulls = false
+    }
+
+    /**
+     * 歌词纠正直连 LRCLIB / Megalobiz / lyrics.ovh。不走业务 HttpClient，
+     * 避免带上 Fox 的 Authorization，也给这些外站单独的超时。
+     */
+    private val externalClient by lazy {
+        HttpClient(Darwin) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = 12_000
+                connectTimeoutMillis = 8_000
+                socketTimeoutMillis = 12_000
+            }
+        }
+    }
+
+    suspend fun getExternalText(url: String, headers: Map<String, String>): Pair<Int, String> {
+        val response = externalClient.get(url) {
+            headers.forEach { (name, value) -> header(name, value) }
+        }
+        return response.status.value to response.bodyAsText()
     }
 
     /**

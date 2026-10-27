@@ -91,6 +91,8 @@ import com.fox.music.core.domain.usecase.GetMyMusicFeedbacksUseCase
 import com.fox.music.core.domain.usecase.ReplaceMusicSourceUseCase
 import com.fox.music.core.domain.usecase.CheckMusicExistsUseCase
 import com.fox.music.core.domain.usecase.ImportSingleTrackUseCase
+import com.fox.music.core.domain.lyric.OpenLyricHttp
+import com.fox.music.core.domain.lyric.OpenLyricSources
 import com.fox.music.core.domain.usecase.FetchBestMatchedLyricUseCase
 import com.fox.music.core.domain.usecase.FetchScrapedLyricsUseCase
 import com.fox.music.core.domain.usecase.ToggleAlbumFavoriteUseCase
@@ -109,6 +111,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 
 /**
  * UseCase 显式装配模块。
@@ -394,5 +397,9 @@ object UseCaseModule {
     @Provides
     fun provideFetchBestMatchedLyricUseCase(searchRepository: SearchRepository): FetchBestMatchedLyricUseCase =
         FetchBestMatchedLyricUseCase(searchRepository)
+
+    @Provides
+    @Singleton
+    fun provideOpenLyricSources(http: OpenLyricHttp): OpenLyricSources = OpenLyricSources(http)
 
 }
