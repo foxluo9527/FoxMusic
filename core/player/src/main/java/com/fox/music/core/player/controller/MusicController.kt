@@ -60,6 +60,17 @@ interface MusicController {
     fun removeFromQueue(index: Int)
 
     /**
+     * 歌单曲目删除成功后，若当前队列就是该歌单（或从它起播），立刻去掉这些曲目。
+     * 正在播的那首被删掉时切到下一首；已经是最后一首则回到剩余的最后一首；队列空了则停止。
+     * 其它来源的队列不动。
+     */
+    fun removeTracksFromPlaylistQueue(
+        musicIds: Collection<Long>,
+        playlistKey: String,
+        playlistId: Long,
+    )
+
+    /**
      * 清空播放队列
      */
     fun clearQueue()

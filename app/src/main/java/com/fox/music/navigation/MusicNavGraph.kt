@@ -266,6 +266,13 @@ fun NavGraphBuilder.musicNavGraph(
                             navController.navigate(playlistImportDetailRoute(detailPlaylistId))
                         }
                     },
+                    onTracksRemoved = { musicIds, playlistKey ->
+                        musicController.removeTracksFromPlaylistQueue(
+                            musicIds = musicIds,
+                            playlistKey = playlistKey,
+                            playlistId = detailPlaylistId,
+                        )
+                    },
                 )
             }
         }

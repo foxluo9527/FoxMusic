@@ -39,6 +39,7 @@ fun PlaylistDetailScreen(
     onDownloadSelected: (List<Music>) -> Unit = {},
     onSelectionModeChanged: (Boolean) -> Unit = {},
     onOpenImportDetail: () -> Unit = {},
+    onTracksRemoved: (List<Long>, String) -> Unit = { _, _ -> },
     currentMusicId: Long? = null,
     /** 整份列表（为你精选/新歌速递）加载成功：同步首页/发现页数据与正在播放的队列 */
     onTopListLoaded: (String, List<Music>) -> Unit = { _, _ -> },
@@ -63,9 +64,13 @@ fun PlaylistDetailScreen(
     LaunchedEffect(pagingItems.itemSnapshotList.items) {
         viewModel.updateCurrentTrackList(pagingItems.itemSnapshotList.items)
     }
-    LaunchedEffect(pagingItems.itemSnapshotList.items, playlistKey) {
+    LaunchedEffect(pagingItems.itemSnapshotList.items, playlistKey, state.removedMusicIds) {
         if (playlistKey.isNotEmpty()) {
-            updateMusicList(pagingItems.itemSnapshotList.items, playlistKey)
+            val removed = state.removedMusicIds
+            val visible = pagingItems.itemSnapshotList.items.filter { it.id !in removed }
+            if (visible.isNotEmpty()) {
+                updateMusicList(visible, playlistKey)
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -118,6 +123,10 @@ fun PlaylistDetailScreen(
                     pagingItems.refresh()
                 }
 
+                is PlaylistDetailEffect.TracksRemoved -> {
+                    onTracksRemoved(effect.musicIds, playlistKey)
+                }
+
                 is PlaylistDetailEffect.TopListLoaded -> {
                     onTopListLoaded(effect.sort, effect.list)
                 }
@@ -133,7 +142,12 @@ fun PlaylistDetailScreen(
         canManagePlaylist = viewModel.canManagePlaylist,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
-        onMusicClick = { music -> viewModel.onMusicClick(music, pagingItems.itemSnapshotList.items) },
+        onMusicClick = { music ->
+            val removed = state.removedMusicIds
+            val list = state.visibleTracks
+                ?: pagingItems.itemSnapshotList.items.filter { it.id !in removed }
+            viewModel.onMusicClick(music, list)
+        },
         onPlayAll = { viewModel.sendIntent(PlaylistDetailIntent.PlayAll) },
         onToggleFavorite = { viewModel.sendIntent(PlaylistDetailIntent.ToggleFavorite) },
         onMusicMoreClick = onMusicMoreClick,

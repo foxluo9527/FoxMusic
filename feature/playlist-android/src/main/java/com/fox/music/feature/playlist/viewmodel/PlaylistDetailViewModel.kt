@@ -80,6 +80,13 @@ class PlaylistDetailViewModel @Inject constructor(
     private val diskOwnerId = CompletableDeferred<Long?>()
     private var latestTracks: List<Music>? = null
 
+    /**
+     * 已成功移出的曲目。分页回调在后台线程读它，所以和 UI state 分开用 volatile 快照。
+     * 写磁盘快照前再滤一次，避免先发出的详情回包把刚删的歌写回去。
+     */
+    @Volatile
+    private var removedMusicIds: Set<Long> = emptySet()
+
     private val shouldCacheDetail: Boolean
         get() = detailId > 0L && detailType in CACHED_DETAIL_TYPES
 
@@ -402,13 +409,54 @@ class PlaylistDetailViewModel @Inject constructor(
         viewModelScope.launch {
             removeTracksFromPlaylistUseCase(detailId, musicIds)
                 .onSuccess {
+                    applyLocalTrackRemoval(musicIds.toSet())
                     sendEffect(PlaylistDetailEffect.ShowToast("已从歌单移除"))
+                    sendEffect(PlaylistDetailEffect.TracksRemoved(musicIds))
                     sendEffect(PlaylistDetailEffect.RefreshTracks)
-                    exitSelectionMode()
                 }
                 .onError { _, msg ->
                     sendEffect(PlaylistDetailEffect.ShowToast(msg ?: "移除失败"))
                 }
+        }
+    }
+
+    /**
+     * 删除接口已经成功：列表、头部数量、内存/磁盘快照马上去掉这些歌。
+     * 分页刷新仍会走，但 UI 不再等它回来才消失。
+     */
+    private fun applyLocalTrackRemoval(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        val removedSnapshot = removedMusicIds + ids
+        removedMusicIds = removedSnapshot
+        val base = currentTrackList.ifEmpty { latestTracks ?: uiState.value.cachedTracks }
+        val visible = base.filter { it.id !in removedSnapshot }
+        latestTracks = visible
+        currentTrackList = visible
+        val header = uiState.value.headerInfo
+        val removedCount = if (base.isEmpty()) ids.size else base.count { it.id in ids }
+        val nextHeader = header?.copy(
+            trackCount = (header.trackCount - removedCount).coerceAtLeast(0),
+        )
+        updateState {
+            copy(
+                headerInfo = nextHeader ?: headerInfo,
+                cachedTracks = if (base.isEmpty()) {
+                    cachedTracks.filter { it.id !in removedSnapshot }
+                } else {
+                    visible
+                },
+                visibleTracks = if (base.isEmpty()) visibleTracks else visible,
+                removedMusicIds = removedSnapshot,
+                isSelectionMode = false,
+                selectedMusicIds = emptySet(),
+            )
+        }
+        if (nextHeader != null) {
+            updateKnownTrackCount(maxOf(nextHeader.trackCount, visible.size))
+        }
+        val headerToPersist = uiState.value.headerInfo
+        if (headerToPersist != null) {
+            persistDetailHeader(headerToPersist)
         }
     }
 
@@ -458,9 +506,19 @@ class PlaylistDetailViewModel @Inject constructor(
     }
 
     fun updateCurrentTrackList(list: List<Music>) {
+        val visible = list.withoutRemoved()
         // 分页还没回来时会交来空列表，不能把磁盘快照里已经能播的队列清掉。
         if (list.isNotEmpty() || latestTracks == null) {
-            currentTrackList = list
+            currentTrackList = if (removedMusicIds.isEmpty()) list else visible
+        }
+        if (removedMusicIds.isNotEmpty() && list.isNotEmpty()) {
+            latestTracks = visible
+            updateState {
+                copy(
+                    cachedTracks = visible,
+                    visibleTracks = visible,
+                )
+            }
         }
     }
 
@@ -703,15 +761,18 @@ class PlaylistDetailViewModel @Inject constructor(
 
     private suspend fun onTracksLoaded(items: List<Music>) {
         if (!shouldCacheDetail) return
-        latestTracks = items
-        currentTrackList = items
-        updateState { copy(cachedTracks = items) }
-        val header = uiState.value.headerInfo ?: return
-        val owner = diskOwnerId.await()
-        val payload = withContext(Dispatchers.Default) {
-            DetailListSnapshot.from(header, items).encode()
+        val visible = items.withoutRemoved()
+        latestTracks = visible
+        currentTrackList = visible
+        val hideRemoved = removedMusicIds.isNotEmpty()
+        updateState {
+            copy(
+                cachedTracks = visible,
+                visibleTracks = if (hideRemoved) visible else visibleTracks,
+            )
         }
-        TabPageCache.putRaw(detailCacheKey(owner), payload)
+        val header = uiState.value.headerInfo ?: return
+        persistSnapshot(header, visible)
     }
 
     private suspend fun restoreDetailCache(owner: Long?) {
@@ -736,14 +797,25 @@ class PlaylistDetailViewModel @Inject constructor(
 
     private fun persistDetailHeader(header: HeaderInfo) {
         if (!shouldCacheDetail) return
+        val tracks = (latestTracks ?: uiState.value.cachedTracks).withoutRemoved()
         viewModelScope.launch {
-            val owner = diskOwnerId.await()
-            val tracks = latestTracks ?: uiState.value.cachedTracks
-            val payload = withContext(Dispatchers.Default) {
-                DetailListSnapshot.from(header, tracks).encode()
-            }
-            TabPageCache.putRaw(detailCacheKey(owner), payload)
+            persistSnapshot(header, tracks)
         }
+    }
+
+    private suspend fun persistSnapshot(header: HeaderInfo, tracks: List<Music>) {
+        val owner = diskOwnerId.await()
+        val payload = withContext(Dispatchers.Default) {
+            // 编码前再读一次，盖住「回包已经开始写、删除刚刚成功」的窗口。
+            DetailListSnapshot.from(header, tracks.withoutRemoved()).encode()
+        }
+        TabPageCache.putRaw(detailCacheKey(owner), payload)
+    }
+
+    private fun List<Music>.withoutRemoved(): List<Music> {
+        val removed = removedMusicIds
+        if (removed.isEmpty()) return this
+        return filter { it.id !in removed }
     }
 
     private fun failHeader(message: String?) {

@@ -1439,6 +1439,104 @@ class MusicControllerImpl @Inject constructor(
         persistPlaybackState()
     }
 
+    override fun removeTracksFromPlaylistQueue(
+        musicIds: Collection<Long>,
+        playlistKey: String,
+        playlistId: Long,
+    ) {
+        if (musicIds.isEmpty() || currentPlaylist.isEmpty() || playlistId <= 0L) return
+        val removeIds = musicIds.toSet()
+        if (currentPlaylist.none { it.id in removeIds }) return
+        if (!playbackTargetsPlaylist(
+                playingKey = playingKey,
+                playlistKey = playlistKey,
+                sourceKind = playlistSource?.kind,
+                sourceId = playlistSource?.id,
+                playlistId = playlistId,
+            )
+        ) {
+            return
+        }
+
+        val anchoredIndex = _playerState.value.currentMusic?.id?.let { id ->
+            currentPlaylist.indexOfFirst { it.id == id }.takeIf { it >= 0 }
+        } ?: _playerState.value.currentIndex
+        val plan = planQueueRemoval(currentPlaylist.size, anchoredIndex) { index ->
+            currentPlaylist[index].id in removeIds
+        }
+        val wasPlaying = _playerState.value.isPlaying
+        val oldPlaylist = currentPlaylist
+        removeIds.forEach { id ->
+            streamClips.remove(id)
+            if (activeClipMusicId == id) {
+                activeClip = null
+                activeClipMusicId = null
+                currentClipIndex = 0
+            }
+        }
+
+        val player = controller
+        val exoAligned = player != null && !userPlaylistActive && isExoQueueAligned(player)
+        if (exoAligned && player != null) {
+            for (index in oldPlaylist.indices.reversed()) {
+                if (oldPlaylist[index].id in removeIds && index < player.mediaItemCount) {
+                    player.removeMediaItem(index)
+                }
+            }
+        }
+
+        if (plan.nextIndex < 0) {
+            currentPlaylist = emptyList()
+            playingKey = null
+            playlistSource = null
+            userAnchorMusicId = null
+            expectedMediaItemIndex = null
+            activeClip = null
+            activeClipMusicId = null
+            streamClips.clear()
+            currentClipIndex = 0
+            player?.setMediaItems(emptyList())
+            if (player != null) {
+                updatePlayerState()
+            } else {
+                _playerState.value = _playerState.value.copy(
+                    currentMusic = null,
+                    playlist = emptyList(),
+                    currentIndex = 0,
+                    isPlaying = false,
+                    clip = null,
+                )
+            }
+            persistPlaybackState()
+            return
+        }
+
+        currentPlaylist = plan.keptOriginalIndices.map { oldPlaylist[it] }
+        if (plan.removedCurrent) {
+            navigateToPlaylistIndex(plan.nextIndex, autoPlay = wasPlaying)
+            persistPlaybackState()
+            return
+        }
+
+        val keptIndex = plan.nextIndex
+        userAnchorMusicId = currentPlaylist[keptIndex].id
+        expectedMediaItemIndex = keptIndex
+        when {
+            player == null -> publishOptimisticPlayerState(
+                currentPlaylist,
+                keptIndex,
+                _playerState.value.position,
+            )
+            !userPlaylistActive && !exoAligned -> applyPlaylistToPlayer(
+                keptIndex,
+                _playerState.value.position,
+                wasPlaying,
+            )
+            else -> updatePlayerState()
+        }
+        persistPlaybackState()
+    }
+
     override fun clearQueue() {
         userPlaylistActive = false
         // 退出音流片段态

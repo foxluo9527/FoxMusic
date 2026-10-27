@@ -16,6 +16,12 @@ data class PlaylistDetailState(
     val currentUserId: Long? = null,
     /** 曲目分页尚未返回时先展示的磁盘快照。 */
     val cachedTracks: List<Music> = emptyList(),
+    /**
+     * 从歌单移除成功后的本地曲目。非 null 时列表直接画这份，不再等分页刷新。
+     */
+    val visibleTracks: List<Music>? = null,
+    /** 本次进入详情后已成功移出歌单的曲目，分页回包里若还带着它们也继续藏起来。 */
+    val removedMusicIds: Set<Long> = emptySet(),
     val isLoading: Boolean = false,
     val isFavoriteLoading: Boolean = false,
     val error: String? = null,
@@ -54,6 +60,8 @@ sealed interface PlaylistDetailEffect : UiEffect {
     data class AddSelectedToPlaylist(val musics: List<Music>) : PlaylistDetailEffect
     data class DownloadSelected(val musics: List<Music>) : PlaylistDetailEffect
     data object RefreshTracks : PlaylistDetailEffect
+    /** 歌单曲目已从服务端移除。UI 应立刻同步正在播放的同一歌单队列。 */
+    data class TracksRemoved(val musicIds: List<Long>) : PlaylistDetailEffect
     /**
      * 为你精选/新歌速递详情页整份列表加载成功。
      * 用于回写首页/发现页的底层列表（展示条数不变）并同步正在播放的队列。

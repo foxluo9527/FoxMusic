@@ -140,18 +140,31 @@ fun PlaylistDetailContent(
         it == "queued" || it == "running" || it == "paused" || it == "needs_retry"
     } == true
     val musicStartIndex = if (importBannerVisible) 3 else 2
-    val targetLazyIndex = remember(nowPlayingId, pagingItems.itemCount, musicStartIndex) {
+    val targetLazyIndex = remember(
+        nowPlayingId,
+        pagingItems.itemCount,
+        musicStartIndex,
+        state.visibleTracks,
+        state.removedMusicIds,
+    ) {
         if (nowPlayingId == null) {
             -1
         } else {
-            var pagingIndex = -1
-            for (i in 0 until pagingItems.itemCount) {
-                if (pagingItems.peek(i)?.id == nowPlayingId) {
-                    pagingIndex = i
-                    break
+            val override = state.visibleTracks
+            val trackIndex = if (override != null) {
+                override.indexOfFirst { it.id == nowPlayingId }
+            } else {
+                var pagingIndex = -1
+                for (i in 0 until pagingItems.itemCount) {
+                    val id = pagingItems.peek(i)?.id ?: continue
+                    if (id !in state.removedMusicIds && id == nowPlayingId) {
+                        pagingIndex = i
+                        break
+                    }
                 }
+                pagingIndex
             }
-            if (pagingIndex >= 0) musicStartIndex + pagingIndex else -1
+            if (trackIndex >= 0) musicStartIndex + trackIndex else -1
         }
     }
     var headerHeightPx by remember { mutableStateOf(0f) }
@@ -483,9 +496,13 @@ private fun CollectionDetailContent(
                             state.detailType != DetailType.FAVORITE_MUSIC &&
                             state.detailType != DetailType.PLAY_HISTORY &&
                             state.detailType != DetailType.ARTIST,
-                    trackCount = headerInfo.trackCount.takeIf { it > 0 }
-                        ?: pagingItems.itemCount.takeIf { it > 0 }
-                        ?: state.cachedTracks.size,
+                    trackCount = if (state.visibleTracks != null) {
+                        headerInfo.trackCount
+                    } else {
+                        headerInfo.trackCount.takeIf { it > 0 }
+                            ?: pagingItems.itemCount.takeIf { it > 0 }
+                            ?: state.cachedTracks.count { it.id !in state.removedMusicIds }
+                    },
                     isFavorite = headerInfo.isFavorite,
                     isFavoriteLoading = state.isFavoriteLoading,
                     onPlayAll = onPlayAll,
@@ -600,14 +617,54 @@ private fun CollectionDetailContent(
             }
         }
 
-        // 歌曲列表。分页第一页还没回来时先铺磁盘快照，成功后再换成网络结果。
+        // 歌曲列表。删除成功后先画本地剩余曲目，不等分页刷新。
+        // 分页第一页还没回来时先铺磁盘快照，成功后再换成网络结果。
         val refreshState = pagingItems.loadState.refresh
-        val showCachedTracks = pagingItems.itemCount == 0 &&
-            state.cachedTracks.isNotEmpty() &&
+        val overrideTracks = state.visibleTracks
+        if (overrideTracks != null) {
+            if (overrideTracks.isEmpty()) {
+                item(key = "playlist_tracks_empty") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "暂无歌曲",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            } else {
+                items(
+                    items = overrideTracks,
+                    key = { music -> "music_${music.id}" },
+                ) { music ->
+                    MusicListItem(
+                        music = music,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        modifier = Modifier.padding(horizontal = if (!state.isSelectionMode) 16.dp else 8.dp),
+                        onClick = { onMusicClick(music) },
+                        onMoreClick = { onMusicMoreClick(music) },
+                        isSelectionMode = state.isSelectionMode,
+                        isSelected = music.id in state.selectedMusicIds,
+                        onLongClick = { onEnterSelectionMode(music.id) },
+                        onSelectionToggle = { onToggleSelection(music.id) },
+                        isNowPlaying = music.id == nowPlayingId,
+                    )
+                }
+            }
+        }
+        val cachedVisible = state.cachedTracks.filter { it.id !in state.removedMusicIds }
+        val showCachedTracks = overrideTracks == null &&
+            pagingItems.itemCount == 0 &&
+            cachedVisible.isNotEmpty() &&
             refreshState !is LoadState.NotLoading
         if (showCachedTracks) {
             items(
-                items = state.cachedTracks,
+                items = cachedVisible,
                 key = { music -> "cached_music_${music.id}" },
             ) { music ->
                 MusicListItem(
@@ -625,6 +682,7 @@ private fun CollectionDetailContent(
                 )
             }
         }
+        if (overrideTracks == null) {
         items(
             count = pagingItems.itemCount,
             key = { index ->
@@ -633,6 +691,9 @@ private fun CollectionDetailContent(
             }
         ) { index ->
             val music = pagingItems[index]
+            if (music != null && music.id in state.removedMusicIds) {
+                return@items
+            }
             if (music == null) {
                 Row(
                     modifier = Modifier
@@ -745,6 +806,7 @@ private fun CollectionDetailContent(
                     }
                 }
             }
+        }
         }
     }
 }
