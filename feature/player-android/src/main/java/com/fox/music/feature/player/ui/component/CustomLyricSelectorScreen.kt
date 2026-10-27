@@ -225,30 +225,39 @@ private fun CustomLyricSelectorContent(
     ) {
         Column(Modifier.fillMaxSize()) {
             // Song info header — follows current page
-            Column(
+            Box(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    activeItem?.music?.title ?: state.currentMusicTitle,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 88.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        activeItem?.music?.title ?: state.currentMusicTitle,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        activeItem?.music?.artists?.joinToString(" / ") { it.name }
+                            ?: state.currentMusicArtist,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                LyricModeToggle(
+                    showCustom = state.showCustom,
+                    onShowCustom = onShowCustom,
+                    modifier = Modifier.align(Alignment.TopEnd),
                 )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    activeItem?.music?.artists?.joinToString(" / ") { it.name }
-                        ?: state.currentMusicArtist,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(8.dp))
-                LyricModeSwitch(showCustom = state.showCustom, onShowCustom = onShowCustom)
             }
 
             if (state.showCustom) {
@@ -485,39 +494,33 @@ private fun CustomLyricSelectorContent(
     }
 }
 
+/**
+ * 右上角单按钮：文案是将要切过去的模式，点击在「匹配歌词」与「自定义」之间切换。
+ */
 @Composable
-private fun LyricModeSwitch(
+private fun LyricModeToggle(
     showCustom: Boolean,
     onShowCustom: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ModeChip("匹配歌词", selected = !showCustom) { onShowCustom(false) }
-        ModeChip("自定义", selected = showCustom) { onShowCustom(true) }
-    }
-}
-
-@Composable
-private fun ModeChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
+    val label = if (showCustom) "匹配歌词" else "自定义"
     Box(
-        Modifier
+        modifier
             .background(
-                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
                 RoundedCornerShape(50),
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .clickable(
+                onClickLabel = "切换到$label",
+                onClick = { onShowCustom(!showCustom) },
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
             label,
-            color = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            fontWeight = FontWeight.Medium,
         )
     }
 }
